@@ -22,7 +22,7 @@ class Experiment(BaseModel, table=True):
     description: Optional[str] = Field(default=None)
     battery_type: str = Field(nullable=False)
     nominal_capacity: float = Field(nullable=False)  # Ah
-    temperature: float  # Celsius
+    temperature_avg: Optional[float] = Field(default=None)  # Average test temperature in Celsius
     operator: Optional[str] = Field(default=None)
     start_date: datetime = Field(nullable=False)
     end_date: Optional[datetime] = Field(default=None)

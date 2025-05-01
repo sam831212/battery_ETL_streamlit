@@ -51,12 +51,6 @@ def render_upload_page():
                 value=st.session_state.get("experiment_date", datetime.now().date()),
             )
             
-            temperature = st.number_input(
-                "Test Temperature (°C)*",
-                help="Temperature at which the test was conducted",
-                value=st.session_state.get("temperature", 25.0),
-            )
-            
             operator = st.text_input(
                 "Operator",
                 help="Name of the person who conducted the experiment",
@@ -77,7 +71,6 @@ def render_upload_page():
             st.session_state["battery_type"] = battery_type
             st.session_state["nominal_capacity"] = nominal_capacity
             st.session_state["experiment_date"] = experiment_date
-            st.session_state["temperature"] = temperature
             st.session_state["operator"] = operator
             
             st.success("Experiment information saved. Now upload data files.")
