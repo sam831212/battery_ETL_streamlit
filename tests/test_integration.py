@@ -259,5 +259,10 @@ def test_query_experiments(test_session):
         assert step.experiment.name == "Query Test Experiment"
         
     # Clean up
+    # First delete all steps associated with the experiment
+    for step_obj in test_session.exec(select(Step).where(Step.experiment_id == experiment.id)).all():
+        test_session.delete(step_obj)
+    
+    # Then delete the experiment
     test_session.delete(experiment)
     test_session.commit()
