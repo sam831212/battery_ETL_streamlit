@@ -139,8 +139,10 @@ def sample_data(test_session, sample_experiment):
 def test_database_connection(test_engine):
     """Test that we can connect to the database"""
     # Just execute a simple query to verify connection
+    from sqlalchemy import text
+    
     with Session(test_engine) as session:
-        result = session.execute("SELECT 1").first()
+        result = session.execute(text("SELECT 1")).first()
         assert result[0] == 1
 
 
