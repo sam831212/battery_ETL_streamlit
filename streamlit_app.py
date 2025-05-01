@@ -83,15 +83,13 @@ for page, icon in menu_items.items():
         st.write(f"### {icon}")
     
     with col2:
-        btn = st.button(
+        if st.button(
             page, 
             key=f"btn_{page}", 
             use_container_width=True,
-            type="primary" if st.session_state.get('current_page') == page else "secondary"
-        )
-        if btn:
-            st.session_state['current_page'] = page
-            st.experimental_rerun()
+            type="primary" if st.session_state['current_page'] == page else "secondary"
+        ):
+            change_page(page)
 
 # Sidebar divider
 st.sidebar.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
