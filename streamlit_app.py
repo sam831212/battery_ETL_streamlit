@@ -55,6 +55,10 @@ st.markdown("""
 if 'current_page' not in st.session_state:
     st.session_state['current_page'] = "Upload & Process"
 
+# Function to change page
+def change_page(page):
+    st.session_state['current_page'] = page
+    
 # Sidebar logo and title
 st.sidebar.title("⚡ Battery ETL")
 
@@ -68,10 +72,24 @@ menu_items = {
     "Settings": "⚙️"
 }
 
+# Create buttons styled as menu items
 for page, icon in menu_items.items():
     active_class = "active" if st.session_state['current_page'] == page else ""
-    if st.sidebar.markdown(f'<div class="sidebar-menu {active_class}"><span class="sidebar-menu-icon">{icon}</span> {page}</div>', unsafe_allow_html=True):
-        st.session_state['current_page'] = page
+    
+    # Use columns to create button with icon
+    col1, col2 = st.sidebar.columns([1, 5])
+    
+    with col1:
+        st.write(f"### {icon}")
+    
+    with col2:
+        if st.button(
+            page, 
+            key=f"btn_{page}", 
+            use_container_width=True,
+            type="primary" if st.session_state['current_page'] == page else "secondary"
+        ):
+            change_page(page)
 
 # Sidebar divider
 st.sidebar.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
