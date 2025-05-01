@@ -218,7 +218,7 @@ def validate_value_jumps(df: pd.DataFrame, column: str, max_jump_percent: float 
     }
 
 
-def generate_validation_report(df: pd.DataFrame, step_type: str = None) -> Dict[str, Any]:
+def generate_validation_report(df: pd.DataFrame, step_type: Optional[str] = None) -> Dict[str, Any]:
     """Generate a comprehensive validation report for battery data
 
     Args:
