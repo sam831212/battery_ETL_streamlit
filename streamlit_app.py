@@ -58,6 +58,7 @@ if 'current_page' not in st.session_state:
 # Function to change page
 def change_page(page):
     st.session_state['current_page'] = page
+    st.rerun()
     
 # Sidebar logo and title
 st.sidebar.title("⚡ Battery ETL")
