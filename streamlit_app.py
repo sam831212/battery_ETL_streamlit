@@ -3,7 +3,11 @@ Battery ETL Dashboard - Main application entry point
 """
 import streamlit as st
 from app.utils.config import DEBUG
+from app.utils.database import init_db
 import os
+
+# Initialize the database
+db_init_success = init_db()
 
 # Configure the page
 st.set_page_config(
