@@ -6,7 +6,8 @@ a real test database environment.
 """
 import os
 import pytest
-from sqlmodel import SQLModel, create_engine, Session
+from sqlalchemy import text
+from sqlmodel import SQLModel, create_engine, Session, select
 from datetime import datetime, timedelta
 
 from app.models.database import (
@@ -139,8 +140,6 @@ def sample_data(test_session, sample_experiment):
 def test_database_connection(test_engine):
     """Test that we can connect to the database"""
     # Just execute a simple query to verify connection
-    from sqlalchemy import text
-    
     with Session(test_engine) as session:
         result = session.execute(text("SELECT 1")).first()
         assert result[0] == 1
@@ -203,25 +202,62 @@ def test_relationships(sample_data):
             assert measurement.step_id == step.id
 
 
-def test_query_experiments(test_session, sample_data):
+def test_query_experiments(test_session):
     """Test querying experiments"""
+    # Create a new experiment first for this test
+    experiment = Experiment(
+        name="Query Test Experiment",
+        description="For testing queries only",
+        battery_type="NMC",
+        nominal_capacity=3.0,
+        start_date=datetime.utcnow()
+    )
+    test_session.add(experiment)
+    test_session.commit()
+    
     # Get all experiments
-    experiments = test_session.query(Experiment).all()
+    experiments = test_session.exec(select(Experiment)).all()
     assert len(experiments) >= 1
     
     # Find specific experiment
-    experiment = test_session.query(Experiment).filter(
-        Experiment.name == "Integration Test Experiment"
+    queried_experiment = test_session.exec(
+        select(Experiment).where(Experiment.name == "Query Test Experiment")
     ).first()
     
-    assert experiment is not None
-    assert experiment.id == sample_data["experiment"].id
+    assert queried_experiment is not None
+    assert queried_experiment.id == experiment.id
+    
+    # Create step for join testing
+    step = Step(
+        experiment_id=experiment.id,
+        step_number=1,
+        step_type="test",
+        start_time=datetime.utcnow(),
+        duration=100,
+        voltage_start=3.0,
+        voltage_end=4.0,
+        current=1.0,
+        capacity=2.0,
+        energy=8.0,
+        temperature_avg=25.0,
+        temperature_min=24.0,
+        temperature_max=26.0,
+        c_rate=0.5
+    )
+    test_session.add(step)
+    test_session.commit()
     
     # Test querying with joins
-    steps_with_experiment = test_session.query(
-        Step, Experiment.name
-    ).join(Experiment).all()
+    steps_with_experiment = test_session.exec(
+        select(Step, Experiment.name)
+        .join(Experiment)
+        .where(Experiment.id == experiment.id)
+    ).all()
     
-    assert len(steps_with_experiment) >= 3
+    assert len(steps_with_experiment) >= 1
     for step, exp_name in steps_with_experiment:
-        assert step.experiment.name == exp_name
+        assert step.experiment.name == "Query Test Experiment"
+        
+    # Clean up
+    test_session.delete(experiment)
+    test_session.commit()

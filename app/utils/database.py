@@ -55,9 +55,10 @@ def test_db_connection() -> tuple[bool, Optional[str]]:
         tuple[bool, Optional[str]]: Success status and error message (if any)
     """
     try:
+        from sqlalchemy import text
         with get_session() as session:
             # Execute a simple query
-            session.execute("SELECT 1")
+            session.execute(text("SELECT 1"))
         return True, None
     except Exception as e:
         error_message = f"Database connection error: {str(e)}"
