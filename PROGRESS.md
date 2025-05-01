@@ -71,12 +71,15 @@ This document tracks the progress of the Battery ETL Dashboard implementation ac
 - Started implementing extraction module for ChromaLex format
 - Created validation for CSV formats
 
-## Task 4: Implement data transformation (Planned)
+## Task 4: Implement data transformation (Completed)
 
-- SOC calculation algorithm using Coulomb counting
-- C-rate calculation based on current and nominal capacity
-- OCV extraction from rest steps
-- Temperature metrics calculation
+- ✓ Created transformation.py module with functions for processing battery data
+- ✓ Implemented SOC calculation algorithm using Coulomb counting
+- ✓ Added C-rate calculation based on current and nominal capacity
+- ✓ Created OCV extraction from rest steps
+- ✓ Implemented temperature metrics calculation
+- ✓ Added multi-language support (English and Chinese) for CSV file formats
+- ✓ Enhanced extraction module to auto-detect CSV format
 
 ## Task 5: Implement data validation and preview (Partly Implemented)
 
@@ -118,7 +121,7 @@ This document tracks the progress of the Battery ETL Dashboard implementation ac
 
 1. Complete the ETL processing implementation:
    - ✓ Finish extraction module for parsing CSV files
-   - Implement transformation logic for metrics calculation
+   - ✓ Implement transformation logic for metrics calculation
    - Integrate validation with the UI
 
 2. Enhance the dashboard with real data visualization:

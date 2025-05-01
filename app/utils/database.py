@@ -13,7 +13,16 @@ engine = create_engine(DATABASE_URL, echo=DEBUG)
 
 def create_db_and_tables():
     """Create all tables defined in the models if they don't exist"""
-    SQLModel.metadata.create_all(engine)
+    try:
+        SQLModel.metadata.create_all(engine)
+    except Exception as e:
+        # Check if the error is about existing tables
+        if "Table is already defined" in str(e):
+            # This is expected when tables already exist
+            pass
+        else:
+            # This is an unexpected error
+            raise e
 
 
 def get_session() -> Session:

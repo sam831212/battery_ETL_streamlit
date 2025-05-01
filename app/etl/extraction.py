@@ -7,7 +7,7 @@ ChromaLex battery test files (Step.csv and Detail.csv).
 import os
 import hashlib
 import pandas as pd
-from typing import List, Dict, Tuple, Optional, Union, Any
+from typing import List, Dict, Tuple, Optional, Union, Any, cast
 from datetime import datetime
 
 
@@ -362,7 +362,7 @@ def parse_detail_csv(file_path: str) -> pd.DataFrame:
 
 
 def load_and_preprocess_files(step_file_path: str, detail_file_path: str, 
-                         nominal_capacity: float = None,
+                         nominal_capacity: Optional[float] = None,
                          apply_transformations: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
     """
     Load and preprocess both Step.csv and Detail.csv files.

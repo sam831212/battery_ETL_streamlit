@@ -4,10 +4,14 @@ Transformation module for battery test data
 This module provides functions for calculating derived metrics from
 battery test data, such as SOC, C-rate, OCV, and temperature statistics.
 """
-from typing import List, Dict, Tuple, Optional, Union, Any
+from typing import List, Dict, Tuple, Optional, Union, Any, cast
 import pandas as pd
 import numpy as np
 from datetime import datetime
+
+# Type aliases for improved readability
+StepDataFrame = pd.DataFrame
+DetailDataFrame = pd.DataFrame
 
 
 def calculate_c_rate(current: float, nominal_capacity: float) -> float:

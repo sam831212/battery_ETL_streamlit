@@ -28,6 +28,10 @@ class Experiment(BaseModel, table=True):
     end_date: Optional[datetime] = Field(default=None)
     data_meta: dict = Field(default={}, sa_column=Column(JSON))
     
+    # Validation results
+    validation_status: Optional[bool] = Field(default=None)  # True if validation passed, False if issues found
+    validation_report: Optional[dict] = Field(default=None, sa_column=Column(JSON))  # Validation report details
+    
     # Relationships
     steps: List["Step"] = Relationship(back_populates="experiment")
 
