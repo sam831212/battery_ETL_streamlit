@@ -3,6 +3,7 @@ Battery ETL Dashboard - Main application entry point
 """
 import streamlit as st
 from app.utils.config import DEBUG
+import os
 
 # Configure the page
 st.set_page_config(
@@ -12,43 +13,101 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Page header
-st.title("⚡ Battery ETL Dashboard")
-st.write("""
-Welcome to the Battery ETL Dashboard, a tool for analyzing and visualizing battery test data.
-This application helps streamline the process of analyzing battery test data from cyclers.
-""")
+# Custom CSS for modern sidebar menu
+st.markdown("""
+<style>
+    .sidebar-menu {
+        padding: 10px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+        display: flex;
+        align-items: center;
+        color: #262730;
+    }
+    .sidebar-menu:hover {
+        background-color: #f0f2f6;
+    }
+    .sidebar-menu.active {
+        background-color: #1E88E5;
+        color: white;
+    }
+    .sidebar-menu-icon {
+        margin-right: 10px;
+        width: 20px;
+        text-align: center;
+    }
+    .sidebar-title {
+        margin-top: 20px;
+        margin-bottom: 10px;
+        font-weight: bold;
+    }
+    .sidebar-divider {
+        height: 1px;
+        background-color: #e0e0e0;
+        margin: 15px 0;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# Setup sidebar navigation
-st.sidebar.title("Navigation")
-page = st.sidebar.radio(
-    "Select a page:",
-    ["Upload & Process", "Dashboard", "Settings"]
-)
+# Initialize session state for navigation
+if 'current_page' not in st.session_state:
+    st.session_state['current_page'] = "Upload & Process"
 
-# Display different content based on the selected page
-if page == "Upload & Process":
-    st.header("Upload & Process Data")
-    st.write("Here you can upload Step.csv and Detail.csv files for processing.")
-    
-    # Placeholder for file upload UI
-    st.info("File upload UI will be implemented in future tasks.")
-    
-elif page == "Dashboard":
-    st.header("Data Dashboard")
-    st.write("Here you can explore and visualize processed battery test data.")
-    
-    # Placeholder for dashboard UI
-    st.info("Dashboard UI will be implemented in future tasks.")
-    
-elif page == "Settings":
-    st.header("Settings")
-    st.write("Configure application settings.")
-    
-    # Placeholder for settings UI
-    st.info("Settings UI will be implemented in future tasks.")
+# Sidebar logo and title
+st.sidebar.title("⚡ Battery ETL")
+
+# Navigation menu
+st.sidebar.markdown('<div class="sidebar-title">Navigation</div>', unsafe_allow_html=True)
+
+# Menu items with icons
+menu_items = {
+    "Upload & Process": "📤",
+    "Dashboard": "📊",
+    "Settings": "⚙️"
+}
+
+for page, icon in menu_items.items():
+    active_class = "active" if st.session_state['current_page'] == page else ""
+    if st.sidebar.markdown(f'<div class="sidebar-menu {active_class}"><span class="sidebar-menu-icon">{icon}</span> {page}</div>', unsafe_allow_html=True):
+        st.session_state['current_page'] = page
+
+# Sidebar divider
+st.sidebar.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
 
 # Show debug information if in debug mode
 if DEBUG:
     st.sidebar.warning("Application is running in DEBUG mode")
-    st.sidebar.write(f"Current page: {page}")
+    st.sidebar.write(f"Current page: {st.session_state['current_page']}")
+
+# Main content area
+st.title(f"{menu_items[st.session_state['current_page']]} {st.session_state['current_page']}")
+
+# Display different content based on the selected page
+if st.session_state['current_page'] == "Upload & Process":
+    st.write("""
+    Here you can upload Step.csv and Detail.csv files for processing. 
+    The system will guide you through the ETL process and help you prepare data for analysis.
+    """)
+    
+    # Placeholder for file upload UI
+    st.info("File upload UI will be implemented in future tasks.")
+    
+elif st.session_state['current_page'] == "Dashboard":
+    st.write("""
+    Explore and visualize processed battery test data. 
+    Use the filters to select specific experiments and steps, and generate custom visualizations.
+    """)
+    
+    # Placeholder for dashboard UI
+    st.info("Dashboard UI will be implemented in future tasks.")
+    
+elif st.session_state['current_page'] == "Settings":
+    st.write("""
+    Configure application settings including database connections, 
+    file format preferences, and visualization defaults.
+    """)
+    
+    # Placeholder for settings UI
+    st.info("Settings UI will be implemented in future tasks.")
