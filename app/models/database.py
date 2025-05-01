@@ -89,4 +89,3 @@ class ProcessedFile(BaseModel, table=True):
     
     # Relationship
     experiment: "Experiment" = Relationship()
-"""

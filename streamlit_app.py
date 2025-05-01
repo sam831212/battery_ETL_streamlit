@@ -109,28 +109,13 @@ st.title(f"{menu_items[st.session_state['current_page']]} {st.session_state['cur
 
 # Display different content based on the selected page
 if st.session_state['current_page'] == "Upload & Process":
-    st.write("""
-    Here you can upload Step.csv and Detail.csv files for processing. 
-    The system will guide you through the ETL process and help you prepare data for analysis.
-    """)
-    
-    # Placeholder for file upload UI
-    st.info("File upload UI will be implemented in future tasks.")
+    from app.ui.upload import render_upload_page
+    render_upload_page()
     
 elif st.session_state['current_page'] == "Dashboard":
-    st.write("""
-    Explore and visualize processed battery test data. 
-    Use the filters to select specific experiments and steps, and generate custom visualizations.
-    """)
-    
-    # Placeholder for dashboard UI
-    st.info("Dashboard UI will be implemented in future tasks.")
+    from app.ui.dashboard import render_dashboard_page
+    render_dashboard_page()
     
 elif st.session_state['current_page'] == "Settings":
-    st.write("""
-    Configure application settings including database connections, 
-    file format preferences, and visualization defaults.
-    """)
-    
-    # Placeholder for settings UI
-    st.info("Settings UI will be implemented in future tasks.")
+    from app.ui.settings import render_settings_page
+    render_settings_page()
