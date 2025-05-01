@@ -230,7 +230,7 @@ def render_upload_page():
                                         datetime.min.time()
                                     ),
                                     end_date=None,  # Will be updated after processing
-                                    metadata=metadata["experiment"]
+                                    data_meta=metadata["experiment"]
                                 )
                                 
                                 # Save to database
@@ -261,7 +261,7 @@ def render_upload_page():
                                             soc_start=None,  # Will be calculated in a future task
                                             soc_end=None,   # Will be calculated in a future task
                                             ocv=None,       # Will be calculated in a future task
-                                            metadata={}
+                                            data_meta={}
                                         )
                                         session.add(step)
                                     session.commit()
@@ -308,7 +308,7 @@ def render_upload_page():
                                         file_type="step",
                                         file_hash=step_file_hash,
                                         row_count=len(step_df),
-                                        metadata=metadata["step_file"]
+                                        data_meta=metadata["step_file"]
                                     ))
                                     
                                     session.add(ProcessedFile(
@@ -317,7 +317,7 @@ def render_upload_page():
                                         file_type="detail",
                                         file_hash=detail_file_hash,
                                         row_count=len(detail_df),
-                                        metadata=metadata["detail_file"]
+                                        data_meta=metadata["detail_file"]
                                     ))
                                     
                                     session.commit()

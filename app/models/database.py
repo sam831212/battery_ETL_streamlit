@@ -26,7 +26,7 @@ class Experiment(BaseModel, table=True):
     operator: Optional[str] = Field(default=None)
     start_date: datetime = Field(nullable=False)
     end_date: Optional[datetime] = Field(default=None)
-    metadata: dict = Field(default={}, sa_column=Column(JSON))
+    data_meta: dict = Field(default={}, sa_column=Column(JSON))
     
     # Relationships
     steps: List["Step"] = Relationship(back_populates="experiment")
@@ -53,7 +53,7 @@ class Step(BaseModel, table=True):
     soc_start: Optional[float] = Field(default=None)  # %
     soc_end: Optional[float] = Field(default=None)  # %
     ocv: Optional[float] = Field(default=None)  # V
-    metadata: dict = Field(default={}, sa_column=Column(JSON))
+    data_meta: dict = Field(default={}, sa_column=Column(JSON))
     
     # Relationships
     experiment: "Experiment" = Relationship(back_populates="steps")
@@ -85,7 +85,7 @@ class ProcessedFile(BaseModel, table=True):
     file_hash: str = Field(nullable=False, unique=True)
     processed_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
     row_count: int = Field(nullable=False)
-    metadata: dict = Field(default={}, sa_column=Column(JSON))
+    data_meta: dict = Field(default={}, sa_column=Column(JSON))
     
     # Relationship
     experiment: "Experiment" = Relationship()
