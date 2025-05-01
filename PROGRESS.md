@@ -47,7 +47,26 @@ This document tracks the progress of the Battery ETL Dashboard implementation ac
   - `get_session()`: Get a new database session
   - `test_db_connection()`: Test database connectivity
 
-## Task 3: Implement data extraction from CSV files (In Progress)
+## Task 3: Implement data extraction from CSV files (Completed)
+
+- Created extraction.py module with functions for processing ChromaLex CSV files:
+  - `validate_csv_format()`: Verify that the CSV files have required headers
+  - `map_step_types()`: Standardize step types (charge, discharge, rest)
+  - `calculate_file_hash()`: Generate file hash for tracking processed files
+  - `parse_step_csv()`: Process Step.csv file with specific header format
+  - `parse_detail_csv()`: Process Detail.csv file with specific header format
+  - `load_and_preprocess_files()`: Load and preprocess both CSV files
+
+- Created example CSV files for testing:
+  - `Step.csv`: Contains step-level data
+  - `Detail.csv`: Contains detailed measurement data
+  - `Bad_Headers.csv`: Example of invalid format for testing validations
+
+- Enhanced upload interface with validation:
+  - File format validation using `validate_csv_format()`
+  - Data preprocessing using `load_and_preprocess_files()`
+  - Database storage of experiment, steps, and measurements
+  - Duplicate file detection using file hashing
 
 - Started implementing extraction module for ChromaLex format
 - Created validation for CSV formats
@@ -98,7 +117,7 @@ This document tracks the progress of the Battery ETL Dashboard implementation ac
 ## Next Steps
 
 1. Complete the ETL processing implementation:
-   - Finish extraction module for parsing CSV files
+   - ✓ Finish extraction module for parsing CSV files
    - Implement transformation logic for metrics calculation
    - Integrate validation with the UI
 
@@ -107,7 +126,7 @@ This document tracks the progress of the Battery ETL Dashboard implementation ac
    - Create voltage profile visualizations
    - Add temperature analysis charts
 
-3. Implement database integration for storing processed data:
-   - Save experiments to database
+3. Improve database integration:
+   - ✓ Save experiments to database
    - Retrieve and display stored experiments
    - Enable editing and updating of existing experiments
