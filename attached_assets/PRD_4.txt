@@ -1,0 +1,154 @@
+# Overview
+The Battery ETL Dashboard is a modular web application designed to streamline the analysis of battery test data generated from cyclers. It addresses the lack of standardized tools for researchers and engineers to process `Step.csv` (summary data) and `Detail.csv` (time series data linked by step index), calculate State of Charge (SOC) baselines, classify and select relevant test steps, store the data systematically, and visualize results—all without requiring users to write custom code for each analysis. The tool supports automated data extraction, transformation, loading into a PostgreSQL database, and interactive visualization for enhanced understanding and reporting.
+
+**Target example CSV files are located in the example_csv_chromaLex directory.**
+
+# Target Users
+- R&D Engineer conducting cycle/lifecycle tests, needing a unified platform to sort, store, and double-check experiments for anomaly results.
+- Data Analyst analyzing capacity fade, C-rate performance, SOC behavior etc., who need to find the correct experiment data, visualize results easily, and potentially use data for future modeling (RC-circuit, machine learning).
+- QA and data teams preparing reports and dashboards, who need templates combining several experiment data sets with pre-defined plots (e.g., "Cap. vs V", "V vs. t", "T vs. t", "Cap. vs. T", "Charge t vs. SOC", "Discharge T vs. Discharge Cap.") allowing customization of axes.
+
+# Why it's valuable
+Current workflows are manual, inconsistent, and time-consuming. This platform offers automation, structured storage, reusable visual templates, and integrated analysis, helping teams move faster, reduce errors, ensure data integrity, and produce better insights from experimental data.
+
+# User Experience
+
+* **User Personas**
+    - R&D Engineer – needs fast automated analysis, reliable data storage, and easy plot generation/comparison.
+    - Data Analyst – needs to efficiently find, filter, compare, and visualize test results across different cells, experiments, and conditions.
+
+* **Key User Flows**
+    1.  **(MVP) Experiment Setup & Upload:** User navigates to upload section -> Select experiment metadata from dropdown list (Project Name, Operator, Cell name, Machine Used) all experiment metadata should be in text and in dropdown list there should be "add new" function to add new item. -> Uploads `Step.csv` and `Detail.csv`.
+    2.  **ETL & SOC Baseline:** System parses files -> User identifies the 'full discharge' step from the listed steps (used for 0% SOC reference and to determine nominal capacity via UI selection).
+    3.  **Step Selection & Pre-processing:** System calculates initial SOC for all charge/discharge steps based solely on the full discharge step -> Displays list of charge/discharge steps with calculated metrics (SOC range, C-rate range, Temp range, Action Type) -> User uses checkboxes to select *which specific steps* are relevant for analysis and should be loaded into the database. -> User clicks "Pre-process/Analyze".
+    4.  **Validation & Preview:** System performs calculations (e.g., final SOC, cycles) and data validation (e.g., check SOC range 0-100, positive C-rate) -> Shows a preview summary table and key predefined plots (e.g., Capacity vs. Voltage for selected discharge steps) based on integrated analysis logic. The plot function should share with later workflow. 
+    5.  **Database Loading:** User confirms preview -> Clicks "Load to Database". System saves processed metadata, selected Step data, and associated Detail data to PostgreSQL.
+    6.  **Data Exploration & Visualization:** User navigates to the Dashboard/Explore section -> Filters experiments (by Cell, Project, Date etc.) or steps regardless experiments (by SOC range, C-rate range, Temp range, Action type) -> Selects desired steps using checkboxes -> Views predefined plots (V vs t, Cap vs V, etc.) populated with data from selected steps -> Exports data (CSV) or plots (PNG).
+    7.  **Viewing Saved Results:** User navigates to a specific saved experiment view/bookmark -> Sees the plots and summary that were generated and saved previously for that analysis (e.g., the specific "C-rate experiment for cell 1" plots).
+
+* **UI/UX Considerations**
+    - Clear navigation (e.g., Sidebar for Upload, Dashboard/Explore, Settings).
+    - Guided workflow for upload and processing.
+    - Interactive tables for step listing, filtering, and selection with key calculated metrics displayed.
+    - Tab-based interface within the Dashboard for different views (Summary, Predefined Plots, Custom Plot).
+    - Clear buttons for actions (Upload, Set SOC Ref, Select Steps, Pre-process, Load DB, Export, Save View).
+    - Responsive design for standard desktop screen sizes.
+
+# Core Features
+
+1.  **Metadata Input & Management**
+    - **Experiment Metadata (MVP):** User inputs essential experiment details during the upload process: Project Name, Date, Operator Name, Cell Identifier being tested, Machine Used. Default for user to select from dropdown list. if User want to add new, input via form fields. Nominal capacity is determined automatically from the selected full discharge step.
+    - For MVP, if a Cell ID is new, a basic record might be created automatically or prompted.
+    - **(Future)** Dedicated UI section for creating, updating, and deleting Cell, Supplier, Customer, Machine master records independently of uploads.
+
+2.  **ETL Engine (Extract, Transform, Load)**
+    - **Extraction:** Parses uploaded `Step.csv` and `Detail.csv` files (initially for Chroma LEX format defined by `example_csv_chromaLex`).
+        - ChromaLex "Step" header focus (Keep/Drop defined):
+            - Keep: 工步, 工步種類, 日期時間, 工步執行時間(秒), 工步時間, 截止電壓(V), 截止電流(A), 能量(Wh), 截止電量(Ah), 功率(W), 充電電量(Ah), 放電電量(Ah), 充電能量(Wh), 放電能量(Wh), 總電量(Ah), 截止Q(%), 狀態, Aux T1, 溫箱溫度, Aux T2, Aux T3
+            - Drop: 循環, 迴圈, 子循環, 子迴圈, MR編號, 子配方編號, 工步編號
+        - ChromaLex "Detail" header focus (Keep/Drop defined):
+            - Keep: 工步, 工步種類, 工步執行時間(秒), 電壓(V), 電流(A), 電量(Ah), Aux T1
+            - Drop: others
+        - **(Future)** Header mapping configurable via Settings module for different machine types/formats.
+    - **Transformation:**
+        - Filters steps to initially process/display only charge/discharge types (e.g., CC-CV, CC, CP 充/放電 based on '工步種類'). Excludes '靜置', '溫箱控制', etc., from main processing and SOC calculation chain.
+        - **OCV Calculation:** For each identified charge or discharge step, the system looks at the *immediately preceding* step in the original file sequence. If the preceding step's '工步種類' is '靜置' (Rest), its '截止電壓(V)' (Cut-off Voltage) value is recorded as the 'Start_OCV_V' for the current charge/discharge step. If the preceding step is not '靜置', the 'Start_OCV_V' might be null or marked as not applicable.
+        - Calculates C-rate for each step: `C-rate = |Current (A)| / Nominal_Capacity (Ah)`, where Nominal_Capacity is determined from the selected full discharge step. Handle potential division by zero.
+        - Calculates step-end SOC based only on the user-selected 0% (full discharge) reference step using Coulomb counting:
+          `SOC_end_step_x = (Total_Ah_step_x - Total_Ah_at_end_of_full_discharge_step) / |Total_Ah_at_end_of_full_discharge_step|`
+
+          (Uses the absolute value of the total capacity from the designated full discharge step as the denominator. `Total_Ah_at_end_of_full_discharge_step` corresponds to the `總電量(Ah)` value of the user-selected full discharge step). The starting SOC of a step is the end SOC of the *previous chronological charge/discharge* step.
+    - **Loading:** Loads *only the user-selected steps* and their associated `Detail.csv` data into the database after user confirmation via the "Load to Database" action.
+
+3.  **Step Classification & Selection**
+    - User interface allows explicit selection (unique checkbox) of the single step representing full discharge (0% SOC reference and nominal capacity).
+    - User interface (e.g., table with checkboxes) allows selection of *multiple* charge/discharge steps deemed relevant for analysis. The table displays key info per step (Step number, Action type, Calculated C-rate range, Calculated SOC range, **Calculated Start OCV**, Temp range) to aid selection. Only selected steps are saved to the DB.
+4.  **Data Validation & Preview**
+    - **Pre-computation Checks:** Validates uploaded files for basic format integrity and presence of essential headers before extensive processing.
+    - **Post-computation Validation:** Checks calculated values for plausibility (e.g., SOC within 0%-100% range ± tolerance, C-rate is positive). Flags rows/steps with anomalies in the preview UI.
+    - **Preview:** Before loading to the DB, displays a summary table (e.g., count of selected steps, cycle count, overall time) and key predefined plots (using Plotly, based on integrated analysis logic/scripts) populated with the processed data of the steps the user has selected. This allows the user to visually confirm the processing and selection are correct.
+
+5.  **Database Integration**
+    - Saves processed experiment metadata, selected `Step` summary data, and associated `Detail` time-series data into a structured PostgreSQL database using SQLModel ORM.
+    - Schema includes tables for Experiment, Step, Detail, linked to Cell, Machine, etc. Ensures proper foreign key relationships for data integrity (e.g., Detail rows linked to their parent Step, Steps linked to their Experiment).
+
+6.  **Data Exploration & Visualization Dashboard**
+    - **Unified Interface:** Single page or tabbed interface combining filtering, selection, and visualization.
+    - **Filtering/Selection:** Provides controls (dropdowns, sliders, text search) to filter:
+        - Experiments based on metadata (Cell ID, Project Name, Date Range, Machine).
+        - Steps regardless experiments based on characteristics (Action type, SOC range, C-rate range, Temperature range, Start OCV range).
+    - **Step Display & Selection:** Displays filtered steps in an interactive table. Users select desired steps for plotting using checkboxes.
+       - **Predefined Visualizations:** Automatically generates standard battery analysis plots based on the user's selected steps. Initial plots to include: "Capacity vs. Voltage", "Voltage vs. Time", "Temperature vs. Time", "Current vs. Time", **"OCV vs. SOC"**, "Charge Time vs. SOC", "Discharge Temp vs. Discharge Capacity". Plot generation should be responsive (<2s target).
+    
+
+# Technical Architecture
+
+* **System Components:**
+    - Frontend: Streamlit web framework.
+    - Backend: Python (Pandas for data manipulation, custom logic for ETL/calculations).
+    - Database: PostgreSQL.
+    - ORM: SQLModel (or SQLAlchemy).
+    - Visualization: Plotly (primary), Matplotlib (optional/fallback).
+    - Deployment (Optional): Docker containerization for easier deployment.
+* **Data Models (Illustrative - SQLModel syntax):**
+    ```python
+    # Simplified Example
+    class Cell(SQLModel, table=True):
+        id: Optional[int] = Field(default=None, primary_key=True)
+        cell_identifier: str = Field(index=True, unique=True) # User defined ID
+        nominal_capacity_ah: float = Field(index=True)
+        chemistry: Optional[str] = None
+        total_cycle_ran: float = Field(default=0.0)
+        # relationships back to experiments
+
+    class Machine(SQLModel, table=True):
+        id: Optional[int] = Field(default=None, primary_key=True)
+        name: str = Field(unique=True)
+
+    class Experiment(SQLModel, table=True):
+        id: Optional[int] = Field(default=None, primary_key=True)
+        project_name: Optional[str] = Field(index=True)
+        upload_date: datetime = Field(default_factory=datetime.utcnow)
+        operator_name: Optional[str]
+        cell_id: int = Field(foreign_key="cell.id")
+        machine_id: Optional[int] = Field(foreign_key="machine.id")
+        # relationships back to steps
+
+    class Step(SQLModel, table=True):
+        id: Optional[int] = Field(default=None, primary_key=True)
+        experiment_id: int = Field(foreign_key="experiment.id", index=True)
+        step_index: int # Original step number from file
+        step_action: str # 工步種類
+        step_time_s: float
+        end_voltage_v: float
+        end_current_a: float
+        charge_ah: float
+        discharge_ah: float
+        total_ah_at_step_end: float # 總電量(Ah)
+        # ... other kept columns ...
+        calculated_start_ocv: Optional[float] # OCV from previous rest step
+        calculated_start_soc: Optional[float]
+        calculated_end_soc: Optional[float]
+        calculated_c_rate: Optional[float]
+        avg_temp_c: Optional[float]
+        # relationships back to detail
+
+    class Detail(SQLModel, table=True):
+        id: Optional[int] = Field(default=None, primary_key=True)
+        step_id: int = Field(foreign_key="step.id", index=True)
+        timestamp_offset_s: float
+        voltage_v: float
+        current_a: float
+        capacity_ah: float
+        temperature_c: Optional[float]
+
+    class SavedView(SQLModel, table=True):
+        id: Optional[int] = Field(default=None, primary_key=True)
+        name: str = Field(index=True)
+        description: Optional[str]
+        created_by: str
+        created_at: datetime = Field(default_factory=datetime.utcnow)
+        # Store filters, selected step IDs etc. potentially as JSON string or dedicated fields
+        filter_settings_json: str
+        selected_step_ids_json: str
+    ```

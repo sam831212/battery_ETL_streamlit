@@ -1,0 +1,21 @@
+# Task ID: 4
+# Title: Implement data transformation logic
+# Status: pending
+# Dependencies: 3
+# Priority: high
+# Description: Develop functions to calculate SOC, C-rate, OCV, and other derived metrics from the parsed data.
+# Details:
+Create transformation module in app/etl/transformation.py with functions:
+- calculate_c_rate(current, nominal_capacity): Calculate C-rate
+- calculate_soc(steps_df, full_discharge_step_idx): Calculate SOC for all steps based on reference
+- extract_ocv_values(steps_df): Extract OCV values from preceding rest steps
+- calculate_temperature_metrics(df): Calculate temperature statistics per step
+
+Implement the SOC calculation algorithm using Coulomb counting as specified:
+- SOC_end_step_x = (Total_Ah_step_x - Total_Ah_at_end_of_full_discharge_step) / |Total_Ah_at_end_of_full_discharge_step|
+- Calculate starting SOC of a step as the end SOC of previous chronological charge/discharge step
+
+Implement OCV extraction logic to find preceding rest steps and extract voltage values.
+
+# Test Strategy:
+Create unit tests with sample data to verify calculations. Test edge cases (zero nominal capacity, missing data). Compare calculated results with expected values for known test cases.

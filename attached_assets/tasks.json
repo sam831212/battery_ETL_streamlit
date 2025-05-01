@@ -1,0 +1,690 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Set up project structure and environment",
+      "description": "Initialize the project structure, install dependencies, and set up the development environment for the Battery ETL Dashboard.",
+      "status": "pending",
+      "dependencies": [],
+      "priority": "high",
+      "details": "Create a new Python project with the following structure:\n- /app: Main application code\n- /app/models: Database models\n- /app/etl: ETL processing logic\n- /app/ui: Streamlit UI components\n- /app/visualization: Plotting functions\n- /app/utils: Utility functions\n- /tests: Test files\n\nInstall required dependencies:\n- streamlit\n- pandas\n- plotly\n- sqlmodel\n- psycopg2-binary\n- python-dotenv\n\nCreate a requirements.txt file and a .env file template for database configuration.",
+      "testStrategy": "Verify all dependencies install correctly and the project structure is properly set up. Run a basic Streamlit app to confirm the environment is working.",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Create project directory structure",
+          "description": "Initialize the basic project structure with all required directories for the Battery ETL Dashboard",
+          "status": "pending",
+          "dependencies": [],
+          "details": "Create a new project directory and set up the following folder structure:\n- /app (Main application code)\n- /app/models (Database models)\n- /app/etl (ETL processing logic)\n- /app/ui (Streamlit UI components)\n- /app/visualization (Plotting functions)\n- /app/utils (Utility functions)\n- /tests (Test files)\n\nEnsure each directory contains an empty __init__.py file to make it a proper Python package. Also create a main.py file in the root directory that will serve as the entry point for the application."
+        },
+        {
+          "id": 2,
+          "title": "Create requirements.txt and install dependencies",
+          "description": "Define all project dependencies in requirements.txt and install them in the development environment",
+          "status": "pending",
+          "dependencies": [
+            1
+          ],
+          "details": "Create a requirements.txt file in the project root with the following dependencies:\n\nstreamlit==1.22.0\npandas==2.0.1\nplotly==5.14.1\nsqlmodel==0.0.8\npsycopg2-binary==2.9.6\npython-dotenv==1.0.0\n\nAfter creating the file, install the dependencies using pip:\n\n```\npip install -r requirements.txt\n```\n\nVerify the installation by importing each package in a Python console to ensure they're correctly installed."
+        },
+        {
+          "id": 3,
+          "title": "Set up environment configuration",
+          "description": "Create environment configuration files for different deployment environments",
+          "status": "pending",
+          "dependencies": [
+            1
+          ],
+          "details": "Create the following files in the project root:\n\n1. `.env.template` with placeholder values:\n```\nDB_HOST=localhost\nDB_PORT=5432\nDB_NAME=battery_db\nDB_USER=postgres\nDB_PASSWORD=password\nDEBUG=False\n```\n\n2. Create a `.env` file (copied from the template) with actual development values.\n\n3. Create a `config.py` file in the app/utils directory that loads environment variables using python-dotenv:\n```python\nimport os\nfrom dotenv import load_dotenv\n\nload_dotenv()\n\nDB_HOST = os.getenv('DB_HOST')\nDB_PORT = os.getenv('DB_PORT')\nDB_NAME = os.getenv('DB_NAME')\nDB_USER = os.getenv('DB_USER')\nDB_PASSWORD = os.getenv('DB_PASSWORD')\nDEBUG = os.getenv('DEBUG', 'False').lower() == 'true'\n\nDATABASE_URL = f\"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}\"\n```\n\n4. Add `.env` to your `.gitignore` file to prevent committing sensitive information."
+        },
+        {
+          "id": 4,
+          "title": "Create application entry points and README",
+          "description": "Set up the main application entry points and documentation",
+          "status": "pending",
+          "dependencies": [
+            2,
+            3
+          ],
+          "details": "1. Create a `streamlit_app.py` file in the project root with basic Streamlit setup:\n```python\nimport streamlit as st\nfrom app.utils.config import DEBUG\n\nst.set_page_config(page_title=\"Battery ETL Dashboard\", layout=\"wide\")\n\nst.title(\"Battery ETL Dashboard\")\nst.write(\"Welcome to the Battery ETL Dashboard\")\n\nif DEBUG:\n    st.warning(\"Application is running in DEBUG mode\")\n```\n\n2. Create a README.md file with:\n   - Project description\n   - Setup instructions\n   - How to run the application\n   - Project structure overview\n   - Dependencies list\n\n3. Create a simple test file in the tests directory to verify the setup:\n```python\n# tests/test_setup.py\ndef test_imports():\n    # Test that all dependencies can be imported\n    import streamlit\n    import pandas\n    import plotly\n    import sqlmodel\n    import psycopg2\n    import dotenv\n    \n    assert True, \"All imports successful\"\n```\n\n4. Test running the application with: `streamlit run streamlit_app.py`"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Implement database models and connection",
+      "description": "Create SQLModel classes for the database schema and implement database connection functionality.",
+      "status": "pending",
+      "dependencies": [
+        1
+      ],
+      "priority": "high",
+      "details": "Implement the following SQLModel classes in app/models:\n- Cell: Store cell information (ID, capacity, chemistry)\n- Machine: Store machine information\n- Experiment: Store experiment metadata\n- Step: Store step data with calculated fields\n- Detail: Store time series data\n- SavedView: Store saved dashboard views\n\nImplement database connection functions:\n- create_db_and_tables(): Initialize database and create tables\n- get_engine(): Get SQLAlchemy engine with connection pooling\n- get_session(): Get database session\n\nCreate database migration script to handle schema updates.",
+      "testStrategy": "Write unit tests to verify model relationships and constraints. Test database connection and table creation with a test database. Verify foreign key relationships work correctly.",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Create basic SQLModel classes for core entities",
+          "description": "Implement the foundational database models for Cell and Machine entities",
+          "status": "pending",
+          "dependencies": [],
+          "details": "Create the following SQLModel classes in app/models/:\n1. Create a base model class that all models will inherit from\n2. Implement Cell model with fields: id (UUID primary key), capacity (float), chemistry (string), and other relevant attributes\n3. Implement Machine model with fields: id (UUID primary key), name (string), description (string), and other relevant attributes\n4. Add appropriate relationships between Cell and Machine if needed\n5. Include proper type hints and docstrings for all models"
+        },
+        {
+          "id": 2,
+          "title": "Implement experiment and step data models",
+          "description": "Create SQLModel classes for experiment metadata and step data",
+          "status": "pending",
+          "dependencies": [
+            1
+          ],
+          "details": "Extend the models directory with:\n1. Experiment model with fields: id (UUID primary key), name (string), start_time (datetime), end_time (datetime), status (enum), and relationships to Cell and Machine\n2. Step model with fields: id (UUID primary key), experiment_id (foreign key), step_type (enum), start_time (datetime), end_time (datetime), calculated fields for metrics\n3. Implement proper relationships between Experiment and Step models\n4. Add indexes for frequently queried fields\n5. Include validation logic where appropriate"
+        },
+        {
+          "id": 3,
+          "title": "Implement time series and saved view models",
+          "description": "Create SQLModel classes for time series data and saved dashboard views",
+          "status": "pending",
+          "dependencies": [
+            2
+          ],
+          "details": "Complete the model implementation with:\n1. Detail model for time series data with fields: id (UUID primary key), step_id (foreign key), timestamp (datetime), voltage (float), current (float), temperature (float), and other measurements\n2. SavedView model with fields: id (UUID primary key), name (string), user_id (optional foreign key), view_config (JSON), created_at (datetime)\n3. Add appropriate indexes for time-based queries on the Detail model\n4. Implement proper relationships between Step and Detail models\n5. Consider adding compression or optimization for the time series data storage"
+        },
+        {
+          "id": 4,
+          "title": "Implement database connection functionality",
+          "description": "Create functions to handle database connections and session management",
+          "status": "pending",
+          "dependencies": [
+            3
+          ],
+          "details": "Create a database.py module with the following functions:\n1. get_engine(): Function that returns a SQLAlchemy engine with proper connection pooling configuration\n2. create_db_and_tables(): Function to initialize the database and create all tables based on the SQLModel classes\n3. get_session(): Function that returns a database session, implementing proper context management\n4. Add configuration options for different environments (development, testing, production)\n5. Implement error handling and connection retry logic"
+        },
+        {
+          "id": 5,
+          "title": "Create database migration script",
+          "description": "Implement a migration system to handle schema updates",
+          "status": "pending",
+          "dependencies": [
+            4
+          ],
+          "details": "Implement database migration functionality:\n1. Set up Alembic for handling database migrations\n2. Create an initial migration script that generates the schema based on the SQLModel classes\n3. Implement a CLI command to run migrations (upgrade/downgrade)\n4. Add documentation on how to create and apply new migrations\n5. Create a test migration to verify the system works correctly\n6. Consider implementing a version tracking system in the database itself"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Develop CSV parsing and extraction logic",
+      "description": "Implement functions to parse Step.csv and Detail.csv files from the ChromaLex format.",
+      "status": "pending",
+      "dependencies": [
+        1
+      ],
+      "priority": "high",
+      "details": "Create extraction module in app/etl/extraction.py with functions:\n- parse_step_csv(file): Parse Step.csv, keep only required columns as specified in PRD\n- parse_detail_csv(file): Parse Detail.csv, keep only required columns\n- validate_csv_format(file, expected_headers): Validate CSV has required headers\n- map_step_types(df): Map step types to standardized categories (charge, discharge, rest)\n\nImplement header mapping for ChromaLex format:\n- Define constants for required headers\n- Filter dataframes to keep only specified columns\n- Handle encoding issues and data type conversion\n\nEnsure proper error handling for missing or malformed files.",
+      "testStrategy": "Test with example files from example_csv_chromaLex directory. Verify correct columns are kept/dropped. Test with malformed files to ensure proper error handling.",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Define constants and header mappings for ChromaLex format",
+          "description": "Create constants for required headers and establish mapping between ChromaLex CSV format and internal data model",
+          "status": "pending",
+          "dependencies": [],
+          "details": "Create a new module app/etl/extraction.py and define constants for required headers from both Step.csv and Detail.csv files. Define mappings between ChromaLex column names and our standardized internal names. Include constants for step type categorization (charge, discharge, rest) and their corresponding values in the ChromaLex format. This will serve as the foundation for all parsing functions."
+        },
+        {
+          "id": 2,
+          "title": "Implement CSV validation function",
+          "description": "Create a function to validate that CSV files contain the required headers",
+          "status": "pending",
+          "dependencies": [
+            1
+          ],
+          "details": "Implement the validate_csv_format(file, expected_headers) function that checks if a given CSV file contains all the required headers. The function should: 1) Accept a file path or file-like object and a list of expected headers, 2) Attempt to read the CSV header row, 3) Verify all expected headers are present, 4) Return True if valid or raise a descriptive exception if validation fails. Include handling for file encoding issues by attempting to open with utf-8 first, then falling back to other encodings if needed."
+        },
+        {
+          "id": 3,
+          "title": "Implement Step.csv parsing function",
+          "description": "Create function to parse Step.csv files and extract required columns",
+          "status": "pending",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Implement the parse_step_csv(file) function that: 1) Validates the CSV format using the previously created validation function, 2) Reads the Step.csv file into a pandas DataFrame, 3) Filters the DataFrame to keep only the required columns as defined in the constants, 4) Handles data type conversions for numeric and datetime fields, 5) Returns the cleaned DataFrame. Include error handling for missing files, malformed data, and encoding issues. Document the expected structure of the returned DataFrame."
+        },
+        {
+          "id": 4,
+          "title": "Implement step type mapping function",
+          "description": "Create function to standardize step types from ChromaLex format",
+          "status": "pending",
+          "dependencies": [
+            1,
+            3
+          ],
+          "details": "Implement the map_step_types(df) function that: 1) Takes a DataFrame from parse_step_csv, 2) Maps the ChromaLex-specific step type values to standardized categories (charge, discharge, rest), 3) Adds a new column with the standardized step type, 4) Returns the updated DataFrame. Use the step type mapping constants defined earlier. Include handling for unknown step types by either categorizing them as 'other' or raising a warning."
+        },
+        {
+          "id": 5,
+          "title": "Implement Detail.csv parsing function",
+          "description": "Create function to parse Detail.csv files and extract required columns",
+          "status": "pending",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Implement the parse_detail_csv(file) function that: 1) Validates the CSV format using the validation function, 2) Reads the Detail.csv file into a pandas DataFrame, 3) Filters the DataFrame to keep only the required columns as defined in the constants, 4) Handles data type conversions for numeric fields (voltage, current, etc.), 5) Returns the cleaned DataFrame. Include comprehensive error handling for missing files, malformed data, and encoding issues. Document the expected structure of the returned DataFrame and any assumptions made during parsing."
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Implement data transformation logic",
+      "description": "Develop functions to calculate SOC, C-rate, OCV, and other derived metrics from the parsed data.",
+      "status": "pending",
+      "dependencies": [
+        3
+      ],
+      "priority": "high",
+      "details": "Create transformation module in app/etl/transformation.py with functions:\n- calculate_c_rate(current, nominal_capacity): Calculate C-rate\n- calculate_soc(steps_df, full_discharge_step_idx): Calculate SOC for all steps based on reference\n- extract_ocv_values(steps_df): Extract OCV values from preceding rest steps\n- calculate_temperature_metrics(df): Calculate temperature statistics per step\n\nImplement the SOC calculation algorithm using Coulomb counting as specified:\n- SOC_end_step_x = (Total_Ah_step_x - Total_Ah_at_end_of_full_discharge_step) / |Total_Ah_at_end_of_full_discharge_step|\n- Calculate starting SOC of a step as the end SOC of previous chronological charge/discharge step\n\nImplement OCV extraction logic to find preceding rest steps and extract voltage values.",
+      "testStrategy": "Create unit tests with sample data to verify calculations. Test edge cases (zero nominal capacity, missing data). Compare calculated results with expected values for known test cases.",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Create transformation module structure",
+          "description": "Set up the basic structure for the transformation module with function signatures and docstrings",
+          "status": "pending",
+          "dependencies": [],
+          "details": "Create app/etl/transformation.py with empty function definitions for calculate_c_rate, calculate_soc, extract_ocv_values, and calculate_temperature_metrics. Include proper docstrings explaining inputs, outputs, and purpose of each function. Add type hints and implement basic validation for function parameters."
+        },
+        {
+          "id": 2,
+          "title": "Implement C-rate calculation function",
+          "description": "Develop the function to calculate C-rate based on current and nominal capacity",
+          "status": "pending",
+          "dependencies": [
+            1
+          ],
+          "details": "Implement calculate_c_rate(current, nominal_capacity) function that divides the absolute current value by the nominal capacity. Handle edge cases like zero nominal capacity. Add appropriate error handling and input validation. Include unit tests to verify correct calculation for various input scenarios."
+        },
+        {
+          "id": 3,
+          "title": "Implement temperature metrics calculation",
+          "description": "Develop the function to calculate temperature statistics for each step",
+          "status": "pending",
+          "dependencies": [
+            1
+          ],
+          "details": "Implement calculate_temperature_metrics(df) function that computes min, max, mean, and standard deviation of temperature values grouped by step. Return a DataFrame with step indices and corresponding temperature metrics. Handle missing temperature data gracefully. Add validation to ensure the input DataFrame has the required temperature columns."
+        },
+        {
+          "id": 4,
+          "title": "Implement Coulomb counting SOC calculation",
+          "description": "Develop the function to calculate State of Charge using the Coulomb counting method",
+          "status": "pending",
+          "dependencies": [
+            1
+          ],
+          "details": "Implement calculate_soc(steps_df, full_discharge_step_idx) that calculates SOC for all steps based on the reference full discharge step. Use the formula: SOC_end_step_x = (Total_Ah_step_x - Total_Ah_at_end_of_full_discharge_step) / |Total_Ah_at_end_of_full_discharge_step|. Ensure the function handles the calculation of starting SOC for each step based on the end SOC of the previous chronological charge/discharge step. Add validation for the full_discharge_step_idx parameter."
+        },
+        {
+          "id": 5,
+          "title": "Implement OCV extraction logic",
+          "description": "Develop the function to extract Open Circuit Voltage values from preceding rest steps",
+          "status": "pending",
+          "dependencies": [
+            1
+          ],
+          "details": "Implement extract_ocv_values(steps_df) that identifies rest steps preceding charge/discharge steps and extracts voltage values. The function should determine the last voltage value from each rest step as the OCV for the following step. Handle cases where a step doesn't have a preceding rest step. Return a mapping of step indices to their corresponding OCV values."
+        },
+        {
+          "id": 6,
+          "title": "Integrate and test all transformation functions",
+          "description": "Combine all implemented functions and create comprehensive tests for the transformation module",
+          "status": "pending",
+          "dependencies": [
+            2,
+            3,
+            4,
+            5
+          ],
+          "details": "Create integration tests that verify the correct interaction between all transformation functions. Test with realistic battery cycling data to ensure accurate calculations. Verify edge cases such as missing data, unusual cycling patterns, and extreme values. Document any assumptions made during implementation and add appropriate warning logs for potential data quality issues. Ensure all functions handle errors gracefully and provide meaningful error messages."
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Create data validation and preview functions",
+      "description": "Implement functions to validate processed data and generate preview summaries and plots.",
+      "status": "pending",
+      "dependencies": [
+        4
+      ],
+      "priority": "high",
+      "details": "Create validation module in app/etl/validation.py with functions:\n- validate_soc_range(df): Check SOC values are within 0-100% (±tolerance)\n- validate_c_rate(df): Check C-rate values are positive\n- validate_data_continuity(df): Check for gaps or inconsistencies in data\n- generate_validation_report(df): Create summary of validation issues\n\nImplement preview generation functions:\n- generate_summary_table(selected_steps): Create summary statistics\n- generate_preview_plots(selected_steps, detail_data): Create key plots for preview\n  - Implement capacity vs voltage plot\n  - Implement voltage vs time plot\n\nCreate utility functions to flag anomalies in the data for user review.",
+      "testStrategy": "Test validation functions with both valid and invalid data. Verify validation correctly identifies out-of-range values. Test preview generation with sample data and verify plots are correctly generated.",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Implement basic data validation functions",
+          "description": "Create the core validation functions to check SOC range, C-rate values, and data continuity in the battery data.",
+          "status": "pending",
+          "dependencies": [],
+          "details": "Create app/etl/validation.py with the following functions:\n1. validate_soc_range(df): Check if State of Charge values are within 0-100% (with configurable tolerance parameter, default ±2%)\n2. validate_c_rate(df): Verify C-rate values are positive and within expected ranges\n3. validate_data_continuity(df): Check for gaps in timestamps, missing values, or sudden jumps in data\n\nEach function should return a dictionary with validation results including:\n- 'valid': Boolean indicating if validation passed\n- 'issues': List of specific issues found\n- 'affected_rows': DataFrame indices where issues were detected"
+        },
+        {
+          "id": 2,
+          "title": "Implement validation report generation",
+          "description": "Create a function to compile validation results into a comprehensive report for user review.",
+          "status": "pending",
+          "dependencies": [
+            1
+          ],
+          "details": "Add generate_validation_report(df) function to app/etl/validation.py that:\n1. Calls all validation functions (from subtask 1)\n2. Aggregates results into a structured report\n3. Includes summary statistics (% of data with issues)\n4. Categorizes issues by severity (critical, warning, info)\n5. Returns a report dictionary and DataFrame with flagged rows\n\nThe report should be structured to easily convert to JSON or HTML for display in the UI."
+        },
+        {
+          "id": 3,
+          "title": "Implement anomaly detection utilities",
+          "description": "Create utility functions to identify and flag anomalies in battery data that may require user attention.",
+          "status": "pending",
+          "dependencies": [
+            1
+          ],
+          "details": "Add the following anomaly detection functions to app/etl/validation.py:\n1. detect_voltage_anomalies(df): Identify unusual voltage patterns using statistical methods (z-score, IQR)\n2. detect_capacity_anomalies(df): Find outliers in capacity measurements\n3. detect_temperature_anomalies(df): Identify unusual temperature patterns\n4. flag_anomalies(df): Apply all anomaly detection functions and add flag columns to the DataFrame\n\nImplement with configurable thresholds and visualization markers. Each function should return the original DataFrame with additional columns indicating anomaly scores or boolean flags."
+        },
+        {
+          "id": 4,
+          "title": "Implement summary table generation",
+          "description": "Create functions to generate statistical summaries of processed data for preview.",
+          "status": "pending",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Create generate_summary_table(selected_steps) function that:\n1. Takes a list of processing step results\n2. Extracts key statistics for each step (min, max, mean, median, std)\n3. Calculates derived metrics (capacity retention, efficiency)\n4. Formats results into a pandas DataFrame suitable for display\n5. Includes validation status from validation report\n\nThe function should handle different data types and processing stages, providing appropriate statistics for each. Include options to customize which statistics are included."
+        },
+        {
+          "id": 5,
+          "title": "Implement preview plot generation",
+          "description": "Create functions to generate key visualization plots for data preview with anomaly highlighting.",
+          "status": "pending",
+          "dependencies": [
+            3,
+            4
+          ],
+          "details": "Implement generate_preview_plots(selected_steps, detail_data) function that creates:\n1. Capacity vs voltage plot with discharge/charge curves\n2. Voltage vs time plot showing cycling behavior\n3. Optional additional plots (temperature profiles, differential capacity)\n\nEach plot function should:\n- Use matplotlib or plotly for visualization\n- Highlight anomalies detected in subtask 3\n- Support interactive elements (zoom, tooltips) if using plotly\n- Include proper axis labels, titles, and legends\n- Return plot objects that can be displayed in the UI\n- Support saving plots to files\n\nImplement helper functions for consistent styling and formatting across all plots."
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Implement upload and metadata UI",
+      "description": "Create the Streamlit UI components for file upload and metadata input.",
+      "status": "pending",
+      "dependencies": [
+        2,
+        3
+      ],
+      "priority": "medium",
+      "details": "Create upload UI module in app/ui/upload.py with components:\n- create_metadata_form(): Create form for experiment metadata input\n  - Project name dropdown with \"add new\" option\n  - Operator name dropdown with \"add new\" option\n  - Cell name dropdown with \"add new\" option\n  - Machine used dropdown with \"add new\" option\n  - Date picker\n- create_file_upload(): Create file upload widgets for Step.csv and Detail.csv\n- handle_new_metadata_item(): Handle adding new items to dropdown lists\n\nImplement session state management to preserve user inputs between Streamlit reruns.\nCreate database queries to populate dropdown options from existing records.",
+      "testStrategy": "Test UI components manually in Streamlit. Verify dropdowns populate correctly from database. Test \"add new\" functionality. Verify file upload works with test files.",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Create basic metadata form structure",
+          "description": "Implement the create_metadata_form() function with basic dropdown fields and date picker",
+          "status": "pending",
+          "dependencies": [],
+          "details": "In app/ui/upload.py, create the create_metadata_form() function that returns a Streamlit form with the following components:\n- Project name dropdown\n- Operator name dropdown\n- Cell name dropdown\n- Machine used dropdown\n- Date picker\nImplement basic session state initialization for these fields using st.session_state to preserve values between reruns. Use placeholder static options for dropdowns at this stage."
+        },
+        {
+          "id": 2,
+          "title": "Implement database queries for dropdown options",
+          "description": "Create functions to fetch existing metadata options from the database",
+          "status": "pending",
+          "dependencies": [],
+          "details": "Create helper functions in app/ui/upload.py to query the database for existing metadata options:\n- get_project_options(): Query projects table\n- get_operator_options(): Query operators table\n- get_cell_options(): Query cells table\n- get_machine_options(): Query machines table\nEach function should return a list of options to populate the respective dropdown. Include error handling for database connection issues."
+        },
+        {
+          "id": 3,
+          "title": "Implement 'add new' functionality for dropdowns",
+          "description": "Create the handle_new_metadata_item() function to add new options to metadata dropdowns",
+          "status": "pending",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Implement handle_new_metadata_item() function that:\n- Takes parameters for item_type (project, operator, etc.) and new_value\n- Validates the input is not empty or duplicate\n- Inserts the new value into the appropriate database table\n- Updates the dropdown options to include the new value\n- Sets the current selection to the newly added item\nModify the create_metadata_form() function to include an 'Add new' option in each dropdown that triggers this functionality."
+        },
+        {
+          "id": 4,
+          "title": "Implement file upload component and integrate all UI elements",
+          "description": "Create the file upload widget and integrate all components into a complete upload UI",
+          "status": "pending",
+          "dependencies": [
+            1,
+            2,
+            3
+          ],
+          "details": "Implement create_file_upload() function that:\n- Creates file upload widgets for Step.csv and Detail.csv files\n- Validates uploaded files have the correct format/extension\n- Stores uploaded files in session state\n\nCreate a main upload_ui() function that:\n- Combines the metadata form and file upload components\n- Implements form submission logic\n- Validates all required fields are completed before allowing submission\n- Provides appropriate feedback messages to the user\n- Returns the collected metadata and file references for further processing"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Develop step selection and processing UI",
+      "description": "Create the UI components for selecting the full discharge reference step and relevant steps for analysis.",
+      "status": "pending",
+      "dependencies": [
+        4,
+        6
+      ],
+      "priority": "medium",
+      "details": "Create step selection UI module in app/ui/step_selection.py with components:\n- display_steps_table(steps_df): Show interactive table of charge/discharge steps\n  - Include columns for step number, action type, calculated C-rate, SOC range, start OCV, temp range\n  - Add checkbox for selecting full discharge reference step (single selection)\n  - Add checkboxes for selecting relevant steps for analysis (multiple selection)\n- create_processing_controls(): Create buttons for pre-processing and database loading\n- handle_reference_step_selection(): Update SOC calculations when reference step changes\n\nImplement logic to update calculated fields when the reference step changes.\nCreate functions to track and validate user selections.",
+      "testStrategy": "Test UI with sample data. Verify SOC recalculates when reference step changes. Test selection validation (e.g., must select one reference step). Verify multiple step selection works correctly.",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Create basic steps table display function",
+          "description": "Implement the display_steps_table function to show charge/discharge steps in a tabular format with all required columns but without selection functionality.",
+          "status": "pending",
+          "dependencies": [],
+          "details": "In app/ui/step_selection.py, create the display_steps_table(steps_df) function that:\n- Uses st.dataframe or AgGrid to display the steps data\n- Includes columns for step number, action type, C-rate, SOC range, start OCV, and temperature range\n- Format the table for readability with appropriate column widths and formatting\n- Return the displayed table object for later enhancement\n- Add docstrings and type hints for better code quality"
+        },
+        {
+          "id": 2,
+          "title": "Add step selection functionality to table",
+          "description": "Enhance the steps table with checkbox columns for selecting the reference discharge step and relevant analysis steps.",
+          "status": "pending",
+          "dependencies": [
+            1
+          ],
+          "details": "Modify the display_steps_table function to:\n- Add a single-select checkbox column for the reference discharge step\n- Add a multi-select checkbox column for analysis steps\n- Implement client-side filtering to only allow discharge steps for reference selection\n- Store selection state using st.session_state\n- Return both the table component and the current selections\n- Handle the initial state when no selections have been made yet"
+        },
+        {
+          "id": 3,
+          "title": "Implement reference step selection handler",
+          "description": "Create the handle_reference_step_selection function to update SOC calculations when the reference step changes.",
+          "status": "pending",
+          "dependencies": [
+            2
+          ],
+          "details": "Implement handle_reference_step_selection() that:\n- Detects changes in the reference step selection\n- Triggers recalculation of SOC values based on the new reference step\n- Updates the steps_df with new SOC range values\n- Refreshes the table display to show updated values\n- Implements validation to ensure only discharge steps can be selected as reference\n- Provides user feedback when reference step changes"
+        },
+        {
+          "id": 4,
+          "title": "Create processing control buttons",
+          "description": "Implement the create_processing_controls function to add buttons for pre-processing and database loading.",
+          "status": "pending",
+          "dependencies": [
+            2
+          ],
+          "details": "In app/ui/step_selection.py, create create_processing_controls() that:\n- Adds a 'Pre-process Selected Steps' button that is enabled only when valid steps are selected\n- Adds a 'Load to Database' button that is enabled when pre-processing is complete\n- Uses st.button with on_click handlers to trigger appropriate functions\n- Implements visual feedback (disabled/enabled states) based on current selection state\n- Returns the button components for potential use in parent components"
+        },
+        {
+          "id": 5,
+          "title": "Implement selection validation and tracking",
+          "description": "Create utility functions to track, validate, and persist user selections throughout the application flow.",
+          "status": "pending",
+          "dependencies": [
+            3,
+            4
+          ],
+          "details": "Add the following functions to app/ui/step_selection.py:\n- validate_step_selections(): Checks if selections meet requirements (one reference step, at least one analysis step)\n- get_current_selections(): Returns the currently selected reference and analysis steps\n- persist_selections(): Saves current selections to session state\n- restore_selections(): Restores selections from session state when page reloads\n- Integrate these functions with the previously implemented components\n- Add appropriate error handling and user feedback for invalid selections"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Implement visualization and dashboard UI",
+      "description": "Create the visualization components and dashboard UI for data exploration.",
+      "status": "pending",
+      "dependencies": [
+        5,
+        7
+      ],
+      "priority": "medium",
+      "details": "Create visualization module in app/visualization with functions for predefined plots:\n- plot_capacity_vs_voltage(df): Create capacity vs voltage plot\n- plot_voltage_vs_time(df): Create voltage vs time plot\n- plot_temperature_vs_time(df): Create temperature vs time plot\n- plot_current_vs_time(df): Create current vs time plot\n- plot_ocv_vs_soc(df): Create OCV vs SOC plot\n- plot_charge_time_vs_soc(df): Create charge time vs SOC plot\n- plot_discharge_temp_vs_capacity(df): Create discharge temp vs capacity plot\n\nCreate dashboard UI module in app/ui/dashboard.py with components:\n- create_filter_controls(): Create filter widgets for experiments and steps\n- display_filtered_steps_table(): Show table of filtered steps with selection checkboxes\n- create_visualization_tabs(): Create tabs for different plot types\n- handle_plot_generation(): Generate plots based on selected steps\n- create_export_controls(): Create buttons for exporting data and plots\n\nImplement responsive plot generation with caching for performance.",
+      "testStrategy": "Test plot generation with sample data. Verify all plot types render correctly. Test filtering functionality. Measure plot generation time to ensure <2s target is met. Test export functionality.",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Create basic visualization module structure",
+          "description": "Set up the foundation for the visualization module with core plotting utilities and common functionality",
+          "status": "pending",
+          "dependencies": [],
+          "details": "Create app/visualization/__init__.py and app/visualization/utils.py with common plotting functions:\n- Set up matplotlib/plotly configuration\n- Create helper functions for consistent styling (colors, fonts, markers)\n- Implement plot_base() function with common parameters\n- Add utility functions for data preprocessing before visualization\n- Create caching decorator for plot results\n- Implement error handling for visualization functions"
+        },
+        {
+          "id": 2,
+          "title": "Implement battery performance visualization functions",
+          "description": "Create the first set of visualization functions for battery performance metrics",
+          "status": "pending",
+          "dependencies": [
+            1
+          ],
+          "details": "Create app/visualization/battery_plots.py with the following functions:\n- plot_capacity_vs_voltage(df): Create capacity vs voltage plot with discharge curves\n- plot_voltage_vs_time(df): Create voltage vs time plot with charge/discharge phases\n- plot_current_vs_time(df): Create current vs time plot showing charge/discharge current\n- Include proper axis labels, legends, and titles\n- Add optional parameters for customization\n- Implement data validation before plotting"
+        },
+        {
+          "id": 3,
+          "title": "Implement thermal and SOC visualization functions",
+          "description": "Create the second set of visualization functions for temperature and state of charge",
+          "status": "pending",
+          "dependencies": [
+            1
+          ],
+          "details": "Create app/visualization/thermal_soc_plots.py with the following functions:\n- plot_temperature_vs_time(df): Create temperature vs time plot\n- plot_ocv_vs_soc(df): Create OCV vs SOC plot\n- plot_charge_time_vs_soc(df): Create charge time vs SOC plot\n- plot_discharge_temp_vs_capacity(df): Create discharge temp vs capacity plot\n- Include proper axis labels, legends, and titles\n- Add optional parameters for customization\n- Implement data validation before plotting"
+        },
+        {
+          "id": 4,
+          "title": "Create dashboard UI filter and selection components",
+          "description": "Implement the UI components for filtering and selecting experiment data",
+          "status": "pending",
+          "dependencies": [],
+          "details": "Create app/ui/dashboard.py with the following components:\n- create_filter_controls(): Create dropdown/slider widgets for experiments and steps\n- display_filtered_steps_table(): Show table of filtered steps with selection checkboxes\n- implement_filter_logic(): Connect filter controls to data filtering functions\n- handle_selection_state(): Manage the state of selected experiments/steps\n- Add event handlers for filter changes\n- Implement session state management for selections"
+        },
+        {
+          "id": 5,
+          "title": "Implement visualization tab interface",
+          "description": "Create the tabbed interface for different visualization types",
+          "status": "pending",
+          "dependencies": [
+            2,
+            3,
+            4
+          ],
+          "details": "Extend app/ui/dashboard.py with:\n- create_visualization_tabs(): Create tabs for different plot categories\n- implement_tab_navigation(): Handle tab switching and state preservation\n- create_plot_option_controls(): Add controls for plot customization within each tab\n- implement_responsive_layout(): Ensure UI adapts to different screen sizes\n- Add placeholders for plots that will be generated\n- Create consistent styling across all tabs"
+        },
+        {
+          "id": 6,
+          "title": "Implement plot generation and caching system",
+          "description": "Connect the UI selection to plot generation with performance optimization",
+          "status": "pending",
+          "dependencies": [
+            2,
+            3,
+            5
+          ],
+          "details": "Extend app/ui/dashboard.py with:\n- handle_plot_generation(): Generate plots based on selected steps\n- implement_plot_caching(): Cache plots to avoid regeneration\n- create_plot_update_triggers(): Define when plots should be regenerated\n- implement_background_processing(): Handle computationally intensive plots\n- add_loading_indicators(): Show loading state during plot generation\n- implement_error_handling(): Handle and display plot generation errors"
+        },
+        {
+          "id": 7,
+          "title": "Add export functionality and finalize dashboard",
+          "description": "Implement data and plot export features and finalize the dashboard UI",
+          "status": "pending",
+          "dependencies": [
+            6
+          ],
+          "details": "Complete app/ui/dashboard.py with:\n- create_export_controls(): Create buttons for exporting data and plots\n- implement_csv_export(): Export selected data to CSV\n- implement_plot_export(): Export plots as PNG/PDF/SVG\n- add_dashboard_header(): Create dashboard title and metadata section\n- implement_dashboard_layout(): Finalize overall dashboard layout\n- add_help_tooltips(): Add help text for dashboard features\n- perform_performance_optimization(): Final performance tuning\n- add_responsive_design_fixes(): Ensure dashboard works on all devices"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Implement database loading and retrieval",
+      "description": "Create functions to save processed data to the database and retrieve it for visualization.",
+      "status": "pending",
+      "dependencies": [
+        2,
+        5
+      ],
+      "priority": "medium",
+      "details": "Create database module in app/database with functions:\n- save_experiment_metadata(metadata): Save experiment metadata to database\n- save_selected_steps(steps_df, experiment_id): Save selected steps to database\n- save_detail_data(detail_df, step_id_mapping): Save detail data for selected steps\n- get_experiments(filters): Retrieve experiments based on filters\n- get_steps(filters): Retrieve steps based on filters\n- get_detail_data(step_ids): Retrieve detail data for selected steps\n- save_view(name, description, filters, selected_steps): Save dashboard view\n- get_saved_views(): Retrieve saved views\n\nImplement transaction handling to ensure data integrity.\nCreate efficient queries with proper indexing for performance.",
+      "testStrategy": "Test database functions with sample data. Verify data is correctly saved and retrieved. Test with large datasets to ensure performance. Verify transaction rollback on error.",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Create database schema and connection module",
+          "description": "Design and implement the database schema with proper tables, relationships, and indexes. Create a connection module for database access.",
+          "status": "pending",
+          "dependencies": [],
+          "details": "Create app/database/schema.py with table definitions for experiments, steps, detail_data, and saved_views. Include proper foreign key relationships and indexes for performance. Create app/database/connection.py to handle database connection pooling and session management. Use SQLAlchemy ORM for database interactions. Implement proper error handling for connection issues."
+        },
+        {
+          "id": 2,
+          "title": "Implement experiment and metadata storage functions",
+          "description": "Create functions to save and retrieve experiment metadata from the database.",
+          "status": "pending",
+          "dependencies": [
+            1
+          ],
+          "details": "In app/database/operations.py, implement save_experiment_metadata(metadata) to store experiment information with proper validation. Implement get_experiments(filters) to retrieve experiments with optional filtering by date, name, or other metadata fields. Include transaction handling to ensure data integrity. Return appropriate experiment IDs for reference in other functions."
+        },
+        {
+          "id": 3,
+          "title": "Implement step data storage and retrieval",
+          "description": "Create functions to save and retrieve selected steps data with proper relationships to experiments.",
+          "status": "pending",
+          "dependencies": [
+            2
+          ],
+          "details": "In app/database/operations.py, implement save_selected_steps(steps_df, experiment_id) to store step information with proper validation and relationship to the parent experiment. Implement get_steps(filters) to retrieve steps with optional filtering by experiment_id, step_type, or other criteria. Return a mapping of original step IDs to database IDs for use in detail data storage."
+        },
+        {
+          "id": 4,
+          "title": "Implement detail data storage and retrieval",
+          "description": "Create functions to save and retrieve detailed data associated with steps.",
+          "status": "pending",
+          "dependencies": [
+            3
+          ],
+          "details": "In app/database/operations.py, implement save_detail_data(detail_df, step_id_mapping) to store detailed information for steps using the ID mapping from the previous function. Implement get_detail_data(step_ids) to retrieve detail data for specified steps. Use batch processing for large datasets to optimize performance. Consider implementing data compression for large detail datasets."
+        },
+        {
+          "id": 5,
+          "title": "Implement saved views functionality",
+          "description": "Create functions to save and retrieve dashboard views with associated filters and selected steps.",
+          "status": "pending",
+          "dependencies": [
+            2,
+            3
+          ],
+          "details": "In app/database/operations.py, implement save_view(name, description, filters, selected_steps) to store user-defined dashboard views. Implement get_saved_views() to retrieve all saved views. Include proper serialization/deserialization of filter and step selection data. Ensure proper validation of inputs and handle potential conflicts with existing view names."
+        },
+        {
+          "id": 6,
+          "title": "Implement transaction handling and query optimization",
+          "description": "Add transaction management across operations and optimize queries for performance.",
+          "status": "pending",
+          "dependencies": [
+            2,
+            3,
+            4,
+            5
+          ],
+          "details": "Refactor database operations to use transaction context managers ensuring atomicity of operations. Implement proper error handling and rollback mechanisms. Add query optimization with proper indexing strategies. Create app/database/utils.py with helper functions for common query patterns. Add database migration support for future schema changes. Write comprehensive tests for all database operations verifying data integrity and transaction behavior."
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Integrate components and create main application",
+      "description": "Integrate all components into a cohesive application with navigation and error handling.",
+      "status": "pending",
+      "dependencies": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "priority": "low",
+      "details": "Create main application file app/main.py:\n- Implement sidebar navigation between Upload, Dashboard, and Settings sections\n- Create page routing based on navigation selection\n- Implement global error handling and user feedback\n- Add application state management\n\nCreate settings page for configuration options:\n- Database connection settings\n- File format settings (future support for different formats)\n- User preferences\n\nImplement comprehensive error handling throughout the application:\n- Friendly error messages for users\n- Detailed logging for debugging\n- Recovery mechanisms for common errors\n\nCreate documentation for users and developers.",
+      "testStrategy": "Test end-to-end workflows with example files. Verify navigation works correctly. Test error handling by introducing various error conditions. Get user feedback on UI/UX and iterate on improvements.",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Create main application structure with navigation sidebar",
+          "description": "Implement the core application structure with a sidebar navigation component that allows switching between Upload, Dashboard, and Settings sections.",
+          "status": "pending",
+          "dependencies": [],
+          "details": "Create app/main.py with the following components:\n- Define the main application class/function\n- Implement a sidebar navigation component with options for Upload, Dashboard, and Settings\n- Create a basic page container that will display the selected section\n- Set up the initial application state management structure using a state management pattern (e.g., session state in Streamlit or a custom state manager)\n- Implement basic page routing logic based on navigation selection"
+        },
+        {
+          "id": 2,
+          "title": "Implement global error handling and feedback system",
+          "description": "Create a comprehensive error handling system that catches exceptions, provides user-friendly messages, and logs detailed information for debugging.",
+          "status": "pending",
+          "dependencies": [
+            1
+          ],
+          "details": "Extend app/main.py to include:\n- Create a custom error handler class/module\n- Implement try-except blocks around critical operations\n- Design user-friendly error messages that hide technical details\n- Set up detailed logging with different severity levels (INFO, WARNING, ERROR)\n- Create visual feedback components (notifications, alerts) for success/error states\n- Implement recovery mechanisms for common errors (connection retries, validation failures)"
+        },
+        {
+          "id": 3,
+          "title": "Develop settings page with configuration options",
+          "description": "Create a settings page that allows users to configure database connections, file formats, and user preferences.",
+          "status": "pending",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Create app/pages/settings.py with:\n- Form for database connection settings (host, port, credentials, etc.)\n- Options for file format settings (CSV delimiter, encoding, etc.)\n- User preference controls (theme, display options)\n- Save/load functionality for settings\n- Validation for input fields\n- Test connection button for database settings\n- Integration with the error handling system from subtask 2"
+        },
+        {
+          "id": 4,
+          "title": "Integrate Upload component into main application",
+          "description": "Integrate the previously developed file upload component into the main application structure.",
+          "status": "pending",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Create app/pages/upload.py that:\n- Imports and initializes the file upload component\n- Adapts the component to work with the main application's state management\n- Connects upload events to the global error handling system\n- Ensures uploaded files are properly stored and accessible to other components\n- Provides feedback on upload status\n- Implements navigation to Dashboard after successful upload"
+        },
+        {
+          "id": 5,
+          "title": "Integrate Dashboard component into main application",
+          "description": "Integrate the previously developed dashboard component into the main application structure.",
+          "status": "pending",
+          "dependencies": [
+            1,
+            2,
+            4
+          ],
+          "details": "Create app/pages/dashboard.py that:\n- Imports and initializes the dashboard visualization components\n- Connects the dashboard to the application's state management\n- Ensures the dashboard can access and display data from uploaded files\n- Implements dashboard-specific error handling\n- Adds refresh/update functionality for dashboard data\n- Optimizes dashboard performance for larger datasets"
+        },
+        {
+          "id": 6,
+          "title": "Create comprehensive documentation for users and developers",
+          "description": "Develop detailed documentation covering both user guides and technical documentation for developers.",
+          "status": "pending",
+          "dependencies": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "details": "Create documentation in docs/ directory:\n- User guide explaining all features and how to use them\n- Installation and setup instructions\n- Configuration options documentation\n- Troubleshooting guide with common issues and solutions\n- Developer documentation including:\n  - Code structure overview\n  - Component interaction diagrams\n  - API documentation\n  - How to extend the application\n- Add inline code comments throughout the application\n- Create a README.md with quick start guide\n- Include screenshots and examples"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "projectName": "Battery ETL Dashboard Implementation",
+    "totalTasks": 10,
+    "sourceFile": "c:\\Users\\sam83\\Desktop\\DB_project_0501\\PRD_4.txt",
+    "generatedAt": "2023-05-01"
+  }
+}

@@ -1,0 +1,22 @@
+# Task ID: 6
+# Title: Implement upload and metadata UI
+# Status: pending
+# Dependencies: 2, 3
+# Priority: medium
+# Description: Create the Streamlit UI components for file upload and metadata input.
+# Details:
+Create upload UI module in app/ui/upload.py with components:
+- create_metadata_form(): Create form for experiment metadata input
+  - Project name dropdown with "add new" option
+  - Operator name dropdown with "add new" option
+  - Cell name dropdown with "add new" option
+  - Machine used dropdown with "add new" option
+  - Date picker
+- create_file_upload(): Create file upload widgets for Step.csv and Detail.csv
+- handle_new_metadata_item(): Handle adding new items to dropdown lists
+
+Implement session state management to preserve user inputs between Streamlit reruns.
+Create database queries to populate dropdown options from existing records.
+
+# Test Strategy:
+Test UI components manually in Streamlit. Verify dropdowns populate correctly from database. Test "add new" functionality. Verify file upload works with test files.

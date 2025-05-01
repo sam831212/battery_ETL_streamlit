@@ -1,0 +1,23 @@
+# Task ID: 5
+# Title: Create data validation and preview functions
+# Status: pending
+# Dependencies: 4
+# Priority: high
+# Description: Implement functions to validate processed data and generate preview summaries and plots.
+# Details:
+Create validation module in app/etl/validation.py with functions:
+- validate_soc_range(df): Check SOC values are within 0-100% (±tolerance)
+- validate_c_rate(df): Check C-rate values are positive
+- validate_data_continuity(df): Check for gaps or inconsistencies in data
+- generate_validation_report(df): Create summary of validation issues
+
+Implement preview generation functions:
+- generate_summary_table(selected_steps): Create summary statistics
+- generate_preview_plots(selected_steps, detail_data): Create key plots for preview
+  - Implement capacity vs voltage plot
+  - Implement voltage vs time plot
+
+Create utility functions to flag anomalies in the data for user review.
+
+# Test Strategy:
+Test validation functions with both valid and invalid data. Verify validation correctly identifies out-of-range values. Test preview generation with sample data and verify plots are correctly generated.

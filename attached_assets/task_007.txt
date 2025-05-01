@@ -1,0 +1,20 @@
+# Task ID: 7
+# Title: Develop step selection and processing UI
+# Status: pending
+# Dependencies: 4, 6
+# Priority: medium
+# Description: Create the UI components for selecting the full discharge reference step and relevant steps for analysis.
+# Details:
+Create step selection UI module in app/ui/step_selection.py with components:
+- display_steps_table(steps_df): Show interactive table of charge/discharge steps
+  - Include columns for step number, action type, calculated C-rate, SOC range, start OCV, temp range
+  - Add checkbox for selecting full discharge reference step (single selection)
+  - Add checkboxes for selecting relevant steps for analysis (multiple selection)
+- create_processing_controls(): Create buttons for pre-processing and database loading
+- handle_reference_step_selection(): Update SOC calculations when reference step changes
+
+Implement logic to update calculated fields when the reference step changes.
+Create functions to track and validate user selections.
+
+# Test Strategy:
+Test UI with sample data. Verify SOC recalculates when reference step changes. Test selection validation (e.g., must select one reference step). Verify multiple step selection works correctly.

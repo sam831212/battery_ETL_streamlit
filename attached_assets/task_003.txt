@@ -1,0 +1,22 @@
+# Task ID: 3
+# Title: Develop CSV parsing and extraction logic
+# Status: pending
+# Dependencies: 1
+# Priority: high
+# Description: Implement functions to parse Step.csv and Detail.csv files from the ChromaLex format.
+# Details:
+Create extraction module in app/etl/extraction.py with functions:
+- parse_step_csv(file): Parse Step.csv, keep only required columns as specified in PRD
+- parse_detail_csv(file): Parse Detail.csv, keep only required columns
+- validate_csv_format(file, expected_headers): Validate CSV has required headers
+- map_step_types(df): Map step types to standardized categories (charge, discharge, rest)
+
+Implement header mapping for ChromaLex format:
+- Define constants for required headers
+- Filter dataframes to keep only specified columns
+- Handle encoding issues and data type conversion
+
+Ensure proper error handling for missing or malformed files.
+
+# Test Strategy:
+Test with example files from example_csv_chromaLex directory. Verify correct columns are kept/dropped. Test with malformed files to ensure proper error handling.

@@ -1,0 +1,24 @@
+# Task ID: 2
+# Title: Implement database models and connection
+# Status: pending
+# Dependencies: 1
+# Priority: high
+# Description: Create SQLModel classes for the database schema and implement database connection functionality.
+# Details:
+Implement the following SQLModel classes in app/models:
+- Cell: Store cell information (ID, capacity, chemistry)
+- Machine: Store machine information
+- Experiment: Store experiment metadata
+- Step: Store step data with calculated fields
+- Detail: Store time series data
+- SavedView: Store saved dashboard views
+
+Implement database connection functions:
+- create_db_and_tables(): Initialize database and create tables
+- get_engine(): Get SQLAlchemy engine with connection pooling
+- get_session(): Get database session
+
+Create database migration script to handle schema updates.
+
+# Test Strategy:
+Write unit tests to verify model relationships and constraints. Test database connection and table creation with a test database. Verify foreign key relationships work correctly.
