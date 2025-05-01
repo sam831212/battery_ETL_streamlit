@@ -15,6 +15,7 @@ from app.etl import (
     load_and_preprocess_files
 )
 from app.etl.extraction import STEP_REQUIRED_HEADERS, DETAIL_REQUIRED_HEADERS
+from app.etl.validation import generate_validation_report
 from app.models.database import Experiment, Step, Measurement, ProcessedFile
 from app.utils.database import get_session
 from sqlmodel import select
@@ -214,8 +215,29 @@ def render_upload_page():
                             else:
                                 # Use ETL functions to process files
                                 step_df, detail_df, metadata = load_and_preprocess_files(
-                                    step_file_path, detail_file_path
+                                    step_file_path, detail_file_path,
+                                    nominal_capacity=st.session_state["nominal_capacity"]
                                 )
+                                
+                                # Generate validation reports
+                                step_validation_report = generate_validation_report(
+                                    step_df, 
+                                    step_type=None  # Apply validation for all step types
+                                )
+                                
+                                detail_validation_report = generate_validation_report(
+                                    detail_df, 
+                                    step_type=None  # Apply validation for all step types
+                                )
+                                
+                                # Combine validation results
+                                validation_status = step_validation_report['valid'] and detail_validation_report['valid']
+                                combined_validation_report = {
+                                    'valid': validation_status,
+                                    'step_validation': step_validation_report,
+                                    'detail_validation': detail_validation_report,
+                                    'timestamp': datetime.utcnow().isoformat()
+                                }
                                 
                                 # Create experiment record
                                 experiment = Experiment(
@@ -230,7 +252,9 @@ def render_upload_page():
                                         datetime.min.time()
                                     ),
                                     end_date=None,  # Will be updated after processing
-                                    data_meta=metadata["experiment"]
+                                    data_meta=metadata["experiment"],
+                                    validation_status=validation_status,
+                                    validation_report=combined_validation_report
                                 )
                                 
                                 # Save to database
@@ -330,13 +354,75 @@ def render_upload_page():
                                         session.add(experiment)
                                         session.commit()
                                 
+                                # Display validation summary
+                                st.subheader("Validation Results")
+                                
+                                if validation_status:
+                                    st.success("All validation checks passed!")
+                                else:
+                                    st.warning("Validation found potential issues with the data.")
+                                
+                                # Step validation summary
+                                with st.expander("Step Data Validation"):
+                                    step_summary = step_validation_report['summary']
+                                    
+                                    col1, col2, col3 = st.columns(3)
+                                    with col1:
+                                        st.metric("Total Issues", step_summary['total_issues'])
+                                    with col2:
+                                        st.metric("Critical Issues", step_summary['critical_issues'])
+                                    with col3:
+                                        st.metric("Warning Issues", step_summary['warning_issues'])
+                                    
+                                    # Display critical issues
+                                    if step_summary['critical_issues'] > 0:
+                                        st.markdown("##### Critical Issues:")
+                                        for issue in step_validation_report['issues_by_severity']['critical']:
+                                            st.error(f"**{issue['validation']}**: {issue['issue']}")
+                                    
+                                    # Display warnings
+                                    if step_summary['warning_issues'] > 0:
+                                        st.markdown("##### Warnings:")
+                                        for issue in step_validation_report['issues_by_severity']['warning']:
+                                            st.warning(f"**{issue['validation']}**: {issue['issue']}")
+                                
+                                # Detail validation summary
+                                with st.expander("Measurement Data Validation"):
+                                    detail_summary = detail_validation_report['summary']
+                                    
+                                    col1, col2, col3 = st.columns(3)
+                                    with col1:
+                                        st.metric("Total Issues", detail_summary['total_issues'])
+                                    with col2:
+                                        st.metric("Critical Issues", detail_summary['critical_issues'])
+                                    with col3:
+                                        st.metric("Warning Issues", detail_summary['warning_issues'])
+                                    
+                                    # Display critical issues
+                                    if detail_summary['critical_issues'] > 0:
+                                        st.markdown("##### Critical Issues:")
+                                        for issue in detail_validation_report['issues_by_severity']['critical']:
+                                            st.error(f"**{issue['validation']}**: {issue['issue']}")
+                                    
+                                    # Display warnings
+                                    if detail_summary['warning_issues'] > 0:
+                                        st.markdown("##### Warnings:")
+                                        for issue in detail_validation_report['issues_by_severity']['warning']:
+                                            st.warning(f"**{issue['validation']}**: {issue['issue']}")
+                                
                                 st.success(f"Files processed successfully! Experiment ID: {experiment.id}")
                                 st.info(f"Processed {len(step_df)} steps and {len(detail_df)} measurements.")
                                 
                                 # Clear file uploaders
                                 st.session_state["step_file"] = None
                                 st.session_state["detail_file"] = None
-                                st.rerun()
+                                
+                                # Add continue button if there are issues to allow user to acknowledge them
+                                if not validation_status:
+                                    if st.button("Continue Anyway", type="primary"):
+                                        st.rerun()
+                                else:
+                                    st.rerun()
                         
                         except Exception as e:
                             st.error(f"Error processing files: {str(e)}")

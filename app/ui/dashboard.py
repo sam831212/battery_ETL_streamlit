@@ -8,6 +8,9 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+from app.models.database import Experiment, Step, Measurement, ProcessedFile
+from app.utils.database import get_session
+from sqlmodel import select, desc
 
 
 def render_dashboard_page():
@@ -22,14 +25,37 @@ def render_dashboard_page():
     with st.sidebar:
         st.markdown("## Dashboard Filters")
         
+        # Get available experiments from database
+        available_experiments = []
+        with get_session() as session:
+            experiments = session.exec(
+                select(Experiment).order_by(desc(Experiment.created_at))
+            ).all()
+            
+            if experiments:
+                # Create a list of experiment options
+                available_experiments = [(exp.id, f"{exp.name} ({exp.battery_type})") for exp in experiments]
+                experiment_options = [name for id, name in available_experiments]
+                experiment_ids = [id for id, name in available_experiments]
+            else:
+                experiment_options = ["No experiments available"]
+                experiment_ids = []
+        
         # Experiment filter
         st.subheader("Experiment")
-        selected_experiment = st.selectbox(
+        selected_experiment_index = st.selectbox(
             "Select Experiment",
-            options=["No experiments available"],
-            disabled=True,
+            options=range(len(experiment_options)),
+            format_func=lambda x: experiment_options[x],
+            disabled=len(experiment_ids) == 0,
             help="Select an experiment to visualize data for",
         )
+        
+        # Store selected experiment ID in session state
+        if experiment_ids and len(experiment_ids) > selected_experiment_index:
+            st.session_state["selected_experiment_id"] = experiment_ids[selected_experiment_index]
+        else:
+            st.session_state["selected_experiment_id"] = None
         
         # Date range filter
         st.subheader("Date Range")
@@ -71,8 +97,8 @@ def render_dashboard_page():
     )
     
     # Create tabs for different visualizations
-    overview_tab, capacity_tab, voltage_tab, temperature_tab = st.tabs([
-        "Overview", "Capacity Analysis", "Voltage Analysis", "Temperature Analysis"
+    overview_tab, capacity_tab, voltage_tab, temperature_tab, validation_tab = st.tabs([
+        "Overview", "Capacity Analysis", "Voltage Analysis", "Temperature Analysis", "Validation"
     ])
     
     with overview_tab:
@@ -86,6 +112,9 @@ def render_dashboard_page():
     
     with temperature_tab:
         render_temperature_tab()
+        
+    with validation_tab:
+        render_validation_tab()
 
 
 def render_overview_tab():
@@ -265,3 +294,123 @@ def render_temperature_tab():
     - Correlation between temperature and capacity/voltage
     - Temperature rise rate during charge/discharge
     """)
+
+
+def render_validation_tab():
+    """Render the validation results tab content"""
+    st.subheader("Data Validation Results")
+    
+    # Check if an experiment is selected
+    selected_experiment_id = st.session_state.get("selected_experiment_id")
+    
+    if not selected_experiment_id:
+        st.info("Please select an experiment from the sidebar to view validation results.")
+        return
+    
+    # Get experiment data from database
+    with get_session() as session:
+        experiment = session.get(Experiment, selected_experiment_id)
+        
+        if not experiment:
+            st.error("Selected experiment not found.")
+            return
+        
+        # Check if validation results exist
+        if experiment.validation_report is None:
+            st.warning("No validation data available for this experiment.")
+            return
+        
+        # Display validation status
+        st.write(f"#### Experiment: {experiment.name}")
+        st.write(f"Battery Type: {experiment.battery_type}")
+        st.write(f"Nominal Capacity: {experiment.nominal_capacity} Ah")
+        
+        # Display validation status with appropriate icon
+        if experiment.validation_status:
+            st.success("All validation checks passed! ✅")
+        else:
+            st.warning("Validation found potential issues with the data. ⚠️")
+        
+        # Create expandable sections for validation details
+        validation_report = experiment.validation_report
+        
+        # Extract and display step validation results
+        with st.expander("Step Data Validation", expanded=not experiment.validation_status):
+            step_validation = validation_report.get('step_validation', {})
+            step_summary = step_validation.get('summary', {})
+            
+            if step_summary:
+                # Create metrics for validation issues
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Total Issues", step_summary.get('total_issues', 0))
+                with col2:
+                    st.metric("Critical Issues", step_summary.get('critical_issues', 0))
+                with col3:
+                    st.metric("Warning Issues", step_summary.get('warning_issues', 0))
+                
+                # Display critical issues
+                critical_issues = step_validation.get('issues_by_severity', {}).get('critical', [])
+                if critical_issues:
+                    st.markdown("##### Critical Issues:")
+                    for issue in critical_issues:
+                        st.error(f"**{issue.get('validation', '')}**: {issue.get('issue', '')}")
+                
+                # Display warnings
+                warning_issues = step_validation.get('issues_by_severity', {}).get('warning', [])
+                if warning_issues:
+                    st.markdown("##### Warnings:")
+                    for issue in warning_issues:
+                        st.warning(f"**{issue.get('validation', '')}**: {issue.get('issue', '')}")
+                
+                # Display info issues
+                info_issues = step_validation.get('issues_by_severity', {}).get('info', [])
+                if info_issues:
+                    st.markdown("##### Information:")
+                    for issue in info_issues:
+                        st.info(f"**{issue.get('validation', '')}**: {issue.get('issue', '')}")
+            else:
+                st.info("No step validation data available.")
+        
+        # Extract and display detail validation results
+        with st.expander("Measurement Data Validation", expanded=not experiment.validation_status):
+            detail_validation = validation_report.get('detail_validation', {})
+            detail_summary = detail_validation.get('summary', {})
+            
+            if detail_summary:
+                # Create metrics for validation issues
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Total Issues", detail_summary.get('total_issues', 0))
+                with col2:
+                    st.metric("Critical Issues", detail_summary.get('critical_issues', 0))
+                with col3:
+                    st.metric("Warning Issues", detail_summary.get('warning_issues', 0))
+                
+                # Display critical issues
+                critical_issues = detail_validation.get('issues_by_severity', {}).get('critical', [])
+                if critical_issues:
+                    st.markdown("##### Critical Issues:")
+                    for issue in critical_issues:
+                        st.error(f"**{issue.get('validation', '')}**: {issue.get('issue', '')}")
+                
+                # Display warnings
+                warning_issues = detail_validation.get('issues_by_severity', {}).get('warning', [])
+                if warning_issues:
+                    st.markdown("##### Warnings:")
+                    for issue in warning_issues:
+                        st.warning(f"**{issue.get('validation', '')}**: {issue.get('issue', '')}")
+                
+                # Display info issues
+                info_issues = detail_validation.get('issues_by_severity', {}).get('info', [])
+                if info_issues:
+                    st.markdown("##### Information:")
+                    for issue in info_issues:
+                        st.info(f"**{issue.get('validation', '')}**: {issue.get('issue', '')}")
+            else:
+                st.info("No measurement validation data available.")
+                
+        # Add validation metadata
+        with st.expander("Validation Metadata"):
+            st.write(f"Validation Timestamp: {validation_report.get('timestamp', 'Not available')}")
+            st.json(validation_report)
