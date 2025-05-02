@@ -197,7 +197,7 @@ else:
                                     st.write("Steps with SOC calculated:")
                                     
                                     # Show selected columns with SOC
-                                    soc_cols = ['step_number', 'step_type', 'capacity', 'voltage_start', 
+                                    soc_cols = ['step_number', 'original_step_type', 'step_type', 'capacity', 'voltage_start', 
                                                'voltage_end', 'soc_start', 'soc_end']
                                     
                                     st.dataframe(steps_with_soc[soc_cols])

@@ -148,16 +148,20 @@ def validate_csv_format(file_path: str, expected_headers: List[str]) -> Tuple[bo
 def map_step_types(df: pd.DataFrame, step_type_col: str = 'step_type') -> pd.DataFrame:
     """
     Map step types to standardized categories (charge, discharge, rest).
+    Preserves original step type in original_step_type column.
 
     Args:
         df: DataFrame containing step data
         step_type_col: Name of the column containing step types
 
     Returns:
-        DataFrame with standardized step types
+        DataFrame with standardized step types and original step types preserved
     """
     if step_type_col not in df.columns:
         raise ValueError(f"Column '{step_type_col}' not found in DataFrame")
+    
+    # Save original step types
+    df['original_step_type'] = df[step_type_col].copy()
     
     # Map step types
     df[step_type_col] = df[step_type_col].apply(
@@ -227,9 +231,19 @@ def parse_step_csv(file_path: str) -> pd.DataFrame:
             # Calculate end_time from start_time + duration
             df_filtered['end_time'] = df_filtered['start_time'] + pd.to_timedelta(df_filtered['duration'], unit='s')
         
-        # If we miss voltage_start, set it to None
+        # If we miss voltage_start, add it from previous step's voltage_end
         if 'voltage_start' not in df_filtered.columns:
             df_filtered['voltage_start'] = None
+            
+            # Sort by step_number to ensure correct order
+            if 'step_number' in df_filtered.columns:
+                df_filtered = df_filtered.sort_values('step_number')
+                
+                # For each step, set voltage_start to the previous step's voltage_end
+                for i in range(1, len(df_filtered)):
+                    prev_idx = df_filtered.index[i-1]
+                    current_idx = df_filtered.index[i]
+                    df_filtered.at[current_idx, 'voltage_start'] = df_filtered.at[prev_idx, 'voltage_end']
         
         # Calculate duration if it's not already present
         if 'duration' not in df_filtered.columns and 'start_time' in df_filtered.columns and 'end_time' in df_filtered.columns:

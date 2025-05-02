@@ -42,6 +42,7 @@ def calculate_soc(steps_df: pd.DataFrame, details_df: pd.DataFrame, full_dischar
     - If full_discharge_step_idx is provided, use that step as the 0% SOC reference point
     - If not provided, find the step with the lowest ending voltage as the reference
     - Calculate SOC based on capacity relative to the full discharge capacity
+    - Steps before the reference point are marked as N/A
     
     Args:
         steps_df: DataFrame containing step data
@@ -56,6 +57,10 @@ def calculate_soc(steps_df: pd.DataFrame, details_df: pd.DataFrame, full_dischar
     # Make copies of the input DataFrames to avoid modifying originals
     steps = steps_df.copy()
     details = details_df.copy()
+    
+    # Initialize SOC columns with NaN/None
+    steps['soc_start'] = None
+    steps['soc_end'] = None
     
     # If no reference step is provided, find the step with the lowest ending voltage
     # which is likely a full discharge step
@@ -77,78 +82,106 @@ def calculate_soc(steps_df: pd.DataFrame, details_df: pd.DataFrame, full_dischar
             if not matching_steps.empty:
                 # Use the index of the first matching row
                 full_discharge_step_idx = matching_steps.index[0]
+                reference_step_number = step_number
             else:
                 # Fallback to using the index directly if no match found
                 full_discharge_step_idx = min_voltage_idx
+                reference_step_number = min_voltage_row['step_number']
         else:
             # Fallback to using the index directly if no step_number column
             full_discharge_step_idx = min_voltage_idx
+            reference_step_number = min_voltage_row['step_number']
+    else:
+        # Get the step number from the provided index
+        try:
+            reference_step = steps.loc[full_discharge_step_idx]
+            reference_step_number = reference_step['step_number']
+        except KeyError:
+            # If that fails, the index might actually be a step number
+            if isinstance(full_discharge_step_idx, int) and 'step_number' in steps.columns:
+                matching_steps = steps[steps['step_number'] == full_discharge_step_idx]
+                if not matching_steps.empty:
+                    reference_step_number = full_discharge_step_idx
+                    # Update full_discharge_step_idx to be the actual DataFrame index
+                    full_discharge_step_idx = matching_steps.index[0]
+                else:
+                    raise ValueError(f"Reference step number {full_discharge_step_idx} not found")
+            else:
+                raise ValueError(f"Reference step index {full_discharge_step_idx} not found")
     
     # Get the total capacity at the end of the discharge step
     # This is the reference capacity representing 0% SOC
     try:
-        # First try to access by index
+        # Access by index
         reference_step = steps.loc[full_discharge_step_idx]
         reference_capacity = reference_step['capacity']
     except KeyError:
-        # If that fails, try to find by step_number
-        if isinstance(full_discharge_step_idx, int) and 'step_number' in steps.columns:
-            matching_steps = steps[steps['step_number'] == full_discharge_step_idx]
-            if not matching_steps.empty:
-                reference_step = matching_steps.iloc[0]
-                reference_capacity = reference_step['capacity']
-            else:
-                raise ValueError(f"Reference step number {full_discharge_step_idx} not found")
-        else:
-            raise ValueError(f"Reference step index {full_discharge_step_idx} not found")
+        raise ValueError(f"Reference step index {full_discharge_step_idx} not found")
     
-    # Calculate SOC for each step based on the reference
-    for idx, step in steps.iterrows():
+    # Set the reference discharge step's SOC_end to 0%
+    steps.at[full_discharge_step_idx, 'soc_end'] = 0.0
+    
+    # Sort steps by start_time to ensure chronological processing
+    steps_sorted = steps.sort_values('start_time')
+    
+    # Find the reference step's position in the sorted DataFrame
+    reference_step_pos = steps_sorted[steps_sorted['step_number'] == reference_step_number].index[0]
+    
+    # Process steps after the reference step (forward calculation)
+    last_soc = 0.0  # Reference step ends at 0% SOC
+    current_capacity = reference_capacity
+    
+    # First handle the reference step's SOC_start
+    capacity_change = reference_step['capacity']
+    if capacity_change != 0:
+        # For a discharge step, this would typically be a negative value
+        soc_start = (100 * abs(capacity_change) / abs(reference_capacity))
+        steps.at[full_discharge_step_idx, 'soc_start'] = soc_start
+    else:
+        steps.at[full_discharge_step_idx, 'soc_start'] = 0.0
+    
+    # Process steps after the reference step chronologically
+    for idx in steps_sorted.index[steps_sorted.index > reference_step_pos]:
+        step = steps_sorted.loc[idx]
+        
+        # Start SOC is the end SOC of the previous step
+        steps.at[idx, 'soc_start'] = last_soc
+        
         # Calculate SOC at end of step relative to reference
-        soc_end = 100 * (step['capacity'] - reference_capacity) / abs(reference_capacity)
-        steps.at[idx, 'soc_end'] = soc_end
+        capacity_change = step['capacity'] - current_capacity
+        current_capacity = step['capacity']
         
-        # Find the previous chronological step for the start SOC
-        previous_steps = steps[steps['end_time'] < step['start_time']]
+        # Calculate the SOC change as a percentage of the reference capacity
+        soc_change = 100 * capacity_change / abs(reference_capacity)
+        steps.at[idx, 'soc_end'] = last_soc + soc_change
         
-        if len(previous_steps) > 0:
-            # Use the end SOC of the most recent step
-            prev_step = previous_steps.iloc[-1]
-            steps.at[idx, 'soc_start'] = prev_step['soc_end']
-        else:
-            # If this is the first step, estimate based on ending SOC and capacity
-            # This is an approximation since we don't have data before this step
-            capacity_change = step['capacity']
-            if capacity_change != 0:
-                soc_start = soc_end - (100 * capacity_change / abs(reference_capacity))
-            else:
-                soc_start = soc_end
-            
-            steps.at[idx, 'soc_start'] = soc_start
+        # Update last_soc for the next step
+        last_soc = steps.at[idx, 'soc_end']
     
-    # Now calculate SOC for every detail measurement
+    # Now calculate SOC for every detail measurement but only for steps with SOC values
     # We'll interpolate between step start and end SOC values
     
     # First, create a mapping of step number to SOC values
     step_soc_map = {}
     for idx, step in steps.iterrows():
-        step_num = step['step_number']
-        step_soc_map[step_num] = {
-            'soc_start': step['soc_start'],
-            'soc_end': step['soc_end'],
-            'start_time': step['start_time'],
-            'end_time': step['end_time'],
-            'capacity_start': step['capacity'] - step['capacity'],  # Capacity at start of step
-            'capacity_end': step['capacity'],  # Capacity at end of step
-        }
+        if pd.notna(step.get('soc_start')) and pd.notna(step.get('soc_end')):
+            step_num = step['step_number']
+            step_soc_map[step_num] = {
+                'soc_start': step['soc_start'],
+                'soc_end': step['soc_end'],
+                'start_time': step['start_time'],
+                'end_time': step['end_time'],
+                'capacity_start': step['capacity'] - (step['capacity'] - current_capacity),  # Approximate capacity at start
+                'capacity_end': step['capacity'],  # Capacity at end of step
+            }
     
-    # Now calculate SOC for each detail record
+    # Now calculate SOC for each detail record, only for steps that have SOC values
     details['soc'] = details.apply(
         lambda row: _interpolate_soc(
             row,
             step_soc_map.get(row['step_number'], {}),
             reference_capacity
-        ),
+        ) if row['step_number'] in step_soc_map else None,
         axis=1
     )
     
