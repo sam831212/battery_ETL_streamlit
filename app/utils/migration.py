@@ -30,8 +30,12 @@ def create_alembic_config(engine: Engine) -> Config:
     # Set the script location
     config.set_main_option("script_location", os.path.join(base_dir, "migrations"))
     
-    # Set the SQLAlchemy URL to the one in the engine
-    config.set_main_option("sqlalchemy.url", str(engine.url))
+    # Get connection details from environment variables for Replit
+    # This ensures we use the correct database URL with proper credentials
+    from app.utils.config import DATABASE_URL
+    
+    # Set the SQLAlchemy URL to our configured DATABASE_URL
+    config.set_main_option("sqlalchemy.url", DATABASE_URL)
     
     return config
 

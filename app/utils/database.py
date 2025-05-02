@@ -14,6 +14,11 @@ engine = create_engine(DATABASE_URL, echo=DEBUG)
 def create_db_and_tables():
     """Create all tables defined in the models if they don't exist"""
     try:
+        # Set extend_existing=True to update existing tables
+        for table in SQLModel.metadata.tables.values():
+            table.schema = None  # Ensure no schema is set
+            table.extend_existing = True  # Allow extending existing tables
+            
         SQLModel.metadata.create_all(engine)
     except Exception as e:
         # Check if the error is about existing tables
