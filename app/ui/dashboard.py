@@ -28,13 +28,23 @@ def render_dashboard_page():
         # Get available experiments from database
         available_experiments = []
         with get_session() as session:
-            experiments = session.exec(
-                select(Experiment).order_by(desc(Experiment.created_at))
-            ).all()
+            # Join with Cell and Machine tables to get their info
+            query = select(Experiment, Cell, Machine).\
+                outerjoin(Cell, Experiment.cell_id == Cell.id).\
+                outerjoin(Machine, Experiment.machine_id == Machine.id).\
+                order_by(desc(Experiment.created_at))
             
-            if experiments:
-                # Create a list of experiment options
-                available_experiments = [(exp.id, f"{exp.name} ({exp.battery_type})") for exp in experiments]
+            results = session.exec(query).all()
+            
+            if results:
+                # Create a list of experiment options with cell and machine info
+                available_experiments = []
+                for exp, cell, machine in results:
+                    cell_info = f" | Cell: {cell.chemistry.value} {cell.capacity}Ah" if cell else ""
+                    machine_info = f" | Machine: {machine.name}" if machine else ""
+                    label = f"{exp.name} ({exp.battery_type}){cell_info}{machine_info}"
+                    available_experiments.append((exp.id, label))
+                
                 experiment_options = [name for id, name in available_experiments]
                 experiment_ids = [id for id, name in available_experiments]
             else:
@@ -320,10 +330,24 @@ def render_validation_tab():
             st.warning("No validation data available for this experiment.")
             return
         
-        # Display validation status
+        # Display experiment info with Cell and Machine details
         st.write(f"#### Experiment: {experiment.name}")
         st.write(f"Battery Type: {experiment.battery_type}")
         st.write(f"Nominal Capacity: {experiment.nominal_capacity} Ah")
+        
+        # Get cell and machine info if available
+        if experiment.cell_id:
+            cell = session.get(Cell, experiment.cell_id)
+            if cell:
+                st.write(f"Cell: {cell.chemistry.value}, {cell.capacity} Ah, {cell.form.value}")
+        
+        if experiment.machine_id:
+            machine = session.get(Machine, experiment.machine_id)
+            if machine:
+                machine_info = [f"Machine: {machine.name}"]
+                if machine.model_number:
+                    machine_info.append(f"Model: {machine.model_number}")
+                st.write(" | ".join(machine_info))
         
         # Display validation status with appropriate icon
         if experiment.validation_status:
