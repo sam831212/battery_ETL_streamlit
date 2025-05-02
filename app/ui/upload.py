@@ -48,12 +48,6 @@ def render_upload_page():
                 value=st.session_state.get("experiment_name", ""),
             )
             
-            battery_type = st.text_input(
-                "Battery Type*",
-                help="Type or model of the battery being tested",
-                value=st.session_state.get("battery_type", ""),
-            )
-            
             nominal_capacity = st.number_input(
                 "Nominal Capacity (Ah)*",
                 min_value=0.0,
@@ -115,7 +109,7 @@ def render_upload_page():
         submit_experiment = st.form_submit_button("Save Experiment Info", type="primary")
     
     if submit_experiment:
-        if not experiment_name or not battery_type or nominal_capacity <= 0:
+        if not experiment_name or nominal_capacity <= 0:
             st.error("Please fill in all required fields with valid values.")
         elif cells and selected_cell_id is None:
             st.error("Please select a battery cell for this experiment.")
@@ -124,7 +118,6 @@ def render_upload_page():
         else:
             # Save experiment info to session state
             st.session_state["experiment_name"] = experiment_name
-            st.session_state["battery_type"] = battery_type
             st.session_state["nominal_capacity"] = nominal_capacity
             st.session_state["experiment_date"] = experiment_date
             st.session_state["operator"] = operator
@@ -286,10 +279,15 @@ def render_upload_page():
                                 }
                                 
                                 # Create experiment record
+                                # Get battery type from cell
+                                with get_session() as cell_session:
+                                    cell = cell_session.get(Cell, st.session_state["cell_id"])
+                                    battery_type = cell.chemistry.value if cell else "Unknown"
+                                
                                 experiment = Experiment(
                                     name=st.session_state["experiment_name"],
                                     description="",  # Could add a description field to the form
-                                    battery_type=st.session_state["battery_type"],
+                                    battery_type=battery_type,
                                     nominal_capacity=st.session_state["nominal_capacity"],
                                     temperature_avg=step_df["temperature_avg"].mean(),
                                     operator=st.session_state["operator"],

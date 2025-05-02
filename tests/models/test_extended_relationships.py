@@ -36,7 +36,7 @@ def test_experiment_with_cell_and_machine(db_session):
     cell = Cell(
         chemistry="LFP",
         capacity=3.2,
-        form="prismatic"
+        form="PRISMATIC"
     )
     db_session.add(cell)
     
