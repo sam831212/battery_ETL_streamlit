@@ -14,7 +14,7 @@ from datetime import datetime
 # Define constants for required headers in ChromaLex format
 # Chinese version headers from the provided CSV files
 STEP_REQUIRED_HEADERS_CHROMALEX = [
-    '工步編號',               # Step number
+    '工步',               # Step number
     '工步種類',               # Step type
     '日期時間',               # Start time
     '工步執行時間(秒)',       # Step duration
@@ -26,7 +26,7 @@ STEP_REQUIRED_HEADERS_CHROMALEX = [
 ]
 
 DETAIL_REQUIRED_HEADERS_CHROMALEX = [
-    '工步編號',               # Step number
+    '工步',               # Step number
     '實際開始時間',           # Start time
     '電壓(V)',                # Voltage
     '電流(A)',                # Current
@@ -41,7 +41,7 @@ DETAIL_REQUIRED_HEADERS = DETAIL_REQUIRED_HEADERS_CHROMALEX
 
 # Chinese version column mappings based on the provided CSV files
 STEP_COLUMN_MAPPING_CHROMALEX = {
-    '工步編號': 'step_number',
+    
     '工步': 'step_number',  # Alternative column name
     '工步種類': 'step_type',
     '日期時間': 'start_time',
@@ -55,7 +55,7 @@ STEP_COLUMN_MAPPING_CHROMALEX = {
 }
 
 DETAIL_COLUMN_MAPPING_CHROMALEX = {
-    '工步編號': 'step_number',
+    
     '工步': 'step_number',  # Alternative column name
     '實際開始時間': 'timestamp',
     '電壓(V)': 'voltage',
