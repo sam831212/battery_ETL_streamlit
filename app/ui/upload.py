@@ -14,12 +14,15 @@ from app.etl import (
     parse_detail_csv, 
     load_and_preprocess_files
 )
-from app.etl.extraction import STEP_REQUIRED_HEADERS, DETAIL_REQUIRED_HEADERS
+from app.etl.extraction import STEP_REQUIRED_HEADERS, DETAIL_REQUIRED_HEADERS, convert_numpy_types
 from app.etl.validation import generate_validation_report
 from app.models.database import Experiment, Step, Measurement, ProcessedFile, Cell, Machine
 from app.utils.database import get_session
 from sqlmodel import select, desc
 import hashlib
+
+# Define the path to example files
+EXAMPLE_FOLDER = "./example_csv_chromaLex"
 
 
 def render_upload_page():
@@ -129,24 +132,99 @@ def render_upload_page():
     # File upload section
     st.subheader("Upload Data Files")
     
-    # Create upload columns
-    col1, col2 = st.columns(2)
+    # Option to use example files
+    use_example_files = st.checkbox("Use example files from example_csv_chromaLex folder", key="use_example_files")
     
-    with col1:
-        step_file = st.file_uploader(
-            "Upload Step.csv",
-            type=["csv"],
-            help="CSV file containing step-level data",
-            key="step_file",
-        )
+    if use_example_files:
+        # Display list of available example files
+        example_step_files = [f for f in os.listdir(EXAMPLE_FOLDER) if f.endswith("_Step.csv")]
+        example_detail_files = [f for f in os.listdir(EXAMPLE_FOLDER) if f.endswith("_Detail.csv")]
+        
+        if not example_step_files or not example_detail_files:
+            st.error("No example files found in the example_csv_chromaLex folder.")
+            use_example_files = False
+        else:
+            st.success(f"Found {len(example_step_files)} step files and {len(example_detail_files)} detail files.")
+            
+            # Automatically match related step and detail files
+            example_pairs = []
+            for step_file in example_step_files:
+                base_name = step_file.replace("_Step.csv", "")
+                detail_file = f"{base_name}_Detail.csv"
+                if detail_file in example_detail_files:
+                    example_pairs.append((base_name, step_file, detail_file))
+            
+            if example_pairs:
+                selected_pair = st.selectbox(
+                    "Select example file pair:",
+                    options=range(len(example_pairs)),
+                    format_func=lambda i: example_pairs[i][0]
+                )
+                
+                _, selected_step_file, selected_detail_file = example_pairs[selected_pair]
+                
+                st.info(f"Selected files: {selected_step_file} and {selected_detail_file}")
+                
+                # Load the selected example files as file objects
+                if st.button("Load Example Files", type="primary"):
+                    step_file_path = os.path.join(EXAMPLE_FOLDER, selected_step_file)
+                    detail_file_path = os.path.join(EXAMPLE_FOLDER, selected_detail_file)
+                    
+                    # Create file-like objects to be compatible with the existing code
+                    class MockFile:
+                        def __init__(self, file_path):
+                            self.name = os.path.basename(file_path)
+                            self.path = file_path
+                            with open(file_path, 'rb') as f:
+                                self.content = f.read()
+                        
+                        def getvalue(self):
+                            return self.content
+                        
+                        def getbuffer(self):
+                            # For compatibility with file uploaders that use getbuffer()
+                            import io
+                            return io.BytesIO(self.content).getbuffer()
+                    
+                    # Use these mock files as if they were uploaded
+                    step_file = MockFile(step_file_path)
+                    detail_file = MockFile(detail_file_path)
+                    
+                    # Update session state to keep files loaded
+                    st.session_state["step_file"] = step_file
+                    st.session_state["detail_file"] = detail_file
+                    
+                    st.rerun() # Force a rerun to display file processing
+            else:
+                st.warning("No matching step and detail file pairs found.")
     
-    with col2:
-        detail_file = st.file_uploader(
-            "Upload Detail.csv",
-            type=["csv"],
-            help="CSV file containing detailed measurement data",
-            key="detail_file",
-        )
+    # Regular file upload if not using example files
+    if not use_example_files:
+        # Create upload columns
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            step_file = st.file_uploader(
+                "Upload Step.csv",
+                type=["csv"],
+                help="CSV file containing step-level data",
+                key="step_file",
+            )
+        
+        with col2:
+            detail_file = st.file_uploader(
+                "Upload Detail.csv",
+                type=["csv"],
+                help="CSV file containing detailed measurement data",
+                key="detail_file",
+            )
+    # If using example files, get the files from session state
+    elif "step_file" in st.session_state and "detail_file" in st.session_state:
+        step_file = st.session_state["step_file"]
+        detail_file = st.session_state["detail_file"]
+    else:
+        step_file = None
+        detail_file = None
     
     # Process files when both are uploaded
     if step_file and detail_file:

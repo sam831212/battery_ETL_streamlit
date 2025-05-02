@@ -12,6 +12,32 @@ from typing import List, Dict, Tuple, Optional, Union, Any, cast
 from datetime import datetime
 
 
+# Helper function to convert numpy types to Python native types
+def convert_numpy_types(obj):
+    """
+    Convert numpy data types to Python native types for compatibility with database storage.
+    
+    Args:
+        obj: Object containing numpy data types
+        
+    Returns:
+        Object with numpy types converted to Python native types
+    """
+    if isinstance(obj, (np.integer, np.int64, np.int32, np.int16, np.int8)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64, np.float32, np.float16)):
+        return float(obj)
+    elif isinstance(obj, (np.ndarray,)):
+        return convert_numpy_types(obj.tolist())
+    elif isinstance(obj, (dict,)):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [convert_numpy_types(item) for item in obj]
+    elif hasattr(obj, 'isoformat'):  # Handle datetime-like objects
+        return obj.isoformat()
+    return obj
+
+
 # Define constants for required headers in ChromaLex format
 # Chinese version headers from the provided CSV files
 STEP_REQUIRED_HEADERS_CHROMALEX = [
@@ -323,19 +349,7 @@ def load_and_preprocess_files(step_file_path: str, detail_file_path: str,
             # Log the error but continue with the parsing
             print(f"Error applying transformations: {str(e)}")
     
-    # Helper function to convert numpy types to Python native types
-    def convert_numpy_types(obj):
-        if isinstance(obj, (np.integer, np.int64, np.int32, np.int16, np.int8)):
-            return int(obj)
-        elif isinstance(obj, (np.floating, np.float64, np.float32, np.float16)):
-            return float(obj)
-        elif isinstance(obj, (np.ndarray,)):
-            return convert_numpy_types(obj.tolist())
-        elif isinstance(obj, (dict,)):
-            return {key: convert_numpy_types(value) for key, value in obj.items()}
-        elif isinstance(obj, (list, tuple)):
-            return [convert_numpy_types(item) for item in obj]
-        return obj
+    # Use the module-level convert_numpy_types function
     
     # Gather metadata
     metadata = {
