@@ -40,7 +40,9 @@ def render_dashboard_page():
                 # Create a list of experiment options with cell and machine info
                 available_experiments = []
                 for exp, cell, machine in results:
-                    cell_info = f" | Cell: {cell.chemistry.value} {cell.capacity}Ah" if cell else ""
+                    cell_name = f"{cell.name}" if cell and cell.name else ""
+                    cell_name_display = f"{cell_name}: " if cell_name else ""
+                    cell_info = f" | Cell: {cell_name_display}{cell.chemistry.value} {cell.capacity}Ah" if cell else ""
                     machine_info = f" | Machine: {machine.name}" if machine else ""
                     label = f"{exp.name} ({exp.battery_type}){cell_info}{machine_info}"
                     available_experiments.append((exp.id, label))
@@ -339,7 +341,8 @@ def render_validation_tab():
         if experiment.cell_id:
             cell = session.get(Cell, experiment.cell_id)
             if cell:
-                st.write(f"Cell: {cell.chemistry.value}, {cell.capacity} Ah, {cell.form.value}")
+                cell_name_display = f"{cell.name}: " if cell.name else ""
+                st.write(f"Cell: {cell_name_display}{cell.chemistry.value}, {cell.capacity} Ah, {cell.form.value}")
         
         if experiment.machine_id:
             machine = session.get(Machine, experiment.machine_id)

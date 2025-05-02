@@ -32,7 +32,7 @@ def render_upload_page():
     
     # Get available cells and machines from database
     with get_session() as session:
-        cells = session.exec(select(Cell).order_by(Cell.chemistry, Cell.capacity)).all()
+        cells = session.exec(select(Cell).order_by(Cell.id)).all()
         machines = session.exec(select(Machine).order_by(Machine.name)).all()
     
     # Create experiment info form
@@ -63,7 +63,10 @@ def render_upload_page():
             
             # Cell selection
             if cells:
-                cell_options = [f"{cell.chemistry.value} - {cell.capacity}Ah ({cell.form.value})" for cell in cells]
+                cell_options = []
+                for cell in cells:
+                    cell_name_display = f"{cell.name}: " if cell.name else ""
+                    cell_options.append(f"{cell_name_display}{cell.chemistry.value} - {cell.capacity}Ah ({cell.form.value})")
                 cell_ids = [cell.id for cell in cells]
                 selected_cell_index = st.selectbox(
                     "Battery Cell*",
