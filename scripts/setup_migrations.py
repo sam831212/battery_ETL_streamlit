@@ -17,14 +17,21 @@ def main():
     """Initialize the migration system and create the initial migration"""
     print("Setting up database migration system...")
     
-    # Initialize the migration system
-    if init_migration_system(engine):
-        print("Migration system initialized successfully.")
+    # Check if migrations directory already exists
+    migrations_dir = Path(__file__).parent.parent / "migrations"
+    
+    # Initialize only if not already initialized
+    if not migrations_dir.exists() or not any(migrations_dir.iterdir()):
+        if init_migration_system(engine):
+            print("Migration system initialized successfully.")
+        else:
+            print("Failed to initialize migration system.")
+            return 1
     else:
-        print("Failed to initialize migration system.")
-        return 1
+        print("Migration system already initialized.")
     
     # Create the initial migration
+    print("Creating initial migration...")
     success, message = create_migration(engine, "Initial migration")
     if success:
         print(message)

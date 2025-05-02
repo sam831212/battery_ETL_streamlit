@@ -23,7 +23,9 @@ def add_columns_if_not_exist():
             "table": "experiment",
             "columns": [
                 {"name": "cell_id", "type": "INTEGER", "fk": "cell(id)"},
-                {"name": "machine_id", "type": "INTEGER", "fk": "machine(id)"}
+                {"name": "machine_id", "type": "INTEGER", "fk": "machine(id)"},
+                {"name": "validation_status", "type": "BOOLEAN"},
+                {"name": "validation_report", "type": "JSONB"}
             ]
         }
     ]
