@@ -7,6 +7,7 @@ ChromaLex battery test files (Step.csv and Detail.csv).
 import os
 import hashlib
 import pandas as pd
+import numpy as np
 from typing import List, Dict, Tuple, Optional, Union, Any, cast
 from datetime import datetime
 
@@ -322,25 +323,39 @@ def load_and_preprocess_files(step_file_path: str, detail_file_path: str,
             # Log the error but continue with the parsing
             print(f"Error applying transformations: {str(e)}")
     
+    # Helper function to convert numpy types to Python native types
+    def convert_numpy_types(obj):
+        if isinstance(obj, (np.integer, np.int64, np.int32, np.int16, np.int8)):
+            return int(obj)
+        elif isinstance(obj, (np.floating, np.float64, np.float32, np.float16)):
+            return float(obj)
+        elif isinstance(obj, (np.ndarray,)):
+            return convert_numpy_types(obj.tolist())
+        elif isinstance(obj, (dict,)):
+            return {key: convert_numpy_types(value) for key, value in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [convert_numpy_types(item) for item in obj]
+        return obj
+    
     # Gather metadata
     metadata = {
         'step_file': {
             'path': step_file_path,
             'filename': os.path.basename(step_file_path),
             'hash': step_file_hash,
-            'rows': len(step_df),
+            'rows': int(len(step_df)),
             'processed_at': datetime.now().isoformat(),
         },
         'detail_file': {
             'path': detail_file_path,
             'filename': os.path.basename(detail_file_path),
             'hash': detail_file_hash,
-            'rows': len(detail_df),
+            'rows': int(len(detail_df)),
             'processed_at': datetime.now().isoformat(),
         },
         'experiment': {
-            'total_steps': step_df['step_number'].nunique(),
-            'step_types': step_df['step_type'].value_counts().to_dict(),
+            'total_steps': int(step_df['step_number'].nunique()),
+            'step_types': convert_numpy_types(step_df['step_type'].value_counts().to_dict()),
             'start_time': step_df['start_time'].min().isoformat(),
             'end_time': step_df['end_time'].max().isoformat(),
         }
@@ -348,17 +363,17 @@ def load_and_preprocess_files(step_file_path: str, detail_file_path: str,
     
     # Add transformation metadata if available
     if apply_transformations and nominal_capacity is not None:
-        metadata['experiment']['nominal_capacity'] = nominal_capacity
+        metadata['experiment']['nominal_capacity'] = float(nominal_capacity)
         
         # Add SOC range if available
         if 'soc_end' in step_df.columns:
-            metadata['experiment']['soc_min'] = step_df['soc_end'].min()
-            metadata['experiment']['soc_max'] = step_df['soc_end'].max()
+            metadata['experiment']['soc_min'] = float(step_df['soc_end'].min())
+            metadata['experiment']['soc_max'] = float(step_df['soc_end'].max())
         
         # Add C-rate information if available
         if 'c_rate' in step_df.columns:
-            metadata['experiment']['c_rate_min'] = step_df['c_rate'].min()
-            metadata['experiment']['c_rate_max'] = step_df['c_rate'].max()
-            metadata['experiment']['c_rate_avg'] = step_df['c_rate'].mean()
+            metadata['experiment']['c_rate_min'] = float(step_df['c_rate'].min())
+            metadata['experiment']['c_rate_max'] = float(step_df['c_rate'].max())
+            metadata['experiment']['c_rate_avg'] = float(step_df['c_rate'].mean())
     
     return step_df, detail_df, metadata
