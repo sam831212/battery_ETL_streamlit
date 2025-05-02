@@ -8,9 +8,9 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from app.models.database import Experiment, Step, Measurement, ProcessedFile
+from app.models.database import Experiment, Step, Measurement, ProcessedFile, Cell, Machine
 from app.utils.database import get_session
-from sqlmodel import select, desc
+from sqlmodel import select, desc, func
 
 
 def render_dashboard_page():

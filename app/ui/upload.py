@@ -297,7 +297,9 @@ def render_upload_page():
                                     end_date=None,  # Will be updated after processing
                                     data_meta=metadata["experiment"],
                                     validation_status=validation_status,
-                                    validation_report=combined_validation_report
+                                    validation_report=combined_validation_report,
+                                    cell_id=st.session_state.get("cell_id"),
+                                    machine_id=st.session_state.get("machine_id")
                                 )
                                 
                                 # Save to database
