@@ -12,32 +12,8 @@ from datetime import datetime
 
 
 # Define constants for required headers in ChromaLex format
-# These are the column names in the original files for English version
-STEP_REQUIRED_HEADERS_EN = [
-    'Step Index',             # Step number
-    'Step Type',              # Charge, discharge, rest
-    'Start DateTime [s]',     # Start time (s since epoch)
-    'End DateTime [s]',       # End time (s since epoch)
-    'Start Voltage [V]',      # Initial voltage
-    'End Voltage [V]',        # Final voltage
-    'Current [A]',            # Current
-    'Capacity [Ah]',          # Capacity
-    'Energy [Wh]',            # Energy
-    'Aux T1 [oC]',            # Temperature
-]
-
-DETAIL_REQUIRED_HEADERS_EN = [
-    'Step Index',             # Step number
-    'DateTime [s]',           # Timestamp (s since epoch)
-    'Voltage [V]',            # Voltage
-    'Current [A]',            # Current
-    'Aux T1 [oC]',            # Temperature
-    'Capacity [Ah]',          # Capacity
-    'Energy [Wh]',            # Energy
-]
-
 # Chinese version headers from the provided CSV files
-STEP_REQUIRED_HEADERS_ZH = [
+STEP_REQUIRED_HEADERS_CHROMALEX = [
     '工步編號',               # Step number
     '工步種類',               # Step type
     '日期時間',               # Start time
@@ -49,7 +25,7 @@ STEP_REQUIRED_HEADERS_ZH = [
     'Aux T1',                 # Temperature
 ]
 
-DETAIL_REQUIRED_HEADERS_ZH = [
+DETAIL_REQUIRED_HEADERS_CHROMALEX = [
     '工步編號',               # Step number
     '實際開始時間',           # Start time
     '電壓(V)',                # Voltage
@@ -59,36 +35,12 @@ DETAIL_REQUIRED_HEADERS_ZH = [
     '能量(Wh)',               # Energy
 ]
 
-# Use the English headers as default, but include Chinese as alternatives
-STEP_REQUIRED_HEADERS = STEP_REQUIRED_HEADERS_EN
-DETAIL_REQUIRED_HEADERS = DETAIL_REQUIRED_HEADERS_EN
-
-# Define mappings for standardized column names
-STEP_COLUMN_MAPPING_EN = {
-    'Step Index': 'step_number',
-    'Step Type': 'step_type',
-    'Start DateTime [s]': 'start_time',
-    'End DateTime [s]': 'end_time',
-    'Start Voltage [V]': 'voltage_start',
-    'End Voltage [V]': 'voltage_end',
-    'Current [A]': 'current',
-    'Capacity [Ah]': 'capacity',
-    'Energy [Wh]': 'energy',
-    'Aux T1 [oC]': 'temperature',
-}
-
-DETAIL_COLUMN_MAPPING_EN = {
-    'Step Index': 'step_number',
-    'DateTime [s]': 'timestamp',
-    'Voltage [V]': 'voltage',
-    'Current [A]': 'current',
-    'Aux T1 [oC]': 'temperature',
-    'Capacity [Ah]': 'capacity',
-    'Energy [Wh]': 'energy',
-}
+# Use the ChromaLex headers as default
+STEP_REQUIRED_HEADERS = STEP_REQUIRED_HEADERS_CHROMALEX
+DETAIL_REQUIRED_HEADERS = DETAIL_REQUIRED_HEADERS_CHROMALEX
 
 # Chinese version column mappings based on the provided CSV files
-STEP_COLUMN_MAPPING_ZH = {
+STEP_COLUMN_MAPPING_CHROMALEX = {
     '工步編號': 'step_number',
     '工步': 'step_number',  # Alternative column name
     '工步種類': 'step_type',
@@ -102,7 +54,7 @@ STEP_COLUMN_MAPPING_ZH = {
     'Aux T1': 'temperature',
 }
 
-DETAIL_COLUMN_MAPPING_ZH = {
+DETAIL_COLUMN_MAPPING_CHROMALEX = {
     '工步編號': 'step_number',
     '工步': 'step_number',  # Alternative column name
     '實際開始時間': 'timestamp',
@@ -113,9 +65,9 @@ DETAIL_COLUMN_MAPPING_ZH = {
     '能量(Wh)': 'energy',
 }
 
-# Use English mappings as default
-STEP_COLUMN_MAPPING = STEP_COLUMN_MAPPING_EN
-DETAIL_COLUMN_MAPPING = DETAIL_COLUMN_MAPPING_EN
+# Use ChromaLex mappings as default
+STEP_COLUMN_MAPPING = STEP_COLUMN_MAPPING_CHROMALEX
+DETAIL_COLUMN_MAPPING = DETAIL_COLUMN_MAPPING_CHROMALEX
 
 # Step type mapping (standardize different names for the same step types)
 STEP_TYPE_MAPPING = {
@@ -216,31 +168,22 @@ def parse_step_csv(file_path: str) -> pd.DataFrame:
     Returns:
         DataFrame containing parsed step data with standardized column names
     """
-    # Try to read the CSV file to determine format (Chinese or English)
     try:
         df = pd.read_csv(file_path)
         headers = df.columns.tolist()
         
-        # Determine if this is Chinese format or English format
-        chinese_format = any('工步' in h for h in headers) or any('循環' in h for h in headers)
-        
-        if chinese_format:
-            # Use Chinese mappings for this file
-            column_mapping = STEP_COLUMN_MAPPING_ZH
-            expected_headers = STEP_REQUIRED_HEADERS_ZH
-        else:
-            # Use English mappings
-            column_mapping = STEP_COLUMN_MAPPING_EN
-            expected_headers = STEP_REQUIRED_HEADERS_EN
+        # Use ChromaLex mappings
+        column_mapping = STEP_COLUMN_MAPPING
+        expected_headers = STEP_REQUIRED_HEADERS
             
-        # Validate that the file has the required headers for its format
+        # Validate that the file has the required headers
         required_headers_found = all(h in headers for h in expected_headers)
         
         if not required_headers_found:
             missing = [h for h in expected_headers if h not in headers]
-            raise ValueError(f"Missing required headers for format: {', '.join(missing)}")
+            raise ValueError(f"Missing required headers: {', '.join(missing)}")
         
-        # Now we rename columns based on the detected format
+        # Rename columns based on the mapping
         df_renamed = df.rename(columns=column_mapping)
         
         # Filter to keep only mapped columns that exist in our mapping
@@ -248,29 +191,18 @@ def parse_step_csv(file_path: str) -> pd.DataFrame:
         standardized_columns = [column_mapping[col] for col in mapped_columns if col in headers]
         df_filtered = df_renamed[standardized_columns].copy()
         
-        # Special processing for Chinese format
-        if chinese_format:
-            # In Chinese format, date is a string like '02/20/2025 09:20:54'
-            # We need to convert to datetime
-            if 'start_time' in df_filtered.columns:
-                df_filtered['start_time'] = pd.to_datetime(df_filtered['start_time'])
-            
-            # Check if we have end_time or need to calculate it from start_time and duration
-            if 'end_time' not in df_filtered.columns and 'duration' in df_filtered.columns:
-                # Calculate end_time from start_time + duration
-                df_filtered['end_time'] = df_filtered['start_time'] + pd.to_timedelta(df_filtered['duration'], unit='s')
-            
-            # If we miss voltage_start, set it to None
-            if 'voltage_start' not in df_filtered.columns:
-                df_filtered['voltage_start'] = None
-                
-        else:
-            # For English format, convert timestamps to datetime if they're in epoch format
-            if 'start_time' in df_filtered.columns:
-                df_filtered['start_time'] = pd.to_datetime(df_filtered['start_time'], unit='s')
-            
-            if 'end_time' in df_filtered.columns:
-                df_filtered['end_time'] = pd.to_datetime(df_filtered['end_time'], unit='s')
+        # Process date/time fields - ChromaLex format has date as string
+        if 'start_time' in df_filtered.columns:
+            df_filtered['start_time'] = pd.to_datetime(df_filtered['start_time'])
+        
+        # Check if we have end_time or need to calculate it from start_time and duration
+        if 'end_time' not in df_filtered.columns and 'duration' in df_filtered.columns:
+            # Calculate end_time from start_time + duration
+            df_filtered['end_time'] = df_filtered['start_time'] + pd.to_timedelta(df_filtered['duration'], unit='s')
+        
+        # If we miss voltage_start, set it to None
+        if 'voltage_start' not in df_filtered.columns:
+            df_filtered['voltage_start'] = None
         
         # Calculate duration if it's not already present
         if 'duration' not in df_filtered.columns and 'start_time' in df_filtered.columns and 'end_time' in df_filtered.columns:
@@ -308,31 +240,22 @@ def parse_detail_csv(file_path: str) -> pd.DataFrame:
     Returns:
         DataFrame containing parsed detail data with standardized column names
     """
-    # Try to read the CSV file to determine format (Chinese or English)
     try:
         df = pd.read_csv(file_path)
         headers = df.columns.tolist()
         
-        # Determine if this is Chinese format or English format
-        chinese_format = any('工步' in h for h in headers) or any('循環' in h for h in headers)
-        
-        if chinese_format:
-            # Use Chinese mappings for this file
-            column_mapping = DETAIL_COLUMN_MAPPING_ZH
-            expected_headers = DETAIL_REQUIRED_HEADERS_ZH
-        else:
-            # Use English mappings
-            column_mapping = DETAIL_COLUMN_MAPPING_EN
-            expected_headers = DETAIL_REQUIRED_HEADERS_EN
+        # Use ChromaLex mappings
+        column_mapping = DETAIL_COLUMN_MAPPING
+        expected_headers = DETAIL_REQUIRED_HEADERS
             
-        # Validate that the file has the required headers for its format
+        # Validate that the file has the required headers
         required_headers_found = all(h in headers for h in expected_headers)
         
         if not required_headers_found:
             missing = [h for h in expected_headers if h not in headers]
-            raise ValueError(f"Missing required headers for format: {', '.join(missing)}")
+            raise ValueError(f"Missing required headers: {', '.join(missing)}")
         
-        # Now we rename columns based on the detected format
+        # Rename columns based on the mapping
         df_renamed = df.rename(columns=column_mapping)
         
         # Filter to keep only mapped columns that exist in our mapping
@@ -340,16 +263,9 @@ def parse_detail_csv(file_path: str) -> pd.DataFrame:
         standardized_columns = [column_mapping[col] for col in mapped_columns if col in headers]
         df_filtered = df_renamed[standardized_columns].copy()
         
-        # Special processing for Chinese format
-        if chinese_format:
-            # In Chinese format, date is a string like '02/20/2025 09:20:54'
-            # We need to convert to datetime
-            if 'timestamp' in df_filtered.columns:
-                df_filtered['timestamp'] = pd.to_datetime(df_filtered['timestamp'])
-        else:
-            # For English format, convert timestamp to datetime if it's in epoch format
-            if 'timestamp' in df_filtered.columns:
-                df_filtered['timestamp'] = pd.to_datetime(df_filtered['timestamp'], unit='s')
+        # Process timestamp - ChromaLex format has date as string
+        if 'timestamp' in df_filtered.columns:
+            df_filtered['timestamp'] = pd.to_datetime(df_filtered['timestamp'])
         
         # Sort by step number and timestamp if both columns exist
         if 'step_number' in df_filtered.columns and 'timestamp' in df_filtered.columns:
