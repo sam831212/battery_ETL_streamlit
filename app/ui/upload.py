@@ -13,11 +13,12 @@ from app.etl import (
     parse_step_csv, 
     parse_detail_csv, 
     load_and_preprocess_files,
-    calculate_file_hash
+    calculate_file_hash,
+    convert_numpy_types
 )
 from app.etl.extraction import STEP_REQUIRED_HEADERS, DETAIL_REQUIRED_HEADERS
 from app.etl.validation import generate_validation_report
-from app.models.database import Experiment, Step, Measurement, ProcessedFile, Cell, Machine
+from app.models import Experiment, Step, Measurement, ProcessedFile, Cell, Machine
 from app.utils.database import get_session
 from sqlmodel import select, desc
 import hashlib
@@ -673,8 +674,7 @@ def render_upload_page():
                                     cell = cell_session.get(Cell, st.session_state["cell_id"])
                                     battery_type = cell.chemistry.value if cell else "Unknown"
                                 
-                                # Import the convert_numpy_types function to ensure all numpy types are converted to Python native types
-                                from app.etl.extraction import convert_numpy_types
+                                # We already have convert_numpy_types imported from app.etl
                                 
                                 # Convert any numpy data types in metadata and validation report to Python native types
                                 experiment_metadata = convert_numpy_types(metadata["experiment"])
