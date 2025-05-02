@@ -4,8 +4,9 @@ Database models for the Battery ETL Dashboard
 This module defines SQLModel classes for the battery test data schema,
 including experiments, test steps, and measurement details.
 """
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
+from enum import Enum
 from sqlmodel import Field, SQLModel, Relationship, Column, JSON
 
 
@@ -13,6 +14,44 @@ class BaseModel(SQLModel):
     """Base model with common fields and methods"""
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
     updated_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+
+
+class CellChemistry(str, Enum):
+    """Enum for cell chemistry types"""
+    NMC = "NMC"
+    LFP = "LFP"
+    LTO = "LTO"
+    OTHER = "Others"
+
+
+class CellFormFactor(str, Enum):
+    """Enum for cell form factors"""
+    PRISMATIC = "Prismatic"
+    CYLINDRICAL = "cylindrical"
+    POUCH = "pouch"
+    OTHER = "others"
+
+
+class Cell(BaseModel, table=True):
+    """Model representing a battery cell"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    chemistry: CellChemistry = Field(nullable=False)
+    capacity: float = Field(nullable=False)  # Ah
+    form: CellFormFactor = Field(nullable=False)
+    
+    # Relationships
+    experiments: List["Experiment"] = Relationship(back_populates="cell")
+
+
+class Machine(BaseModel, table=True):
+    """Model representing a testing machine"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(nullable=False)
+    description: Optional[str] = Field(default=None)
+    model_number: Optional[str] = Field(default=None)
+    
+    # Relationships
+    experiments: List["Experiment"] = Relationship(back_populates="machine")
 
 
 class Experiment(BaseModel, table=True):
@@ -28,12 +67,18 @@ class Experiment(BaseModel, table=True):
     end_date: Optional[datetime] = Field(default=None)
     data_meta: dict = Field(default={}, sa_column=Column(JSON))
     
+    # References to Cell and Machine
+    cell_id: Optional[int] = Field(default=None, foreign_key="cell.id")
+    machine_id: Optional[int] = Field(default=None, foreign_key="machine.id")
+    
     # Validation results
     validation_status: Optional[bool] = Field(default=None)  # True if validation passed, False if issues found
     validation_report: Optional[dict] = Field(default=None, sa_column=Column(JSON))  # Validation report details
     
     # Relationships
     steps: List["Step"] = Relationship(back_populates="experiment")
+    cell: Optional["Cell"] = Relationship(back_populates="experiments")
+    machine: Optional["Machine"] = Relationship(back_populates="experiments")
 
 
 class Step(BaseModel, table=True):
@@ -93,3 +138,11 @@ class ProcessedFile(BaseModel, table=True):
     
     # Relationship
     experiment: "Experiment" = Relationship()
+
+
+class SavedView(BaseModel, table=True):
+    """Model representing a saved dashboard configuration"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(nullable=False, index=True)
+    description: Optional[str] = Field(default=None)
+    view_config: dict = Field(default={}, sa_column=Column(JSON))  # Dashboard configuration stored as JSON
