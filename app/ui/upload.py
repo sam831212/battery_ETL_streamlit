@@ -284,21 +284,28 @@ def render_upload_page():
                                     cell = cell_session.get(Cell, st.session_state["cell_id"])
                                     battery_type = cell.chemistry.value if cell else "Unknown"
                                 
+                                # Import the convert_numpy_types function to ensure all numpy types are converted to Python native types
+                                from app.etl.extraction import convert_numpy_types
+                                
+                                # Convert any numpy data types in metadata and validation report to Python native types
+                                experiment_metadata = convert_numpy_types(metadata["experiment"])
+                                validation_report_converted = convert_numpy_types(combined_validation_report)
+                                
                                 experiment = Experiment(
                                     name=st.session_state["experiment_name"],
                                     description="",  # Could add a description field to the form
                                     battery_type=battery_type,
                                     nominal_capacity=st.session_state["nominal_capacity"],
-                                    temperature_avg=step_df["temperature_avg"].mean(),
+                                    temperature_avg=float(step_df["temperature_avg"].mean()),  # Convert numpy.float64 to Python float
                                     operator=st.session_state["operator"],
                                     start_date=datetime.combine(
                                         st.session_state["experiment_date"], 
                                         datetime.min.time()
                                     ),
                                     end_date=None,  # Will be updated after processing
-                                    data_meta=metadata["experiment"],
+                                    data_meta=experiment_metadata,
                                     validation_status=validation_status,
-                                    validation_report=combined_validation_report,
+                                    validation_report=validation_report_converted,
                                     cell_id=st.session_state.get("cell_id"),
                                     machine_id=st.session_state.get("machine_id")
                                 )
@@ -371,14 +378,17 @@ def render_upload_page():
                                         session.add_all(measurements)
                                         session.commit()
                                     
-                                    # Record processed files
+                                    # Record processed files - convert metadata to ensure no numpy types
+                                    step_file_meta = convert_numpy_types(metadata["step_file"])
+                                    detail_file_meta = convert_numpy_types(metadata["detail_file"])
+                                    
                                     session.add(ProcessedFile(
                                         experiment_id=experiment.id,
                                         filename=step_file.name,
                                         file_type="step",
                                         file_hash=step_file_hash,
-                                        row_count=len(step_df),
-                                        data_meta=metadata["step_file"]
+                                        row_count=int(len(step_df)),  # Ensure this is a Python int
+                                        data_meta=step_file_meta
                                     ))
                                     
                                     session.add(ProcessedFile(
@@ -386,17 +396,19 @@ def render_upload_page():
                                         filename=detail_file.name,
                                         file_type="detail",
                                         file_hash=detail_file_hash,
-                                        row_count=len(detail_df),
-                                        data_meta=metadata["detail_file"]
+                                        row_count=int(len(detail_df)),  # Ensure this is a Python int
+                                        data_meta=detail_file_meta
                                     ))
                                     
                                     session.commit()
                                 
-                                # Update timestamp for end date
+                                # Update timestamp for end date - convert numpy timestamp to Python datetime
                                 with get_session() as session:
                                     experiment = session.get(Experiment, experiment.id)
                                     if experiment:
-                                        experiment.end_date = step_df["end_time"].max()
+                                        # Convert numpy timestamp to Python datetime
+                                        end_time = convert_numpy_types(step_df["end_time"].max())
+                                        experiment.end_date = end_time
                                         session.add(experiment)
                                         session.commit()
                                 
