@@ -25,6 +25,9 @@ def upgrade() -> None:
                existing_type=postgresql.JSONB(astext_type=sa.Text()),
                type_=sa.JSON(),
                existing_nullable=True)
+    
+    # Add name column to cell table
+    op.add_column('cell', sa.Column('name', sa.String(), nullable=True))
     # ### end Alembic commands ###
 
 
@@ -35,4 +38,7 @@ def downgrade() -> None:
                existing_type=sa.JSON(),
                type_=postgresql.JSONB(astext_type=sa.Text()),
                existing_nullable=True)
+    
+    # Drop name column from cell table
+    op.drop_column('cell', 'name')
     # ### end Alembic commands ###
