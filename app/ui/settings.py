@@ -227,6 +227,7 @@ def render_cell_management():
             for cell in cells:
                 cell_data.append({
                     "ID": cell.id,
+                    "Name": cell.name or "N/A",
                     "Chemistry": cell.chemistry.value,
                     "Capacity (Ah)": cell.capacity,
                     "Form Factor": cell.form.value,
@@ -242,6 +243,11 @@ def render_cell_management():
     
     with st.form(key="add_cell_form"):
         # Cell properties
+        cell_name = st.text_input(
+            "Cell Name",
+            help="Give this cell a descriptive name (optional)"
+        )
+        
         chemistry = st.selectbox(
             "Chemistry",
             options=[chem.value for chem in CellChemistry],
@@ -270,6 +276,7 @@ def render_cell_management():
         # Create new cell in database
         with get_session() as session:
             new_cell = Cell(
+                name=cell_name if cell_name else None,
                 chemistry=CellChemistry(chemistry),
                 capacity=capacity,
                 form=CellFormFactor(form_factor)

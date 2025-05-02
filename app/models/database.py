@@ -35,6 +35,7 @@ class CellFormFactor(str, Enum):
 class Cell(BaseModel, table=True, extend_existing=True):
     """Model representing a battery cell"""
     id: Optional[int] = Field(default=None, primary_key=True)
+    name: Optional[str] = Field(default=None)  # Cell name
     chemistry: CellChemistry = Field(nullable=False)
     capacity: float = Field(nullable=False)  # Ah
     form: CellFormFactor = Field(nullable=False)
