@@ -46,7 +46,7 @@ def calculate_soc(steps_df: pd.DataFrame, details_df: pd.DataFrame, full_dischar
     Args:
         steps_df: DataFrame containing step data
         details_df: DataFrame containing detailed measurement data
-        full_discharge_step_idx: Optional index of a full discharge step to use as reference
+        full_discharge_step_idx: Optional index or step number of a full discharge step to use as reference
             
     Returns:
         Tuple containing:
@@ -64,16 +64,43 @@ def calculate_soc(steps_df: pd.DataFrame, details_df: pd.DataFrame, full_dischar
         if len(discharge_steps) == 0:
             raise ValueError("No discharge steps found for SOC calculation")
         
-        # Get the step with the lowest ending voltage
-        full_discharge_step_idx = discharge_steps['voltage_end'].idxmin()
+        # Find the step with the lowest ending voltage and get its index
+        min_voltage_idx = discharge_steps['voltage_end'].idxmin()
+        # Get the actual row with this minimum voltage
+        min_voltage_row = discharge_steps.loc[min_voltage_idx]
+        # Use the step_number as the reference if available, otherwise use the index
+        if 'step_number' in min_voltage_row:
+            # Find the DataFrame index for this step_number
+            step_number = min_voltage_row['step_number']
+            # Find all rows with this step_number in the original DataFrame
+            matching_steps = steps[steps['step_number'] == step_number]
+            if not matching_steps.empty:
+                # Use the index of the first matching row
+                full_discharge_step_idx = matching_steps.index[0]
+            else:
+                # Fallback to using the index directly if no match found
+                full_discharge_step_idx = min_voltage_idx
+        else:
+            # Fallback to using the index directly if no step_number column
+            full_discharge_step_idx = min_voltage_idx
     
     # Get the total capacity at the end of the discharge step
     # This is the reference capacity representing 0% SOC
     try:
+        # First try to access by index
         reference_step = steps.loc[full_discharge_step_idx]
         reference_capacity = reference_step['capacity']
     except KeyError:
-        raise ValueError(f"Reference step index {full_discharge_step_idx} not found")
+        # If that fails, try to find by step_number
+        if isinstance(full_discharge_step_idx, int) and 'step_number' in steps.columns:
+            matching_steps = steps[steps['step_number'] == full_discharge_step_idx]
+            if not matching_steps.empty:
+                reference_step = matching_steps.iloc[0]
+                reference_capacity = reference_step['capacity']
+            else:
+                raise ValueError(f"Reference step number {full_discharge_step_idx} not found")
+        else:
+            raise ValueError(f"Reference step index {full_discharge_step_idx} not found")
     
     # Calculate SOC for each step based on the reference
     for idx, step in steps.iterrows():
