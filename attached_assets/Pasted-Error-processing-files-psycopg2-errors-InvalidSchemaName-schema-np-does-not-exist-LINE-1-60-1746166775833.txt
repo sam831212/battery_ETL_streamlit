@@ -1,0 +1,59 @@
+Error processing files: (psycopg2.errors.InvalidSchemaName) schema "np" does not exist LINE 1: ...60'::timestamp, 'BMW powermap ', '', 'NMC', 19.5, np.float64... ^
+
+[SQL: INSERT INTO experiment (created_at, updated_at, name, description, battery_type, nominal_capacity, temperature_avg, operator, start_date, end_date, data_meta, cell_id, machine_id, validation_status, validation_report) VALUES (%(created_at)s, %(updated_at)s, %(name)s, %(description)s, %(battery_type)s, %(nominal_capacity)s, %(temperature_avg)s, %(operator)s, %(start_date)s, %(end_date)s, %(data_meta)s::JSON, %(cell_id)s, %(machine_id)s, %(validation_status)s, %(validation_report)s::JSON) RETURNING experiment.id] [parameters: {'created_at': datetime.datetime(2025, 5, 2, 6, 9, 33, 183145), 'updated_at': datetime.datetime(2025, 5, 2, 6, 9, 33, 183160), 'name': 'BMW powermap ', 'description': '', 'battery_type': 'NMC', 'nominal_capacity': 19.5, 'temperature_avg': np.float64(5.104255272340426), 'operator': 'Sam', 'start_date': datetime.datetime(2025, 4, 2, 0, 0), 'end_date': None, 'data_meta': '{"total_steps": 235, "step_types": {"rest": 121, "unknown": 54, "discharge": 53, "charge": 7}, "start_time": "2025-04-02T17:25:51", "end_time": "2025-04-05T18:44:45.836000", "nominal_capacity": 19.5}', 'cell_id': 2, 'machine_id': 1, 'validation_status': False, 'validation_report': '{"valid": false, "step_validation": {"valid": false, "summary": {"total_rows": 235, "affected_rows_count": 232, "affected_percentage": 98.72340425531 ... (60863 characters truncated) ... e_jumps", "issue": "Found 89 jumps in 'temperature' exceeding 10.0% (maximum: 580.00%)"}], "info": []}}, "timestamp": "2025-05-02T06:09:32.982189"}'}] (Background on this error at: https://sqlalche.me/e/20/f405)
+
+ProgrammingError: (psycopg2.errors.InvalidSchemaName) schema "np" does not exist LINE 1: ...60'::timestamp, 'BMW powermap ', '', 'NMC', 19.5, np.float64... ^ [SQL: INSERT INTO experiment (created_at, updated_at, name, description, battery_type, nominal_capacity, temperature_avg, operator, start_date, end_date, data_meta, cell_id, machine_id, validation_status, validation_report) VALUES (%(created_at)s, %(updated_at)s, %(name)s, %(description)s, %(battery_type)s, %(nominal_capacity)s, %(temperature_avg)s, %(operator)s, %(start_date)s, %(end_date)s, %(data_meta)s::JSON, %(cell_id)s, %(machine_id)s, %(validation_status)s, %(validation_report)s::JSON) RETURNING experiment.id] [parameters: {'created_at': datetime.datetime(2025, 5, 2, 6, 9, 33, 183145), 'updated_at': datetime.datetime(2025, 5, 2, 6, 9, 33, 183160), 'name': 'BMW powermap ', 'description': '', 'battery_type': 'NMC', 'nominal_capacity': 19.5, 'temperature_avg': np.float64(5.104255272340426), 'operator': 'Sam', 'start_date': datetime.datetime(2025, 4, 2, 0, 0), 'end_date': None, 'data_meta': '{"total_steps": 235, "step_types": {"rest": 121, "unknown": 54, "discharge": 53, "charge": 7}, "start_time": "2025-04-02T17:25:51", "end_time": "2025-04-05T18:44:45.836000", "nominal_capacity": 19.5}', 'cell_id': 2, 'machine_id': 1, 'validation_status': False, 'validation_report': '{"valid": false, "step_validation": {"valid": false, "summary": {"total_rows": 235, "affected_rows_count": 232, "affected_percentage": 98.72340425531 ... (60863 characters truncated) ... e_jumps", "issue": "Found 89 jumps in \'temperature\' exceeding 10.0% (maximum: 580.00%)"}], "info": []}}, "timestamp": "2025-05-02T06:09:32.982189"}'}] (Background on this error at: https://sqlalche.me/e/20/f405)
+Traceback:
+File "/home/runner/workspace/app/ui/upload.py", line 310, in render_upload_page
+    session.commit()
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2032, in commit
+    trans.commit(_to_root=True)
+File "<string>", line 2, in commit
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 1313, in commit
+    self._prepare_impl()
+File "<string>", line 2, in _prepare_impl
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 1288, in _prepare_impl
+    self.session.flush()
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 4353, in flush
+    self._flush(objects)
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 4488, in _flush
+    with util.safe_reraise():
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py", line 146, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 4449, in _flush
+    flush_context.execute()
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/unitofwork.py", line 466, in execute
+    rec.execute(self)
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/persistence.py", line 1233, in _emit_insert_statements
+    result = connection.execute(
+             ^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1416, in execute
+    return meth(
+           ^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1638, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1843, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1983, in _exec_single_context
+    self._handle_dbapi_exception(
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2352, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1964, in _exec_single_context
+    self.dialect.do_execute(
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 945, in do_execute
+    cursor.execute(statement, parameters)
