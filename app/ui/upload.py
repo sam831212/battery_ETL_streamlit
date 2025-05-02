@@ -16,9 +16,9 @@ from app.etl import (
 )
 from app.etl.extraction import STEP_REQUIRED_HEADERS, DETAIL_REQUIRED_HEADERS
 from app.etl.validation import generate_validation_report
-from app.models.database import Experiment, Step, Measurement, ProcessedFile
+from app.models.database import Experiment, Step, Measurement, ProcessedFile, Cell, Machine
 from app.utils.database import get_session
-from sqlmodel import select
+from sqlmodel import select, desc
 import hashlib
 
 
@@ -29,6 +29,11 @@ def render_upload_page():
     processes the uploaded files, and provides feedback to the user.
     """
     st.header("Upload Battery Test Files")
+    
+    # Get available cells and machines from database
+    with get_session() as session:
+        cells = session.exec(select(Cell).order_by(Cell.chemistry, Cell.capacity)).all()
+        machines = session.exec(select(Machine).order_by(Machine.name)).all()
     
     # Create experiment info form
     with st.form(key="experiment_info"):
@@ -55,6 +60,22 @@ def render_upload_page():
                 help="Nominal capacity of the battery in Amp-hours",
                 value=st.session_state.get("nominal_capacity", 0.0),
             )
+            
+            # Cell selection
+            if cells:
+                cell_options = [f"{cell.chemistry.value} - {cell.capacity}Ah ({cell.form.value})" for cell in cells]
+                cell_ids = [cell.id for cell in cells]
+                selected_cell_index = st.selectbox(
+                    "Battery Cell*",
+                    options=range(len(cell_options)),
+                    format_func=lambda x: cell_options[x] if x < len(cell_options) else "Select a cell",
+                    index=0,
+                    help="Select the battery cell used in this experiment"
+                )
+                selected_cell_id = cell_ids[selected_cell_index] if selected_cell_index < len(cell_ids) else None
+            else:
+                st.warning("No cells available. Please add cells in the Settings page.")
+                selected_cell_id = None
         
         with col2:
             experiment_date = st.date_input(
@@ -68,6 +89,22 @@ def render_upload_page():
                 help="Name of the person who conducted the experiment",
                 value=st.session_state.get("operator", ""),
             )
+            
+            # Machine selection
+            if machines:
+                machine_options = [f"{machine.name} ({machine.model_number or 'N/A'})" for machine in machines]
+                machine_ids = [machine.id for machine in machines]
+                selected_machine_index = st.selectbox(
+                    "Testing Machine*",
+                    options=range(len(machine_options)),
+                    format_func=lambda x: machine_options[x] if x < len(machine_options) else "Select a machine",
+                    index=0,
+                    help="Select the testing machine used for this experiment"
+                )
+                selected_machine_id = machine_ids[selected_machine_index] if selected_machine_index < len(machine_ids) else None
+            else:
+                st.warning("No testing machines available. Please add machines in the Settings page.")
+                selected_machine_id = None
         
         st.markdown("*Required fields")
         
@@ -77,6 +114,10 @@ def render_upload_page():
     if submit_experiment:
         if not experiment_name or not battery_type or nominal_capacity <= 0:
             st.error("Please fill in all required fields with valid values.")
+        elif cells and selected_cell_id is None:
+            st.error("Please select a battery cell for this experiment.")
+        elif machines and selected_machine_id is None:
+            st.error("Please select a testing machine for this experiment.")
         else:
             # Save experiment info to session state
             st.session_state["experiment_name"] = experiment_name
@@ -84,6 +125,8 @@ def render_upload_page():
             st.session_state["nominal_capacity"] = nominal_capacity
             st.session_state["experiment_date"] = experiment_date
             st.session_state["operator"] = operator
+            st.session_state["cell_id"] = selected_cell_id
+            st.session_state["machine_id"] = selected_machine_id
             
             st.success("Experiment information saved. Now upload data files.")
     
