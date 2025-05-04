@@ -1,0 +1,163 @@
+{
+  "models": {
+    "database.py:BaseModel": {
+      "docstring": "Base model with common fields and methods",
+      "attributes": [],
+      "methods": [],
+      "relationships": []
+    },
+    "database.py:CellChemistry": {
+      "docstring": "Enum for cell chemistry types",
+      "attributes": [
+        "NMC",
+        "LFP",
+        "LTO",
+        "OTHER"
+      ],
+      "methods": [],
+      "relationships": []
+    },
+    "database.py:CellFormFactor": {
+      "docstring": "Enum for cell form factors",
+      "attributes": [
+        "PRISMATIC",
+        "CYLINDRICAL",
+        "POUCH",
+        "OTHER"
+      ],
+      "methods": [],
+      "relationships": []
+    },
+    "database.py:Cell": {
+      "docstring": "Model representing a battery cell",
+      "attributes": [],
+      "methods": [],
+      "relationships": []
+    },
+    "database.py:Machine": {
+      "docstring": "Model representing a testing machine",
+      "attributes": [],
+      "methods": [],
+      "relationships": []
+    },
+    "database.py:Experiment": {
+      "docstring": "Model representing a battery test experiment",
+      "attributes": [],
+      "methods": [],
+      "relationships": []
+    },
+    "database.py:Step": {
+      "docstring": "Model representing a test step within an experiment",
+      "attributes": [],
+      "methods": [],
+      "relationships": []
+    },
+    "database.py:Measurement": {
+      "docstring": "Model representing detailed measurements within a step",
+      "attributes": [],
+      "methods": [],
+      "relationships": []
+    },
+    "database.py:ProcessedFile": {
+      "docstring": "Model to track processed files to prevent duplicates",
+      "attributes": [],
+      "methods": [],
+      "relationships": []
+    },
+    "database.py:SavedView": {
+      "docstring": "Model representing a saved dashboard configuration",
+      "attributes": [],
+      "methods": [],
+      "relationships": []
+    }
+  },
+  "etl_functions": {
+    "validation.py:validate_soc_range": {
+      "signature": "validate_soc_range(df, tolerance)",
+      "docstring": "Validate that State of Charge (SOC) values are within expected range\n\n    Args:\n        df: DataFram..."
+    },
+    "validation.py:validate_c_rate": {
+      "signature": "validate_c_rate(df, max_c_rate)",
+      "docstring": "Validate that C-rate values are within expected range\n\n    Args:\n        df: DataFrame containing c_..."
+    },
+    "validation.py:validate_data_continuity": {
+      "signature": "validate_data_continuity(df, time_col, max_gap_seconds)",
+      "docstring": "Validate data continuity (check for gaps in time series)\n\n    Args:\n        df: DataFrame containing..."
+    },
+    "validation.py:validate_value_jumps": {
+      "signature": "validate_value_jumps(df, column, max_jump_percent)",
+      "docstring": "Validate that there are no sudden jumps in values\n\n    Args:\n        df: DataFrame containing data\n ..."
+    },
+    "validation.py:generate_validation_report": {
+      "signature": "generate_validation_report(df, step_type)",
+      "docstring": "Generate a comprehensive validation report for battery data\n\n    Args:\n        df: DataFrame contain..."
+    },
+    "transformation.py:calculate_c_rate": {
+      "signature": "calculate_c_rate(current, nominal_capacity)",
+      "docstring": "Calculate C-rate based on current and nominal capacity.\n\n    C-rate = |Current (A)| / Nominal Capaci..."
+    },
+    "transformation.py:calculate_soc": {
+      "signature": "calculate_soc(steps_df, details_df, full_discharge_step_idx)",
+      "docstring": "Calculate State of Charge (SOC) for all steps using Coulomb counting method.\n    \n    SOC calculatio..."
+    },
+    "transformation.py:_interpolate_soc": {
+      "signature": "_interpolate_soc(row, step_soc, reference_capacity)",
+      "docstring": "Helper function to interpolate SOC for a specific detail measurement.\n    \n    Args:\n        row: Ro..."
+    },
+    "transformation.py:extract_ocv_values": {
+      "signature": "extract_ocv_values(steps_df)",
+      "docstring": "Extract Open Circuit Voltage (OCV) values from rest steps.\n    \n    OCV is extracted from the voltag..."
+    },
+    "transformation.py:calculate_temperature_metrics": {
+      "signature": "calculate_temperature_metrics(df, temp_column)",
+      "docstring": "Calculate temperature statistics per step.\n    \n    Args:\n        df: DataFrame containing temperatu..."
+    },
+    "transformation.py:transform_data": {
+      "signature": "transform_data(steps_df, details_df, nominal_capacity)",
+      "docstring": "Apply all transformation functions to the step and detail data.\n    \n    Args:\n        steps_df: Dat..."
+    },
+    "extraction.py:convert_numpy_types": {
+      "signature": "convert_numpy_types(obj)",
+      "docstring": "Convert numpy data types to Python native types for compatibility with database storage.\n    \n    Ar..."
+    },
+    "extraction.py:validate_csv_format": {
+      "signature": "validate_csv_format(file_path, expected_headers)",
+      "docstring": "Validate that a CSV file has the required headers.\n\n    Args:\n        file_path: Path to the CSV fil..."
+    },
+    "extraction.py:map_step_types": {
+      "signature": "map_step_types(df, step_type_col)",
+      "docstring": "Map step types to standardized categories (charge, discharge, rest).\n    Preserves original step typ..."
+    },
+    "extraction.py:calculate_file_hash": {
+      "signature": "calculate_file_hash(file_path)",
+      "docstring": "Calculate MD5 hash of a file for tracking processed files.\n\n    Args:\n        file_path: Path to the..."
+    },
+    "extraction.py:parse_step_csv": {
+      "signature": "parse_step_csv(file_path)",
+      "docstring": "Parse Step.csv file from ChromaLex format.\n\n    Args:\n        file_path: Path to the Step.csv file\n\n..."
+    },
+    "extraction.py:parse_detail_csv": {
+      "signature": "parse_detail_csv(file_path)",
+      "docstring": "Parse Detail.csv file from ChromaLex format.\n\n    Args:\n        file_path: Path to the Detail.csv fi..."
+    },
+    "extraction.py:load_and_preprocess_files": {
+      "signature": "load_and_preprocess_files(step_file_path, detail_file_path, nominal_capacity, apply_transformations)",
+      "docstring": "Load and preprocess both Step.csv and Detail.csv files.\n\n    Args:\n        step_file_path: Path to t..."
+    }
+  },
+  "ui_components": [
+    "__init__.py",
+    "settings.py",
+    "dashboard.py",
+    "upload.py"
+  ],
+  "utils": [
+    "__init__.py",
+    "config.py",
+    "database.py",
+    "migration.py"
+  ],
+  "visualization": [
+    "__init__.py"
+  ]
+}
