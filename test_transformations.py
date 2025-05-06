@@ -24,6 +24,19 @@ from app.etl.transformation import (
     calculate_soc,
     transform_data
 )
+from app.etl.validation import (
+    generate_validation_report,
+    generate_summary_table,
+    detect_voltage_anomalies,
+    detect_capacity_anomalies,
+    detect_temperature_anomalies
+)
+from app.visualization import (
+    plot_capacity_vs_voltage,
+    plot_voltage_vs_time,
+    plot_current_vs_time,
+    plot_combined_voltage_current
+)
 
 # Define the path to example files
 EXAMPLE_FOLDER = "./example_csv_chromaLex"
@@ -246,6 +259,123 @@ else:
                                             
                                             # Success message
                                             st.success("Successfully calculated SOC for this dataset!")
+                                            
+                                            # Add data validation section
+                                            st.subheader("Data Validation")
+                                            
+                                            # Run data validation with anomaly detection
+                                            with st.spinner("Running data validation and anomaly detection..."):
+                                                step_validation = generate_validation_report(steps_with_soc)
+                                                detail_validation = generate_validation_report(details_with_soc)
+                                                
+                                                # Display validation summary
+                                                col1, col2 = st.columns(2)
+                                                
+                                                with col1:
+                                                    st.write("Step Data Validation")
+                                                    step_summary = step_validation['summary']
+                                                    
+                                                    st.metric("Total Issues", step_summary['total_issues'])
+                                                    st.metric("Critical Issues", step_summary['critical_issues'])
+                                                    
+                                                    # Display validation issues
+                                                    if step_summary['total_issues'] > 0:
+                                                        with st.expander("View Step Validation Issues"):
+                                                            for severity in ['critical', 'warning', 'info']:
+                                                                issues = step_validation['issues_by_severity'][severity]
+                                                                if issues:
+                                                                    st.write(f"**{severity.upper()} Issues:**")
+                                                                    for issue in issues:
+                                                                        st.write(f"- {issue['validation']}: {issue['issue']}")
+                                                
+                                                with col2:
+                                                    st.write("Detail Data Validation")
+                                                    detail_summary = detail_validation['summary']
+                                                    
+                                                    st.metric("Total Issues", detail_summary['total_issues'])
+                                                    st.metric("Critical Issues", detail_summary['critical_issues'])
+                                                    
+                                                    # Display validation issues
+                                                    if detail_summary['total_issues'] > 0:
+                                                        with st.expander("View Detail Validation Issues"):
+                                                            for severity in ['critical', 'warning', 'info']:
+                                                                issues = detail_validation['issues_by_severity'][severity]
+                                                                if issues:
+                                                                    st.write(f"**{severity.upper()} Issues:**")
+                                                                    for issue in issues:
+                                                                        st.write(f"- {issue['validation']}: {issue['issue']}")
+                                                
+                                                # Generate and display summary table
+                                                st.write("### Summary Table")
+                                                summary_table = generate_summary_table(steps_with_soc)
+                                                st.dataframe(summary_table)
+                                            
+                                            # Add visualization section
+                                            st.subheader("Data Visualization")
+                                            
+                                            # Add tab interface for different plot types
+                                            viz_tabs = st.tabs([
+                                                "Capacity-Voltage", 
+                                                "Voltage-Time", 
+                                                "Current-Time",
+                                                "Combined Plots"
+                                            ])
+                                            
+                                            # Tab 1: Capacity vs Voltage
+                                            with viz_tabs[0]:
+                                                st.write("### Capacity vs Voltage")
+                                                cv_fig = plot_capacity_vs_voltage(
+                                                    steps_with_soc,
+                                                    voltage_col='voltage_end',
+                                                    capacity_col='capacity',
+                                                    step_type_col='step_type',
+                                                    step_number_col='step_number',
+                                                    highlight_anomalies=True,
+                                                    title='Capacity vs Voltage by Step Type'
+                                                )
+                                                st.plotly_chart(cv_fig, use_container_width=True)
+                                            
+                                            # Tab 2: Voltage vs Time
+                                            with viz_tabs[1]:
+                                                st.write("### Voltage vs Time")
+                                                # Use detail data for time series plots
+                                                vt_fig = plot_voltage_vs_time(
+                                                    details_with_soc,
+                                                    voltage_col='voltage',
+                                                    time_col='timestamp',
+                                                    step_type_col='step_type',
+                                                    step_number_col='step_number',
+                                                    highlight_anomalies=True,
+                                                    title='Voltage vs Time by Step Type'
+                                                )
+                                                st.plotly_chart(vt_fig, use_container_width=True)
+                                            
+                                            # Tab 3: Current vs Time
+                                            with viz_tabs[2]:
+                                                st.write("### Current vs Time")
+                                                ct_fig = plot_current_vs_time(
+                                                    details_with_soc,
+                                                    current_col='current',
+                                                    time_col='timestamp',
+                                                    step_type_col='step_type',
+                                                    step_number_col='step_number',
+                                                    highlight_anomalies=True,
+                                                    title='Current vs Time by Step Type'
+                                                )
+                                                st.plotly_chart(ct_fig, use_container_width=True)
+                                            
+                                            # Tab 4: Combined Plots
+                                            with viz_tabs[3]:
+                                                st.write("### Combined Voltage and Current")
+                                                combined_fig = plot_combined_voltage_current(
+                                                    details_with_soc,
+                                                    voltage_col='voltage',
+                                                    current_col='current',
+                                                    time_col='timestamp',
+                                                    step_type_col='step_type',
+                                                    title='Voltage and Current vs Time'
+                                                )
+                                                st.plotly_chart(combined_fig, use_container_width=True)
                                         else:
                                             st.warning("No steps have SOC values calculated. Check if the reference step has valid total_capacity data.")
                             

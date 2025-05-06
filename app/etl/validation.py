@@ -540,3 +540,118 @@ def generate_validation_report(df: pd.DataFrame, step_type: Optional[str] = None
     }
     
     return report
+
+
+def generate_summary_table(selected_steps: pd.DataFrame,
+                          include_stats: List[str] = ['min', 'max', 'mean', 'median', 'std'],
+                          include_validation: bool = True) -> pd.DataFrame:
+    """
+    Generate a summary table with key statistics for selected steps.
+    
+    Args:
+        selected_steps: DataFrame containing step data
+        include_stats: List of statistics to include
+        include_validation: Whether to include validation information
+        
+    Returns:
+        DataFrame containing summary statistics
+    """
+    if selected_steps.empty:
+        return pd.DataFrame()
+    
+    # Copy dataframe to avoid modifying original
+    df = selected_steps.copy()
+    
+    # Prepare summary table
+    summary_data = []
+    
+    # Group by step type and step number
+    if 'step_type' in df.columns and 'step_number' in df.columns:
+        grouped = df.groupby(['step_type', 'step_number'])
+    elif 'step_number' in df.columns:
+        grouped = df.groupby('step_number')
+    else:
+        # No grouping possible
+        grouped = [(None, df)]
+    
+    # Calculate statistics for each group
+    for group_key, group_df in grouped:
+        row_data = {}
+        
+        # Add step information
+        if isinstance(group_key, tuple):
+            row_data['step_type'] = group_key[0]
+            row_data['step_number'] = group_key[1]
+        elif group_key is not None:
+            row_data['step_number'] = group_key
+            row_data['step_type'] = group_df['step_type'].iloc[0] if 'step_type' in group_df.columns else 'Unknown'
+        else:
+            row_data['step_type'] = 'All'
+            row_data['step_number'] = 'All'
+        
+        # Add original step type if available
+        if 'original_step_type' in group_df.columns:
+            row_data['original_step_type'] = group_df['original_step_type'].iloc[0]
+        
+        # Add key metrics with requested statistics
+        numeric_columns = ['voltage', 'current', 'capacity', 'c_rate', 'temperature', 'soc']
+        
+        for col in numeric_columns:
+            if col in group_df.columns:
+                # Skip columns with all NaN values
+                if group_df[col].isna().all():
+                    continue
+                
+                for stat in include_stats:
+                    if stat == 'min':
+                        row_data[f'{col}_min'] = group_df[col].min()
+                    elif stat == 'max':
+                        row_data[f'{col}_max'] = group_df[col].max()
+                    elif stat == 'mean':
+                        row_data[f'{col}_mean'] = group_df[col].mean()
+                    elif stat == 'median':
+                        row_data[f'{col}_median'] = group_df[col].median()
+                    elif stat == 'std':
+                        row_data[f'{col}_std'] = group_df[col].std()
+        
+        # Calculate capacity retention if possible
+        if 'capacity' in group_df.columns and row_data['step_type'] == 'discharge':
+            # Add discharge capacity values
+            row_data['discharge_capacity'] = group_df['capacity'].abs().max()
+            
+            # Calculate retention compared to nominal capacity if available
+            if 'nominal_capacity' in group_df.columns:
+                nominal_cap = group_df['nominal_capacity'].iloc[0]
+                if nominal_cap > 0:
+                    row_data['capacity_retention'] = (row_data['discharge_capacity'] / nominal_cap) * 100
+        
+        # Add time duration if timestamp is available
+        if 'timestamp' in group_df.columns:
+            timestamps = group_df['timestamp'].sort_values()
+            row_data['duration_seconds'] = (timestamps.iloc[-1] - timestamps.iloc[0]).total_seconds()
+            row_data['start_time'] = timestamps.iloc[0]
+            row_data['end_time'] = timestamps.iloc[-1]
+        
+        # Add validation status if requested
+        if include_validation:
+            # Check if any anomalies exist
+            has_anomalies = False
+            
+            for col in numeric_columns:
+                anomaly_col = f'{col}_is_anomaly'
+                if anomaly_col in group_df.columns and group_df[anomaly_col].any():
+                    has_anomalies = True
+                    row_data[f'{col}_anomalies'] = group_df[anomaly_col].sum()
+            
+            row_data['has_anomalies'] = has_anomalies
+        
+        summary_data.append(row_data)
+    
+    # Create summary dataframe
+    summary_df = pd.DataFrame(summary_data)
+    
+    # Sort by step number if available
+    if 'step_number' in summary_df.columns:
+        summary_df = summary_df.sort_values('step_number')
+    
+    return summary_df
