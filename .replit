@@ -13,7 +13,6 @@ localPort = 5000
 externalPort = 80
 
 [workflows]
-runButton = "streamlit main"
 
 [[workflows.workflow]]
 name = "streamlit main"
@@ -23,3 +22,12 @@ author = 41497501
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "streamlit run streamlit_app.py"
+
+[[workflows.workflow]]
+name = "test_transformation"
+mode = "sequential"
+author = 41497501
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "streamlit run test_transformations.py"
