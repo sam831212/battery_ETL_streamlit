@@ -13,6 +13,7 @@ localPort = 5000
 externalPort = 80
 
 [workflows]
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "streamlit main"
@@ -31,3 +32,21 @@ author = 41497501
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "streamlit run test_transformations.py"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Battery ETL Dashboard"
+
+[[workflows.workflow]]
+name = "Battery ETL Dashboard"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "streamlit run streamlit_app.py --server.headless=true --server.address=0.0.0.0 --server.port=5000"
+waitForPort = 5000

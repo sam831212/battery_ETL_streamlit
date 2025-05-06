@@ -57,7 +57,7 @@ st.markdown("""
 
 # Initialize session state for navigation
 if 'current_page' not in st.session_state:
-    st.session_state['current_page'] = "Upload & Process"
+    st.session_state['current_page'] = "Data Preview"
 
 # Function to change page
 def change_page(page):
@@ -72,9 +72,10 @@ st.sidebar.markdown('<div class="sidebar-title">Navigation</div>', unsafe_allow_
 
 # Menu items with icons
 menu_items = {
-    "Upload & Process": "📤",
+    "Data Preview": "📊",
     "Step Selection": "✅",
-    "Dashboard": "📊",
+    "Experiment Info": "📝",
+    "Dashboard": "📈",
     "Settings": "⚙️"
 }
 
@@ -109,9 +110,9 @@ if DEBUG:
 st.title(f"{menu_items[st.session_state['current_page']]} {st.session_state['current_page']}")
 
 # Display different content based on the selected page
-if st.session_state['current_page'] == "Upload & Process":
-    from app.ui.upload import render_upload_page
-    render_upload_page()
+if st.session_state['current_page'] == "Data Preview":
+    from app.ui.preview import render_preview_page
+    render_preview_page()
     
 elif st.session_state['current_page'] == "Step Selection":
     # Import step selection page
@@ -120,17 +121,35 @@ elif st.session_state['current_page'] == "Step Selection":
     # Check if we have data in session state
     if 'steps_df' not in st.session_state or 'details_df' not in st.session_state:
         st.warning("No data available for step selection. Please upload and process files first.")
-        st.info("Go to the Upload & Process page to upload battery test files.")
+        st.info("Go to the Data Preview page to upload and preview battery test files.")
         
-        # Add a button to navigate to upload page
-        if st.button("Go to Upload & Process", type="primary"):
-            change_page("Upload & Process")
+        # Add a button to navigate to preview page
+        if st.button("Go to Data Preview", type="primary"):
+            change_page("Data Preview")
     else:
         # Render the step selection page with data from session state
         render_step_selection_page(
-            st.session_state.steps_df,
-            st.session_state.details_df
+            st.session_state.steps_df if 'steps_df_transformed' not in st.session_state else st.session_state.steps_df_transformed,
+            st.session_state.details_df if 'details_df_transformed' not in st.session_state else st.session_state.details_df_transformed
         )
+
+elif st.session_state['current_page'] == "Experiment Info":
+    from app.ui.upload import render_upload_page  # Temporarily reuse the upload page for experiment info
+    
+    # Check if steps have been selected in session state
+    if 'selected_steps_for_db' not in st.session_state or not st.session_state.selected_steps_for_db:
+        st.warning("No steps selected for database loading. Please select steps first.")
+        st.info("Go to the Step Selection page to select steps for processing.")
+        
+        # Add a button to navigate to step selection page
+        if st.button("Go to Step Selection", type="primary"):
+            change_page("Step Selection")
+    else:
+        # Show success message
+        st.success(f"You've selected {len(st.session_state.selected_steps_for_db)} steps for processing.")
+        
+        # Render the experiment info form (currently reusing upload page)
+        render_upload_page()
     
 elif st.session_state['current_page'] == "Dashboard":
     from app.ui.dashboard import render_dashboard_page
