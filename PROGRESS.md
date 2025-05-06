@@ -83,7 +83,7 @@ This document tracks the progress of the Battery ETL Dashboard implementation ac
 - ✓ Created test_transformations.py for testing SOC calculations without database operations
 - ✓ Fixed SOC calculation implementation for proper Coulomb counting
 
-## Task 5: Implement data validation and preview (Partly Implemented)
+## Task 5: Implement data validation and preview (Implemented)
 
 - Implemented basic data validation functions:
   - `validate_soc_range()`: Check if SOC values are within expected range
@@ -125,7 +125,7 @@ This document tracks the progress of the Battery ETL Dashboard implementation ac
    - ✓ Finish extraction module for parsing CSV files
    - ✓ Implement transformation logic for metrics calculation
    - ✓ Create testing utility for transformation functions
-   - Integrate validation with the UI
+   - ✓ Integrate validation with the UI
 
 2. Enhance the dashboard with real data visualization:
    - Implement capacity vs. cycle plots

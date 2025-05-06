@@ -33,12 +33,12 @@ Based on the project structure and completed tasks, here's the current status:
 - Implemented temperature metrics calculation
 - Created transform_data function integrating all calculations
 
-## Remaining Tasks
-
 ### Task 5 - Create data validation and preview functions
 - Data validation functions
 - Preview generation features
 - Anomaly detection utilities
+
+## Remaining Tasks
 
 ### Task 6 - Implement upload and metadata UI
 - File upload interface

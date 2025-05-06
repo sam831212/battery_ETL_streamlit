@@ -117,6 +117,8 @@ STEP_TYPE_MAPPING = {
     'CP放電': 'discharge',
     '超級CP充電': 'charge',
     '超級CP放電': 'discharge',
+    '電流波形': 'waveform',
+    '功率波形': 'waveform'
 }
 
 
