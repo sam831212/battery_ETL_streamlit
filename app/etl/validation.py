@@ -3,18 +3,170 @@ Validation functions for battery test data
 
 This module provides functions for validating battery test data,
 identifying anomalies, and generating validation reports.
+It also includes functions for generating summary tables with key statistics.
 """
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Tuple, Any, Union, Optional
 
 
-def validate_soc_range(df: pd.DataFrame, tolerance: float = 2.0) -> Dict[str, Any]:
+def detect_voltage_anomalies(df: pd.DataFrame, 
+                             voltage_col: str = 'voltage',
+                             window_size: int = 5,
+                             z_threshold: float = 3.0) -> pd.DataFrame:
+    """
+    Detect anomalies in voltage measurements using statistical methods.
+    
+    Args:
+        df: DataFrame containing voltage data
+        voltage_col: Name of the voltage column
+        window_size: Size of the rolling window for anomaly detection
+        z_threshold: Z-score threshold for anomaly detection
+        
+    Returns:
+        DataFrame with added columns:
+        - 'voltage_zscore': Z-score of voltage measurements
+        - 'voltage_is_anomaly': Boolean flag for anomalous points
+    """
+    if voltage_col not in df.columns or len(df) < window_size:
+        # Add empty anomaly columns
+        df_result = df.copy()
+        df_result[f'{voltage_col}_zscore'] = np.nan
+        df_result[f'{voltage_col}_is_anomaly'] = False
+        return df_result
+    
+    # Calculate rolling mean and std
+    df_result = df.copy()
+    df_sorted = df_result.sort_index()
+    
+    # Calculate rolling stats
+    rolling_mean = df_sorted[voltage_col].rolling(window=window_size, center=True).mean()
+    rolling_std = df_sorted[voltage_col].rolling(window=window_size, center=True).std()
+    
+    # Handle edge cases where std is 0
+    rolling_std = rolling_std.replace(0, np.nan)
+    
+    # Calculate z-scores
+    df_result[f'{voltage_col}_zscore'] = np.abs((df_sorted[voltage_col] - rolling_mean) / rolling_std)
+    
+    # Identify anomalies
+    df_result[f'{voltage_col}_is_anomaly'] = df_result[f'{voltage_col}_zscore'] > z_threshold
+    
+    # Fill NaN values in anomaly flag with False
+    df_result[f'{voltage_col}_is_anomaly'] = df_result[f'{voltage_col}_is_anomaly'].fillna(False)
+    
+    return df_result
+
+
+def detect_capacity_anomalies(df: pd.DataFrame, 
+                              capacity_col: str = 'capacity',
+                              total_capacity_col: str = 'total_capacity',
+                              step_type_col: str = 'step_type',
+                              min_capacity_threshold: float = 0.0,
+                              max_change_pct: float = 20.0) -> pd.DataFrame:
+    """
+    Detect anomalies in capacity measurements.
+    
+    Args:
+        df: DataFrame containing capacity data
+        capacity_col: Name of the step capacity column
+        total_capacity_col: Name of the cumulative capacity column
+        step_type_col: Name of the step type column
+        min_capacity_threshold: Minimum valid capacity value
+        max_change_pct: Maximum allowed percentage change between consecutive steps
+        
+    Returns:
+        DataFrame with added columns:
+        - 'capacity_pct_change': Percentage change in capacity
+        - 'capacity_is_anomaly': Boolean flag for anomalous capacity values
+    """
+    if capacity_col not in df.columns or total_capacity_col not in df.columns:
+        # Add empty anomaly columns
+        df_result = df.copy()
+        df_result['capacity_pct_change'] = np.nan
+        df_result['capacity_is_anomaly'] = False
+        return df_result
+    
+    # Copy dataframe to avoid modifying original
+    df_result = df.copy()
+    
+    # Check for negative or suspiciously low capacity values
+    df_result['capacity_is_anomaly'] = df_result[capacity_col] < min_capacity_threshold
+    
+    # Calculate capacity changes for each step type
+    if step_type_col in df_result.columns:
+        # Group by step type and calculate percentage changes
+        for step_type in df_result[step_type_col].unique():
+            step_mask = df_result[step_type_col] == step_type
+            if step_mask.sum() > 1:  # Need at least 2 rows to calculate changes
+                df_result.loc[step_mask, 'capacity_pct_change'] = \
+                    df_result.loc[step_mask, capacity_col].pct_change().abs() * 100
+    else:
+        # Calculate overall percentage changes
+        df_result['capacity_pct_change'] = df_result[capacity_col].pct_change().abs() * 100
+    
+    # Flag large changes as anomalies
+    capacity_change_anomalies = (df_result['capacity_pct_change'] > max_change_pct) & \
+                               (~df_result['capacity_pct_change'].isna())
+    
+    # Combine anomaly flags
+    df_result['capacity_is_anomaly'] = df_result['capacity_is_anomaly'] | capacity_change_anomalies
+    
+    return df_result
+
+
+def detect_temperature_anomalies(df: pd.DataFrame,
+                                temp_col: str = 'temperature',
+                                min_temp: float = -20.0,
+                                max_temp: float = 80.0,
+                                max_temp_change: float = 10.0) -> pd.DataFrame:
+    """
+    Detect anomalies in temperature measurements.
+    
+    Args:
+        df: DataFrame containing temperature data
+        temp_col: Name of the temperature column
+        min_temp: Minimum valid temperature (°C)
+        max_temp: Maximum valid temperature (°C)
+        max_temp_change: Maximum allowed temperature change between consecutive readings (°C)
+        
+    Returns:
+        DataFrame with added columns:
+        - 'temperature_change': Change in temperature between consecutive readings
+        - 'temperature_is_anomaly': Boolean flag for anomalous temperature values
+    """
+    if temp_col not in df.columns:
+        # Add empty anomaly columns
+        df_result = df.copy()
+        df_result['temperature_change'] = np.nan
+        df_result['temperature_is_anomaly'] = False
+        return df_result
+    
+    # Copy dataframe to avoid modifying original
+    df_result = df.copy()
+    
+    # Check for temperature values outside valid range
+    range_anomalies = (df_result[temp_col] < min_temp) | (df_result[temp_col] > max_temp)
+    
+    # Calculate temperature changes
+    df_result['temperature_change'] = df_result[temp_col].diff()
+    
+    # Check for sudden temperature changes
+    change_anomalies = (df_result['temperature_change'].abs() > max_temp_change) & \
+                       (~df_result['temperature_change'].isna())
+    
+    # Combine anomaly flags
+    df_result['temperature_is_anomaly'] = range_anomalies | change_anomalies
+    
+    return df_result
+
+
+def validate_soc_range(df: pd.DataFrame, tolerance: float = 3.0) -> Dict[str, Any]:
     """Validate that State of Charge (SOC) values are within expected range
 
     Args:
         df: DataFrame containing SOC values
-        tolerance: Tolerance percentage above 100% or below 0% (default: 2.0)
+        tolerance: Tolerance percentage above 100% or below 0% (default: 3.0)
 
     Returns:
         Dict containing validation results with keys:
@@ -218,12 +370,14 @@ def validate_value_jumps(df: pd.DataFrame, column: str, max_jump_percent: float 
     }
 
 
-def generate_validation_report(df: pd.DataFrame, step_type: Optional[str] = None) -> Dict[str, Any]:
+def generate_validation_report(df: pd.DataFrame, step_type: Optional[str] = None,
+                             detect_anomalies: bool = True) -> Dict[str, Any]:
     """Generate a comprehensive validation report for battery data
 
     Args:
         df: DataFrame containing battery test data
         step_type: Optional step type for specialized validation (charge, discharge, rest)
+        detect_anomalies: Whether to run anomaly detection (default: True)
 
     Returns:
         Dict containing validation report with keys:
@@ -234,41 +388,91 @@ def generate_validation_report(df: pd.DataFrame, step_type: Optional[str] = None
         - 'affected_rows_count': Total number of unique affected rows
         - 'affected_rows': List of unique indices where issues were detected
         - 'issues_by_severity': Dict of issues categorized by severity
+        - 'df_with_anomalies': DataFrame with anomaly detection columns (if detect_anomalies=True)
     """
     validations = {}
     all_affected_rows = []
     
+    # Make a copy of the DataFrame to avoid modifying the original
+    df_processed = df.copy()
+    
     # Run validations
-    if 'soc' in df.columns:
-        validations['soc_range'] = validate_soc_range(df)
+    if 'soc' in df_processed.columns:
+        validations['soc_range'] = validate_soc_range(df_processed)
         all_affected_rows.extend(validations['soc_range']['affected_rows'])
     
-    if 'c_rate' in df.columns:
-        validations['c_rate'] = validate_c_rate(df)
+    if 'c_rate' in df_processed.columns:
+        validations['c_rate'] = validate_c_rate(df_processed)
         all_affected_rows.extend(validations['c_rate']['affected_rows'])
     
-    if 'timestamp' in df.columns:
-        validations['data_continuity'] = validate_data_continuity(df)
+    if 'timestamp' in df_processed.columns:
+        validations['data_continuity'] = validate_data_continuity(df_processed)
         all_affected_rows.extend(validations['data_continuity']['affected_rows'])
     
     # Voltage jump validation
-    if 'voltage' in df.columns:
-        validations['voltage_jumps'] = validate_value_jumps(df, 'voltage', max_jump_percent=5.0)
+    if 'voltage' in df_processed.columns:
+        validations['voltage_jumps'] = validate_value_jumps(df_processed, 'voltage', max_jump_percent=5.0)
         all_affected_rows.extend(validations['voltage_jumps']['affected_rows'])
     
     # Current jump validation (different thresholds for different step types)
-    if 'current' in df.columns:
+    if 'current' in df_processed.columns:
         max_jump = 20.0  # Default
         if step_type == 'rest':
             max_jump = 1.0  # Stricter for rest steps
         
-        validations['current_jumps'] = validate_value_jumps(df, 'current', max_jump_percent=max_jump)
+        validations['current_jumps'] = validate_value_jumps(df_processed, 'current', max_jump_percent=max_jump)
         all_affected_rows.extend(validations['current_jumps']['affected_rows'])
     
     # Temperature jump validation
-    if 'temperature' in df.columns:
-        validations['temperature_jumps'] = validate_value_jumps(df, 'temperature', max_jump_percent=10.0)
+    if 'temperature' in df_processed.columns:
+        validations['temperature_jumps'] = validate_value_jumps(df_processed, 'temperature', max_jump_percent=10.0)
         all_affected_rows.extend(validations['temperature_jumps']['affected_rows'])
+    
+    # Run anomaly detection if requested
+    anomaly_counts = {'voltage': 0, 'capacity': 0, 'temperature': 0}
+    
+    if detect_anomalies:
+        # Detect voltage anomalies
+        if 'voltage' in df_processed.columns:
+            df_processed = detect_voltage_anomalies(df_processed)
+            voltage_anomalies = df_processed[df_processed['voltage_is_anomaly']].index.tolist()
+            anomaly_counts['voltage'] = len(voltage_anomalies)
+            all_affected_rows.extend(voltage_anomalies)
+            
+            if anomaly_counts['voltage'] > 0:
+                validations['voltage_anomalies'] = {
+                    'valid': anomaly_counts['voltage'] == 0,
+                    'issues': [f"Found {anomaly_counts['voltage']} voltage anomalies using statistical analysis"],
+                    'affected_rows': voltage_anomalies
+                }
+        
+        # Detect capacity anomalies
+        if 'capacity' in df_processed.columns:
+            df_processed = detect_capacity_anomalies(df_processed)
+            capacity_anomalies = df_processed[df_processed['capacity_is_anomaly']].index.tolist()
+            anomaly_counts['capacity'] = len(capacity_anomalies)
+            all_affected_rows.extend(capacity_anomalies)
+            
+            if anomaly_counts['capacity'] > 0:
+                validations['capacity_anomalies'] = {
+                    'valid': anomaly_counts['capacity'] == 0,
+                    'issues': [f"Found {anomaly_counts['capacity']} capacity anomalies"],
+                    'affected_rows': capacity_anomalies
+                }
+        
+        # Detect temperature anomalies
+        if 'temperature' in df_processed.columns:
+            df_processed = detect_temperature_anomalies(df_processed)
+            temperature_anomalies = df_processed[df_processed['temperature_is_anomaly']].index.tolist()
+            anomaly_counts['temperature'] = len(temperature_anomalies)
+            all_affected_rows.extend(temperature_anomalies)
+            
+            if anomaly_counts['temperature'] > 0:
+                validations['temperature_anomalies'] = {
+                    'valid': anomaly_counts['temperature'] == 0,
+                    'issues': [f"Found {anomaly_counts['temperature']} temperature anomalies"],
+                    'affected_rows': temperature_anomalies
+                }
     
     # Get unique affected rows
     unique_affected_rows = list(set(all_affected_rows))
@@ -300,6 +504,8 @@ def generate_validation_report(df: pd.DataFrame, step_type: Optional[str] = None
                 severity = 'critical'
             elif 'time gaps' in issue:
                 severity = 'warning'
+            elif 'anomalies' in issue:
+                severity = 'warning'  # Anomalies are typically warnings
             
             issues_by_severity[severity].append({
                 'validation': validation_name,
@@ -307,7 +513,7 @@ def generate_validation_report(df: pd.DataFrame, step_type: Optional[str] = None
             })
     
     # Prepare summary
-    total_rows = len(df)
+    total_rows = len(df_processed)
     affected_pct = (len(unique_affected_rows) / total_rows * 100) if total_rows > 0 else 0
     
     summary = {
@@ -317,7 +523,8 @@ def generate_validation_report(df: pd.DataFrame, step_type: Optional[str] = None
         'total_issues': issues_count,
         'critical_issues': len(issues_by_severity['critical']),
         'warning_issues': len(issues_by_severity['warning']),
-        'info_issues': len(issues_by_severity['info'])
+        'info_issues': len(issues_by_severity['info']),
+        'anomaly_counts': anomaly_counts
     }
     
     # Prepare the final report
@@ -329,6 +536,7 @@ def generate_validation_report(df: pd.DataFrame, step_type: Optional[str] = None
         'affected_rows_count': len(unique_affected_rows),
         'affected_rows': unique_affected_rows,
         'issues_by_severity': issues_by_severity,
+        'df_with_anomalies': df_processed
     }
     
     return report
