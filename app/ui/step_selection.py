@@ -271,70 +271,57 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
     # Display section for database loading selection
     st.write("#### Select Steps for Database Loading")
     
-    # Define a callback for handling checkbox changes
-    def handle_selection_change(step_idx, checkbox_key):
-        # Get the current value from the updated checkbox
-        is_selected = st.session_state[checkbox_key]
+    # Add db_selection column to DataFrame if it doesn't exist
+    if 'db_selection' not in filtered_df.columns:
+        filtered_df['db_selection'] = False
         
-        if is_selected and step_idx not in st.session_state.temp_selected_steps_for_db:
-            st.session_state.temp_selected_steps_for_db.append(step_idx)
+    # Set initial values for db_selection based on session state
+    for idx in filtered_df.index:
+        filtered_df.loc[idx, 'db_selection'] = idx in st.session_state.temp_selected_steps_for_db
+    
+    # Create a form to wrap the data editor
+    with st.form(key="step_selection_form"):
+        st.write("Select steps to include in database loading:")
+        
+        # Store a copy of the filtered_df in session state to compare changes
+        if 'previous_filtered_df' not in st.session_state:
+            st.session_state.previous_filtered_df = filtered_df.copy()
+        
+        # Create a data editor for multi-selection
+        edited_df = st.data_editor(
+            filtered_df[display_cols + ['db_selection']],
+            column_config={
+                "step_number": st.column_config.NumberColumn("Step #"),
+                "original_step_type": st.column_config.TextColumn("Original Type"),
+                "step_type": st.column_config.TextColumn("Action"),
+                "c_rate_range": st.column_config.TextColumn("C-rate"),
+                "soc_range": st.column_config.TextColumn("SOC Range"),
+                "temperature_range": st.column_config.TextColumn("Temp Range"),
+                "db_selection": st.column_config.CheckboxColumn("Select for DB"),
+            },
+            hide_index=True,
+            use_container_width=True,
+            key="step_selection_table"
+        )
+        
+        # Add a form submit button
+        submit_form = st.form_submit_button("Apply Selection Changes", type="primary")
+    
+    # When form is submitted, update the session state
+    if submit_form:
+        # Update the temporary db selection in session state based on edited values
+        temp_selected_db_indices = []
+        for idx, row in edited_df.iterrows():
+            if row['db_selection']:
+                temp_selected_db_indices.append(idx)
+        
+        # Update temporary session state and set update flag
+        if set(temp_selected_db_indices) != set(st.session_state.temp_selected_steps_for_db):
+            st.session_state.temp_selected_steps_for_db = temp_selected_db_indices
             st.session_state.update_needed = True
-        elif not is_selected and step_idx in st.session_state.temp_selected_steps_for_db:
-            st.session_state.temp_selected_steps_for_db.remove(step_idx)
-            st.session_state.update_needed = True
-    
-    # Display a table with individual checkboxes instead of data_editor
-    st.write("Select steps to include in database loading:")
-    
-    # Create a container for the table
-    table_container = st.container()
-    
-    # Create header row
-    header_cols = st.columns([1, 1.5, 1, 1, 1.5, 1.5, 1])
-    with header_cols[0]:
-        st.write("**Step #**")
-    with header_cols[1]:
-        st.write("**Original Type**")
-    with header_cols[2]:
-        st.write("**Action**")
-    with header_cols[3]:
-        st.write("**C-rate**")
-    with header_cols[4]:
-        st.write("**SOC Range**")
-    with header_cols[5]:
-        st.write("**Temp Range**")
-    with header_cols[6]:
-        st.write("**Select**")
-    
-    # Display each row with a checkbox
-    for idx, row in filtered_df.iterrows():
-        cols = st.columns([1, 1.5, 1, 1, 1.5, 1.5, 1])
-        with cols[0]:
-            st.write(f"{row['step_number']}")
-        with cols[1]:
-            st.write(f"{row['original_step_type']}")
-        with cols[2]:
-            st.write(f"{row['step_type']}")
-        with cols[3]:
-            st.write(f"{row['c_rate_range']}")
-        with cols[4]:
-            st.write(f"{row['soc_range']}")
-        with cols[5]:
-            st.write(f"{row['temperature_range']}")
-        with cols[6]:
-            # Create unique key for each checkbox
-            checkbox_key = f"select_step_{idx}_{row['step_number']}"
-            # Check if this step is already in the temp selection
-            is_selected = idx in st.session_state.temp_selected_steps_for_db
             
-            # Initialize the checkbox state in session_state if it doesn't exist
-            if checkbox_key not in st.session_state:
-                st.session_state[checkbox_key] = is_selected
-                
-            # Create the checkbox with the current selection state
-            checked = st.checkbox("", value=st.session_state[checkbox_key], key=checkbox_key, 
-                                 on_change=handle_selection_change, 
-                                 args=(idx, checkbox_key))
+        # Store the edited dataframe for future comparison
+        st.session_state.previous_filtered_df = edited_df.copy()
         
     # Use the actual selections for returning
     selected_db_indices = st.session_state.selected_steps_for_db
@@ -400,8 +387,15 @@ def display_selected_steps_overview(filtered_df: pd.DataFrame, selected_indices:
         st.info("No steps selected for database loading. Please select steps using the checkboxes above.")
         return
     
-    # Filter to only show selected steps
-    selected_df = filtered_df.loc[selected_indices]
+    # Filter to only show selected steps (safely)
+    # Make sure all indices exist in the filtered_df
+    valid_indices = [idx for idx in selected_indices if idx in filtered_df.index]
+    
+    if not valid_indices:
+        st.info("No valid steps selected. Please select steps using the checkboxes above.")
+        return
+        
+    selected_df = filtered_df.loc[valid_indices]
     
     st.subheader("Selected Steps Overview")
     
