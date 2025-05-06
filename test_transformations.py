@@ -180,52 +180,74 @@ else:
                                 else:
                                     st.success(f"Found {len(discharge_steps)} discharge steps.")
                                     
-                                    # Find the step with the lowest ending voltage
-                                    min_voltage_idx = discharge_steps['voltage_end'].idxmin()
-                                    min_voltage_step = discharge_steps.loc[min_voltage_idx]
-                                    
-                                    st.write(f"Using step {min_voltage_step['step_number']} as reference (lowest voltage: {min_voltage_step['voltage_end']}V)")
-                                    
-                                    # Try SOC calculation with explicit reference
-                                    steps_with_soc, details_with_soc = calculate_soc(
-                                        step_df.copy(), 
-                                        detail_df.copy(),
-                                        full_discharge_step_idx=min_voltage_idx
-                                    )
-                                    
-                                    # Display SOC results
-                                    st.write("Steps with SOC calculated:")
-                                    
-                                    # Show selected columns with SOC
-                                    soc_cols = ['step_number', 'original_step_type', 'step_type', 'capacity', 'voltage_start', 
-                                               'voltage_end', 'soc_start', 'soc_end']
-                                    
-                                    st.dataframe(steps_with_soc[soc_cols])
-                                    
-                                    # Plot SOC vs capacity for discharge steps
-                                    discharge_soc = steps_with_soc[steps_with_soc['step_type'] == 'discharge']
-                                    
-                                    fig = px.scatter(discharge_soc, x='capacity', y='soc_end', 
-                                                    title='SOC vs Capacity (Discharge Steps)',
-                                                    labels={'capacity': 'Capacity (Ah)', 'soc_end': 'SOC (%)'},
-                                                   hover_data=['step_number', 'voltage_end'])
-                                    st.plotly_chart(fig)
-                                    
-                                    # Plot SOC vs voltage
-                                    fig = px.scatter(discharge_soc, x='voltage_end', y='soc_end',
-                                                  title='SOC vs Voltage (Discharge Steps)',
-                                                  labels={'voltage_end': 'Voltage (V)', 'soc_end': 'SOC (%)'},
-                                                 hover_data=['step_number', 'capacity'])
-                                    st.plotly_chart(fig)
-                                    
-                                    # Plot SOC histogram
-                                    fig = px.histogram(details_with_soc.dropna(subset=['soc']), x='soc',
-                                                     title='SOC Distribution',
-                                                     labels={'soc': 'SOC (%)'})
-                                    st.plotly_chart(fig)
-                                    
-                                    # Success message
-                                    st.success("Successfully calculated SOC for this dataset!")
+                                    # Check for total_capacity column
+                                    if 'total_capacity' not in step_df.columns:
+                                        st.error("No 'total_capacity' column found. The '總電壓(Ah)' column might be missing in the Step.csv file.")
+                                    else:
+                                        # Find the 2nd discharge step as reference by default
+                                        discharge_steps_sorted = discharge_steps.sort_values('step_number')
+                                        
+                                        if len(discharge_steps) >= 2:
+                                            reference_step_idx = discharge_steps_sorted.index[1]  # 2nd discharge step
+                                            reference_step = discharge_steps.loc[reference_step_idx]
+                                            st.write(f"Using the 2nd discharge step (step {reference_step['step_number']}) as reference. Voltage: {reference_step['voltage_end']}V")
+                                        else:
+                                            reference_step_idx = discharge_steps_sorted.index[0]  # 1st discharge step if only one exists
+                                            reference_step = discharge_steps.loc[reference_step_idx]
+                                            st.write(f"Using the only discharge step (step {reference_step['step_number']}) as reference. Voltage: {reference_step['voltage_end']}V")
+                                        
+                                        # Create a reference step selector
+                                        discharge_steps_dict = {
+                                            f"Step {row['step_number']} ({row['original_step_type']})": idx 
+                                            for idx, row in discharge_steps.iterrows()
+                                        }
+                                        
+                                        selected_reference = st.selectbox(
+                                            "Select reference discharge step for 0% SOC:",
+                                            options=list(discharge_steps_dict.keys()),
+                                            index=list(discharge_steps_dict.keys()).index(f"Step {reference_step['step_number']} ({reference_step['original_step_type']})") 
+                                                if f"Step {reference_step['step_number']} ({reference_step['original_step_type']})" in discharge_steps_dict.keys() else 0
+                                        )
+                                        
+                                        selected_reference_idx = discharge_steps_dict[selected_reference]
+                                        
+                                        # Try SOC calculation with explicit reference
+                                        steps_with_soc, details_with_soc = calculate_soc(
+                                            step_df.copy(), 
+                                            detail_df.copy(),
+                                            full_discharge_step_idx=selected_reference_idx
+                                        )
+                                        
+                                        # Display SOC results
+                                        st.write("Steps with SOC calculated:")
+                                        
+                                        # Show selected columns with SOC
+                                        soc_cols = ['step_number', 'original_step_type', 'step_type', 'capacity', 'total_capacity', 
+                                                   'voltage_end', 'soc_start', 'soc_end']
+                                        
+                                        st.dataframe(steps_with_soc[soc_cols])
+                                        
+                                        # Plot SOC vs total_capacity for all steps with SOC values
+                                        steps_with_soc_values = steps_with_soc.dropna(subset=['soc_end'])
+                                        
+                                        if not steps_with_soc_values.empty:
+                                            fig = px.scatter(steps_with_soc_values, x='total_capacity', y='soc_end', 
+                                                          title='SOC vs Total Capacity',
+                                                          labels={'total_capacity': 'Total Capacity (Ah)', 'soc_end': 'SOC (%)'},
+                                                         hover_data=['step_number', 'original_step_type'])
+                                            st.plotly_chart(fig)
+                                            
+                                            # Plot SOC vs voltage
+                                            fig = px.scatter(steps_with_soc_values, x='voltage_end', y='soc_end',
+                                                          title='SOC vs Voltage',
+                                                          labels={'voltage_end': 'Voltage (V)', 'soc_end': 'SOC (%)'},
+                                                         hover_data=['step_number', 'original_step_type', 'total_capacity'])
+                                            st.plotly_chart(fig)
+                                            
+                                            # Success message
+                                            st.success("Successfully calculated SOC for this dataset!")
+                                        else:
+                                            st.warning("No steps have SOC values calculated. Check if the reference step has valid total_capacity data.")
                             
                             except Exception as e:
                                 st.error(f"Error calculating SOC: {str(e)}")

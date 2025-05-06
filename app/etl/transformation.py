@@ -40,23 +40,23 @@ def calculate_soc(steps_df: pd.DataFrame, details_df: pd.DataFrame, full_dischar
     
     SOC calculation method:
     - If full_discharge_step_idx is provided, use that step as the 0% SOC reference point
-    - If not provided, find the step with the lowest ending voltage as the reference
-    - Calculate SOC based on formula: SOC = (Current Capacity - Reference Capacity) / |Reference Discharge Capacity|
+    - If not provided, find the 2nd discharge step (CC放電) as the reference
+    - Calculate SOC based on formula: SOC = (Total Capacity - Reference Total Capacity) / |Capacity of full discharge step|
     - All steps have SOC values calculated relative to the reference point
+    - Steps before the reference point will have null SOC values
     
     Args:
         steps_df: DataFrame containing step data
-        details_df: DataFrame containing detailed measurement data
+        details_df: DataFrame containing detailed measurement data (not used for SOC calculation anymore)
         full_discharge_step_idx: Optional index or step number of a full discharge step to use as reference
             
     Returns:
         Tuple containing:
         - Updated steps DataFrame with SOC values
-        - Updated details DataFrame with SOC values
+        - Unchanged details DataFrame
     """
-    # Make copies of the input DataFrames to avoid modifying originals
+    # Make a copy of the input DataFrame to avoid modifying original
     steps = steps_df.copy()
-    details = details_df.copy()
     
     # Initialize SOC columns with NaN/None
     steps['soc_start'] = None
@@ -67,11 +67,15 @@ def calculate_soc(steps_df: pd.DataFrame, details_df: pd.DataFrame, full_dischar
     if len(discharge_steps) == 0:
         raise ValueError("No discharge steps found for SOC calculation")
     
-    # If no reference step is provided, find the step with the lowest ending voltage
+    # If no reference step is provided, find the 2nd discharge step
     if full_discharge_step_idx is None:
-        # Find the step with the lowest ending voltage and get its index
-        min_voltage_idx = discharge_steps['voltage_end'].idxmin()
-        reference_step_idx = min_voltage_idx
+        if len(discharge_steps) >= 2:
+            # Sort discharge steps by step_number and get the 2nd one
+            discharge_steps_sorted = discharge_steps.sort_values('step_number')
+            reference_step_idx = discharge_steps_sorted.index[1]  # 2nd discharge step (0-indexed)
+        else:
+            # If there's only one discharge step, use it
+            reference_step_idx = discharge_steps.index[0]
     else:
         # Use the provided reference step index
         reference_step_idx = full_discharge_step_idx
@@ -95,133 +99,50 @@ def calculate_soc(steps_df: pd.DataFrame, details_df: pd.DataFrame, full_dischar
     if reference_step['step_type'] != 'discharge':
         raise ValueError(f"Reference step must be a discharge step, but step {reference_step.get('step_number', reference_step_idx)} is a {reference_step['step_type']} step")
     
-    # Find the reference discharge step's capacity and the previous step
+    # Get the reference discharge step's total capacity and capacity
+    if 'total_capacity' not in reference_step:
+        raise ValueError("Column 'total_capacity' not found. Please ensure the 'total_capacity' column is correctly imported from '總電壓(Ah)'.")
+    
+    reference_total_capacity = reference_step['total_capacity']
     reference_capacity = reference_step['capacity']
     reference_step_number = reference_step['step_number']
-    
-    # Find the discharge capacity (the amount discharged during the reference step)
-    # We need to find the previous step to calculate the capacity difference
-    steps_sorted = steps.sort_values('start_time')
-    step_indices = list(steps_sorted.index)
-    reference_step_pos = step_indices.index(reference_step_idx)
-    
-    # If reference step is not the first step, get the previous step's capacity
-    if reference_step_pos > 0:
-        previous_step_idx = step_indices[reference_step_pos - 1]
-        previous_step = steps.loc[previous_step_idx]
-        previous_capacity = previous_step['capacity']
-        # Calculate the discharge amount (should be negative for a discharge step)
-        discharge_capacity = reference_capacity - previous_capacity
-    else:
-        # If reference step is the first step, we use its capacity directly
-        # This is not ideal but we have no previous capacity to reference
-        discharge_capacity = reference_capacity
-    
-    # The reference discharge capacity must be negative for a discharge step
-    # We take its absolute value for SOC calculations
-    reference_discharge_capacity = abs(discharge_capacity)
-    if reference_discharge_capacity == 0:
-        raise ValueError("Reference discharge capacity cannot be zero")
     
     # Set the reference discharge step's SOC_end to 0%
     steps.at[reference_step_idx, 'soc_end'] = 0.0
     
-    # Calculate SOC for all steps based on the Excel formula: SOC = (Current Capacity - Reference Capacity) / |Reference Discharge Capacity|
-    for idx, step in steps.iterrows():
-        # Calculate the end SOC for each step
-        steps.at[idx, 'soc_end'] = 100 * (step['capacity'] - reference_capacity) / reference_discharge_capacity
+    # Get sorted step indices for processing in chronological order
+    steps_sorted = steps.sort_values('start_time')
+    step_indices = list(steps_sorted.index)
+    reference_step_pos = step_indices.index(reference_step_idx)
     
-    # Now calculate SOC_start for each step based on the end SOC of the previous step
+    # Calculate SOC for all steps after the reference step based on the formula:
+    # SOC = (Total Capacity - Reference Total Capacity) / |Reference Capacity|
+    for i, idx in enumerate(step_indices):
+        if i >= reference_step_pos:  # Only calculate for steps at or after the reference step
+            step = steps.loc[idx]
+            if 'total_capacity' in step and pd.notna(step['total_capacity']):
+                steps.at[idx, 'soc_end'] = 100 * (step['total_capacity'] - reference_total_capacity) / abs(reference_capacity)
+    
+    # Calculate soc_start for each step based on the end SOC of the previous step
     for i, current_idx in enumerate(step_indices):
-        if i == 0:  # First step has no previous step
-            # For the first step, we calculate based on extrapolation
-            # Assume constant rate of change within the step
-            current_step = steps.loc[current_idx]
-            next_idx = step_indices[i + 1] if i + 1 < len(step_indices) else current_idx
-            next_step = steps.loc[next_idx]
-            
-            if next_idx != current_idx:
-                # Extrapolate back based on the SOC difference between current and next step
-                soc_change = next_step['soc_end'] - current_step['soc_end']
-                steps.at[current_idx, 'soc_start'] = current_step['soc_end'] - soc_change
-            else:
-                # If there's only one step, set start SOC to same as end SOC
-                steps.at[current_idx, 'soc_start'] = current_step['soc_end']
+        if i == 0 or i <= reference_step_pos:  
+            # Skip steps before or at the reference step for soc_start since they may have null soc_end
+            continue
         else:
-            # For other steps, start SOC is the end SOC of the previous step
+            # For steps after reference, start SOC is the end SOC of the previous step
             previous_idx = step_indices[i - 1]
-            steps.at[current_idx, 'soc_start'] = steps.loc[previous_idx, 'soc_end']
+            if pd.notna(steps.loc[previous_idx, 'soc_end']):
+                steps.at[current_idx, 'soc_start'] = steps.loc[previous_idx, 'soc_end']
     
-    # Now calculate SOC for every detail measurement
-    # Create a mapping of step number to SOC values
-    step_soc_map = {}
-    for idx, step in steps.iterrows():
-        if pd.notna(step.get('soc_start')) and pd.notna(step.get('soc_end')):
-            step_num = step['step_number']
-            step_soc_map[step_num] = {
-                'soc_start': step['soc_start'],
-                'soc_end': step['soc_end'],
-                'start_time': step['start_time'],
-                'end_time': step['end_time'],
-                'capacity_start': step['capacity'] - discharge_capacity if step['step_type'] == 'discharge' else step['capacity'],
-                'capacity_end': step['capacity'],
-            }
+    # For the reference step, set soc_start to a small negative value if previous step exists
+    if reference_step_pos > 0:
+        previous_idx = step_indices[reference_step_pos - 1]
+        if 'total_capacity' in steps.loc[previous_idx] and pd.notna(steps.loc[previous_idx, 'total_capacity']):
+            previous_total_capacity = steps.loc[previous_idx, 'total_capacity']
+            steps.at[reference_step_idx, 'soc_start'] = 100 * (previous_total_capacity - reference_total_capacity) / abs(reference_capacity)
     
-    # Calculate SOC for each detail record
-    details['soc'] = details.apply(
-        lambda row: _interpolate_soc(row, step_soc_map.get(row['step_number'], {}), reference_discharge_capacity),
-        axis=1
-    )
-    
-    return steps, details
-
-
-def _interpolate_soc(row: pd.Series, step_soc: Dict[str, Any], reference_capacity: float) -> Optional[float]:
-    """
-    Helper function to interpolate SOC for a specific detail measurement.
-    
-    Args:
-        row: Row from the details DataFrame
-        step_soc: Dictionary with step SOC data
-        reference_capacity: Reference capacity used for SOC calculation
-    
-    Returns:
-        Interpolated SOC value or None if interpolation is not possible
-    """
-    if not step_soc:
-        return 0.0  # Default to 0% if no step SOC data
-    
-    # Get the start and end SOC for this step
-    soc_start = step_soc.get('soc_start')
-    soc_end = step_soc.get('soc_end')
-    
-    if soc_start is None or soc_end is None:
-        return 0.0  # Default to 0% if SOC values are missing
-    
-    # If time data is available, interpolate based on time
-    start_time = step_soc.get('start_time')
-    end_time = step_soc.get('end_time')
-    timestamp = row['timestamp']
-    
-    if start_time and end_time and (end_time - start_time).total_seconds() > 0:
-        # Calculate time-based interpolation factor
-        time_ratio = (timestamp - start_time).total_seconds() / (end_time - start_time).total_seconds()
-        soc = soc_start + (soc_end - soc_start) * time_ratio
-    else:
-        # If time interpolation is not possible, use capacity-based interpolation
-        capacity_start = step_soc.get('capacity_start', 0)
-        capacity_end = step_soc.get('capacity_end', 0)
-        capacity = row['capacity']
-        
-        if capacity_end != capacity_start:
-            # Calculate capacity-based interpolation factor
-            capacity_ratio = (capacity - capacity_start) / (capacity_end - capacity_start)
-            soc = soc_start + (soc_end - soc_start) * capacity_ratio
-        else:
-            # If neither time nor capacity interpolation is possible, use the average
-            soc = (soc_start + soc_end) / 2
-    
-    return float(soc)
+    # Return updated steps and unchanged details
+    return steps, details_df
 
 
 def extract_ocv_values(steps_df: pd.DataFrame) -> pd.DataFrame:
