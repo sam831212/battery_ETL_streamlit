@@ -150,10 +150,15 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
     
     # Allow user to select which step types to display
     available_step_types = sorted(display_df['step_type'].unique().tolist())
+    
+    # Filter default step types to only include available ones
+    filtered_defaults = [step_type for step_type in st.session_state.filtered_step_types 
+                        if step_type in available_step_types]
+    
     selected_step_types = st.multiselect(
         "Select step types to display:",
         options=available_step_types,
-        default=st.session_state.filtered_step_types,
+        default=filtered_defaults,
         key="step_type_filter"
     )
     
