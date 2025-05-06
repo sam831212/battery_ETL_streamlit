@@ -48,7 +48,7 @@ STEP_REQUIRED_HEADERS_CHROMALEX = [
     '截止電壓(V)',            # Ending voltage
     '能量(Wh)',               # Energy
     '截止電量(Ah)',           # Capacity
-    '總電壓(Ah)',             # Total capacity
+    '總電量(Ah)',             # Total capacity
     '功率(W)',                # Power
     'Aux T1',                 # Temperature
 ]
@@ -78,7 +78,7 @@ STEP_COLUMN_MAPPING_CHROMALEX = {
     '截止電流(A)': 'current',
     '能量(Wh)': 'energy',
     '截止電量(Ah)': 'capacity',
-    '總電壓(Ah)': 'total_capacity',
+    '總電量(Ah)': 'total_capacity',
     '功率(W)': 'power',
     'Aux T1': 'temperature',
 }
