@@ -50,7 +50,7 @@ def init_step_selection_state():
         st.session_state.details_df_with_soc = None
         
     if 'filtered_step_types' not in st.session_state:
-        st.session_state.filtered_step_types = ["charge", "discharge", "waveform"]
+        st.session_state.filtered_step_types = ["charge", "discharge", "rest", "waveform"]
 
 
 def calculate_step_ranges(steps_df: pd.DataFrame) -> pd.DataFrame:

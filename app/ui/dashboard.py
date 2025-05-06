@@ -85,7 +85,7 @@ def render_dashboard_page():
         
         # Step type filter
         st.subheader("Step Type")
-        step_types = ["Charge", "Discharge", "Rest"]
+        step_types = ["Charge", "Discharge", "Rest", "Waveform"]
         selected_step_types = st.multiselect(
             "Select Step Types",
             options=step_types,
