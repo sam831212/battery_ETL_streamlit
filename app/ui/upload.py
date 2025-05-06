@@ -518,6 +518,15 @@ def render_upload_page():
                                     st.success(f"Example files processed successfully! Experiment ID: {experiment.id}")
                                     st.info(f"Processed {len(step_df)} steps and {len(detail_df)} measurements.")
                                     
+                                    # Store the processed DataFrames in session state for step selection
+                                    st.session_state['steps_df'] = step_df
+                                    st.session_state['details_df'] = detail_df
+                                    
+                                    # Add a button to navigate to step selection
+                                    if st.button("Go to Step Selection", type="primary"):
+                                        st.session_state['current_page'] = "Step Selection"
+                                        st.rerun()
+                                    
                                     # Clear file session state
                                     st.session_state.pop("step_file_path", None)
                                     st.session_state.pop("detail_file_path", None)
@@ -859,6 +868,15 @@ def render_upload_page():
                                 
                                 st.success(f"Files processed successfully! Experiment ID: {experiment.id}")
                                 st.info(f"Processed {len(step_df)} steps and {len(detail_df)} measurements.")
+                                
+                                # Store the processed DataFrames in session state for step selection
+                                st.session_state['steps_df'] = step_df
+                                st.session_state['details_df'] = detail_df
+                                
+                                # Add a button to navigate to step selection
+                                if st.button("Go to Step Selection", type="primary"):
+                                    st.session_state['current_page'] = "Step Selection"
+                                    st.rerun()
                                 
                                 # Clear file uploaders
                                 st.session_state["step_file"] = None
