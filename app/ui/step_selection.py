@@ -51,6 +51,14 @@ def init_step_selection_state():
         
     if 'filtered_step_types' not in st.session_state:
         st.session_state.filtered_step_types = ["charge", "discharge", "rest", "waveform"]
+        
+    # Temporary storage for selected reference step before update
+    if 'temp_reference_step_idx' not in st.session_state:
+        st.session_state.temp_reference_step_idx = None
+        
+    # Flag to track if update is needed
+    if 'update_needed' not in st.session_state:
+        st.session_state.update_needed = False
 
 
 def calculate_step_ranges(steps_df: pd.DataFrame) -> pd.DataFrame:
@@ -238,9 +246,10 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         
         selected_reference_idx = discharge_options[selected_reference_option]
         
-        # Update session state if changed
-        if selected_reference_idx != st.session_state.full_discharge_step_idx:
-            st.session_state.full_discharge_step_idx = selected_reference_idx
+        # Store selection in temporary state and set update flag
+        if selected_reference_idx != st.session_state.temp_reference_step_idx:
+            st.session_state.temp_reference_step_idx = selected_reference_idx
+            st.session_state.update_needed = True
     else:
         st.info("No discharge steps available for reference selection. Include discharge steps in your filter.")
         selected_reference_idx = None
@@ -494,6 +503,35 @@ def render_step_selection_page(steps_df: pd.DataFrame, details_df: pd.DataFrame)
     # Display the steps table and get selections
     filtered_df, selected_reference_idx, selected_db_indices = display_steps_table(steps_df)
     
+    # Add an update button after the selection
+    update_clicked = st.button("Update", type="primary", key="update_button")
+    
+    # Apply updates when the button is clicked
+    if update_clicked:
+        # Update the full discharge step index from the temporary storage
+        st.session_state.full_discharge_step_idx = st.session_state.temp_reference_step_idx
+        
+        # Calculate SOC with the updated reference step
+        if st.session_state.full_discharge_step_idx is not None or not st.session_state.filtered_step_types:
+            steps_with_soc, details_with_soc = handle_reference_step_selection(
+                steps_df, 
+                details_df,
+                full_discharge_step_idx=st.session_state.full_discharge_step_idx
+            )
+            
+            # Update the steps_df with SOC values to display in the table
+            steps_df = steps_with_soc
+            
+            # Reset the update needed flag
+            st.session_state.update_needed = False
+            
+            # Force a rerun to update the UI with new values
+            st.rerun()
+    
+    # Display warning if update is needed but not applied
+    if st.session_state.update_needed:
+        st.warning("You have made selections that require an update. Click the Update button to apply changes.")
+    
     # Display overview of selected steps
     display_selected_steps_overview(filtered_df, selected_db_indices)
     
@@ -502,15 +540,18 @@ def render_step_selection_page(steps_df: pd.DataFrame, details_df: pd.DataFrame)
     
     # Handle pre-processing button click
     if preprocess_clicked:
-        if selected_reference_idx is not None or not st.session_state.filtered_step_types:
+        if st.session_state.full_discharge_step_idx is not None or not st.session_state.filtered_step_types:
             steps_with_soc, details_with_soc = handle_reference_step_selection(
                 steps_df, 
                 details_df,
-                full_discharge_step_idx=selected_reference_idx
+                full_discharge_step_idx=st.session_state.full_discharge_step_idx
             )
             
-            # Update the display with new SOC values
-            filtered_df, _, _ = display_steps_table(steps_with_soc)
+            # Update the steps_df with SOC values
+            steps_df = steps_with_soc
+            
+            # Force a rerun to update the UI with new values
+            st.rerun()
     
     # Handle load to DB button click
     if load_db_clicked:
