@@ -43,6 +43,10 @@ def init_step_selection_state():
     if 'selected_steps_for_db' not in st.session_state:
         st.session_state.selected_steps_for_db = []
         
+    # Temporary storage for DB selections before update
+    if 'temp_selected_steps_for_db' not in st.session_state:
+        st.session_state.temp_selected_steps_for_db = []
+        
     if 'steps_df_with_soc' not in st.session_state:
         st.session_state.steps_df_with_soc = None
         
@@ -59,6 +63,10 @@ def init_step_selection_state():
     # Flag to track if update is needed
     if 'update_needed' not in st.session_state:
         st.session_state.update_needed = False
+        
+    # Store the last used steps dataframe for SOC calculations
+    if 'current_steps_df' not in st.session_state:
+        st.session_state.current_steps_df = None
 
 
 def calculate_step_ranges(steps_df: pd.DataFrame) -> pd.DataFrame:
@@ -208,7 +216,13 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         if st.session_state.full_discharge_step_idx in filtered_df.index:
             filtered_df.loc[st.session_state.full_discharge_step_idx, 'full_discharge_reference'] = True
     
-    for idx in st.session_state.selected_steps_for_db:
+    # Initialize temp_selected_steps_for_db with selected_steps_for_db if empty
+    if not st.session_state.temp_selected_steps_for_db and st.session_state.selected_steps_for_db:
+        st.session_state.temp_selected_steps_for_db = st.session_state.selected_steps_for_db.copy()
+    
+    # Use the temporary selections for display in the data editor
+    # This ensures the UI shows the most recent checkbox selections
+    for idx in st.session_state.temp_selected_steps_for_db:
         if idx in filtered_df.index:
             filtered_df.loc[idx, 'db_selection'] = True
     
@@ -274,17 +288,22 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         key="step_selection_table"
     )
     
-    # Update the db selection in session state based on edited values
-    selected_db_indices = []
+    # Update the temporary db selection in session state based on edited values
+    temp_selected_db_indices = []
     for idx, row in filtered_df.iterrows():
         step_num = row['step_number']
         # Find the corresponding row in the edited dataframe
         edited_row = edited_df[edited_df['step_number'] == step_num]
         if not edited_row.empty and edited_row['db_selection'].iloc[0]:
-            selected_db_indices.append(idx)
+            temp_selected_db_indices.append(idx)
     
-    # Update session state
-    st.session_state.selected_steps_for_db = selected_db_indices
+    # Update temporary session state and set update flag if changed
+    if set(temp_selected_db_indices) != set(st.session_state.temp_selected_steps_for_db):
+        st.session_state.temp_selected_steps_for_db = temp_selected_db_indices
+        st.session_state.update_needed = True
+        
+    # Use the actual selections for returning
+    selected_db_indices = st.session_state.selected_steps_for_db
     
     return filtered_df, selected_reference_idx, selected_db_indices
 
@@ -503,13 +522,22 @@ def render_step_selection_page(steps_df: pd.DataFrame, details_df: pd.DataFrame)
     # Display the steps table and get selections
     filtered_df, selected_reference_idx, selected_db_indices = display_steps_table(steps_df)
     
-    # Add an update button after the selection
-    update_clicked = st.button("Update", type="primary", key="update_button")
+    # Add an update button after the selection with explanatory text
+    st.info("Make your selections above and click 'Update' to apply changes. Changes won't take effect until you click Update.")
+    update_col1, update_col2 = st.columns([3, 1])
+    with update_col2:
+        update_clicked = st.button("Update Selections", type="primary", key="update_button", use_container_width=True)
     
     # Apply updates when the button is clicked
     if update_clicked:
         # Update the full discharge step index from the temporary storage
         st.session_state.full_discharge_step_idx = st.session_state.temp_reference_step_idx
+        
+        # Update the selected steps for DB from temporary storage
+        st.session_state.selected_steps_for_db = st.session_state.temp_selected_steps_for_db
+        
+        # Store the current steps_df for SOC calculations
+        st.session_state.current_steps_df = steps_df
         
         # Calculate SOC with the updated reference step
         if st.session_state.full_discharge_step_idx is not None or not st.session_state.filtered_step_types:
