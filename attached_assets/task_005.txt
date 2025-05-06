@@ -6,7 +6,7 @@
 # Description: Implement functions to validate processed data and generate preview summaries and plots.
 # Details:
 Create validation module in app/etl/validation.py with functions:
-- validate_soc_range(df): Check SOC values are within 0-100% (±tolerance)
+- validate_soc_range(df): Check SOC values are within 0-100% (±tolerance 5%)
 - validate_c_rate(df): Check C-rate values are positive
 - validate_data_continuity(df): Check for gaps or inconsistencies in data
 - generate_validation_report(df): Create summary of validation issues
