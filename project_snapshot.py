@@ -127,16 +127,55 @@ def extract_model_structure(model_code: Dict[str, Any]) -> Dict[str, Any]:
         if "classes" in file_data:
             for class_name, class_info in file_data["classes"].items():
                 # Only include database models with primary keys or relationships
-                if "sqlmodel" in str(file_data.get("imports", [])) or "BaseModel" in str(class_info.get("bases", [])):
+                is_model = (
+                    "sqlmodel" in str(file_data.get("imports", [])) or 
+                    "BaseModel" in str(class_info.get("bases", [])) or
+                    "table=True" in str(file_data)
+                )
+                
+                if is_model:
+                    # Extract field types and constraints from the file content
+                    attributes = []
+                    relationships = []
+                    
+                    # Extract attributes from class body and annotations
+                    for var in class_info.get("class_vars", []):
+                        attributes.append(var)
+                    
+                    # Look for relationships in the file content
+                    file_content = str(file_data)
+                    if "Relationship" in file_content or "relationship" in file_content:
+                        # Extract potential relationship fields
+                        for var in class_info.get("class_vars", []):
+                            if "List[" in file_content and var in file_content:
+                                relationships.append(var)
+                            elif "Relationship" in file_content and var in file_content:
+                                relationships.append(var)
+                    
                     model_info[f"{file_path}:{class_name}"] = {
                         "docstring": class_info.get("docstring"),
-                        "attributes": class_info.get("class_vars", []),
+                        "attributes": attributes,
                         "methods": list(class_info.get("methods", {}).keys()),
-                        "relationships": [m for m in class_info.get("class_vars", []) 
-                                          if "relationship" in m.lower() or "relationship" in str(file_data)]
+                        "relationships": relationships
                     }
     
     return model_info
+
+def extract_db_utils(utils_code: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract database utility functions"""
+    db_utils = {}
+    
+    for file_path, file_data in utils_code.items():
+        # Look specifically for database-related files
+        if "database" in file_path.lower():
+            # Extract functions from this file
+            for func_name, func_info in file_data.get("functions", {}).items():
+                db_utils[f"{file_path}:{func_name}"] = {
+                    "signature": f"{func_name}({', '.join(func_info.get('args', []))})",
+                    "docstring": func_info.get("docstring", "")[:100] + "..." if func_info.get("docstring") else None
+                }
+    
+    return db_utils
 
 def create_snapshot() -> Dict[str, Any]:
     """Create a snapshot of the entire project"""
@@ -145,7 +184,7 @@ def create_snapshot() -> Dict[str, Any]:
     # Directories to exclude from scanning
     exclude_dirs = {
         "venv", "env", "__pycache__", "node_modules", 
-        ".git", ".pytest_cache", "migrations", "attached_assets"
+        ".git", ".pytest_cache", "attached_assets"
     }
     
     # Scan each main directory separately for better organization
@@ -153,6 +192,7 @@ def create_snapshot() -> Dict[str, Any]:
     model_code = scan_directory(os.path.join(project_root, "app", "models"), exclude_dirs)
     ui_code = scan_directory(os.path.join(project_root, "app", "ui"), exclude_dirs)
     utils_code = scan_directory(os.path.join(project_root, "app", "utils"), exclude_dirs)
+    migrations_code = scan_directory(os.path.join(project_root, "migrations"), exclude_dirs)
     visualization_code = scan_directory(os.path.join(project_root, "app", "visualization"), exclude_dirs)
     
     # Extract the most important functions and classes for a concise overview
@@ -167,10 +207,24 @@ def create_snapshot() -> Dict[str, Any]:
     # Create a simplified model structure
     model_structure = extract_model_structure(model_code)
     
+    # Extract database utility functions
+    db_utils = extract_db_utils(utils_code)
+    
+    # Extract migration functions
+    migration_functions = {}
+    for file_path, file_data in migrations_code.items():
+        for func_name, func_info in file_data.get("functions", {}).items():
+            migration_functions[f"{file_path}:{func_name}"] = {
+                "signature": f"{func_name}({', '.join(func_info.get('args', []))})",
+                "docstring": func_info.get("docstring", "")[:100] + "..." if func_info.get("docstring") else None
+            }
+    
     # Create a concise snapshot with the most important information
     snapshot = {
         "models": model_structure,
         "etl_functions": important_etl_functions,
+        "db_utils": db_utils,
+        "migration_functions": migration_functions,
         "ui_components": list(ui_code.keys()),
         "utils": list(utils_code.keys()),
         "visualization": list(visualization_code.keys())
@@ -186,5 +240,8 @@ if __name__ == "__main__":
         json.dump(snapshot, f, indent=2)
     
     print(f"Project snapshot created: project_snapshot.json")
-    print(f"Total functions cataloged: {len(snapshot.get('etl_functions', {}))}")
+    print(f"Total ETL functions cataloged: {len(snapshot.get('etl_functions', {}))}")
     print(f"Total models cataloged: {len(snapshot.get('models', {}))}")
+    print(f"Total database utility functions: {len(snapshot.get('db_utils', {}))}")
+    print(f"Total migration functions: {len(snapshot.get('migration_functions', {}))}")
+    print(f"Total UI components: {len(snapshot.get('ui_components', []))}")

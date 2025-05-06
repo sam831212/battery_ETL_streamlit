@@ -15,7 +15,12 @@
         "OTHER"
       ],
       "methods": [],
-      "relationships": []
+      "relationships": [
+        "NMC",
+        "LFP",
+        "LTO",
+        "OTHER"
+      ]
     },
     "database.py:CellFormFactor": {
       "docstring": "Enum for cell form factors",
@@ -26,7 +31,12 @@
         "OTHER"
       ],
       "methods": [],
-      "relationships": []
+      "relationships": [
+        "PRISMATIC",
+        "CYLINDRICAL",
+        "POUCH",
+        "OTHER"
+      ]
     },
     "database.py:Cell": {
       "docstring": "Model representing a battery cell",
@@ -100,10 +110,6 @@
       "signature": "calculate_soc(steps_df, details_df, full_discharge_step_idx)",
       "docstring": "Calculate State of Charge (SOC) for all steps using Coulomb counting method.\n    \n    SOC calculatio..."
     },
-    "transformation.py:_interpolate_soc": {
-      "signature": "_interpolate_soc(row, step_soc, reference_capacity)",
-      "docstring": "Helper function to interpolate SOC for a specific detail measurement.\n    \n    Args:\n        row: Ro..."
-    },
     "transformation.py:extract_ocv_values": {
       "signature": "extract_ocv_values(steps_df)",
       "docstring": "Extract Open Circuit Voltage (OCV) values from rest steps.\n    \n    OCV is extracted from the voltag..."
@@ -143,6 +149,50 @@
     "extraction.py:load_and_preprocess_files": {
       "signature": "load_and_preprocess_files(step_file_path, detail_file_path, nominal_capacity, apply_transformations)",
       "docstring": "Load and preprocess both Step.csv and Detail.csv files.\n\n    Args:\n        step_file_path: Path to t..."
+    }
+  },
+  "db_utils": {
+    "database.py:create_db_and_tables": {
+      "signature": "create_db_and_tables()",
+      "docstring": "Create all tables defined in the models if they don't exist..."
+    },
+    "database.py:get_session": {
+      "signature": "get_session()",
+      "docstring": "Get a new database session\n\n    Returns:\n        Session: A new SQLModel database session..."
+    },
+    "database.py:init_db": {
+      "signature": "init_db()",
+      "docstring": "Initialize the database and create tables\n    \n    This function should be called once at applicatio..."
+    },
+    "database.py:test_db_connection": {
+      "signature": "test_db_connection()",
+      "docstring": "Test the database connection\n\n    Returns:\n        tuple[bool, Optional[str]]: Success status and er..."
+    }
+  },
+  "migration_functions": {
+    "env.py:run_migrations_offline": {
+      "signature": "run_migrations_offline()",
+      "docstring": "Run migrations in 'offline' mode.\n\n    This configures the context with just a URL\n    and not an En..."
+    },
+    "env.py:run_migrations_online": {
+      "signature": "run_migrations_online()",
+      "docstring": "Run migrations in 'online' mode.\n\n    In this scenario we need to create an Engine\n    and associate..."
+    },
+    "versions/dae7f2a38ed8_initial_migration.py:upgrade": {
+      "signature": "upgrade()",
+      "docstring": "Upgrade schema...."
+    },
+    "versions/dae7f2a38ed8_initial_migration.py:downgrade": {
+      "signature": "downgrade()",
+      "docstring": "Downgrade schema...."
+    },
+    "versions/82b95d02febb_add_name_to_cell.py:upgrade": {
+      "signature": "upgrade()",
+      "docstring": "Upgrade schema...."
+    },
+    "versions/82b95d02febb_add_name_to_cell.py:downgrade": {
+      "signature": "downgrade()",
+      "docstring": "Downgrade schema...."
     }
   },
   "ui_components": [
