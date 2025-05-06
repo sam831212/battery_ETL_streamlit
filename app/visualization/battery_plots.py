@@ -324,6 +324,8 @@ def plot_combined_voltage_current(
         current_col: str = 'current',
         time_col: str = 'timestamp',
         step_type_col: str = 'step_type',
+        step_number_col: str = 'step_number',
+        highlight_anomalies: bool = True,
         title: str = 'Voltage and Current vs Time') -> go.Figure:
     """
     Create combined voltage and current plot with dual y-axis.
