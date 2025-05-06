@@ -271,36 +271,70 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
     # Display section for database loading selection
     st.write("#### Select Steps for Database Loading")
     
-    # Create a data editor for multi-selection
-    edited_df = st.data_editor(
-        filtered_df[display_cols + ['db_selection']],
-        column_config={
-            "step_number": st.column_config.NumberColumn("Step #"),
-            "original_step_type": st.column_config.TextColumn("Original Type"),
-            "step_type": st.column_config.TextColumn("Action"),
-            "c_rate_range": st.column_config.TextColumn("C-rate"),
-            "soc_range": st.column_config.TextColumn("SOC Range"),
-            "temperature_range": st.column_config.TextColumn("Temp Range"),
-            "db_selection": st.column_config.CheckboxColumn("Select for DB"),
-        },
-        hide_index=True,
-        use_container_width=True,
-        key="step_selection_table"
-    )
+    # Define a callback for handling checkbox changes
+    def handle_selection_change(step_idx, checkbox_key):
+        # Get the current value from the updated checkbox
+        is_selected = st.session_state[checkbox_key]
+        
+        if is_selected and step_idx not in st.session_state.temp_selected_steps_for_db:
+            st.session_state.temp_selected_steps_for_db.append(step_idx)
+            st.session_state.update_needed = True
+        elif not is_selected and step_idx in st.session_state.temp_selected_steps_for_db:
+            st.session_state.temp_selected_steps_for_db.remove(step_idx)
+            st.session_state.update_needed = True
     
-    # Update the temporary db selection in session state based on edited values
-    temp_selected_db_indices = []
+    # Display a table with individual checkboxes instead of data_editor
+    st.write("Select steps to include in database loading:")
+    
+    # Create a container for the table
+    table_container = st.container()
+    
+    # Create header row
+    header_cols = st.columns([1, 1.5, 1, 1, 1.5, 1.5, 1])
+    with header_cols[0]:
+        st.write("**Step #**")
+    with header_cols[1]:
+        st.write("**Original Type**")
+    with header_cols[2]:
+        st.write("**Action**")
+    with header_cols[3]:
+        st.write("**C-rate**")
+    with header_cols[4]:
+        st.write("**SOC Range**")
+    with header_cols[5]:
+        st.write("**Temp Range**")
+    with header_cols[6]:
+        st.write("**Select**")
+    
+    # Display each row with a checkbox
     for idx, row in filtered_df.iterrows():
-        step_num = row['step_number']
-        # Find the corresponding row in the edited dataframe
-        edited_row = edited_df[edited_df['step_number'] == step_num]
-        if not edited_row.empty and edited_row['db_selection'].iloc[0]:
-            temp_selected_db_indices.append(idx)
-    
-    # Update temporary session state and set update flag if changed
-    if set(temp_selected_db_indices) != set(st.session_state.temp_selected_steps_for_db):
-        st.session_state.temp_selected_steps_for_db = temp_selected_db_indices
-        st.session_state.update_needed = True
+        cols = st.columns([1, 1.5, 1, 1, 1.5, 1.5, 1])
+        with cols[0]:
+            st.write(f"{row['step_number']}")
+        with cols[1]:
+            st.write(f"{row['original_step_type']}")
+        with cols[2]:
+            st.write(f"{row['step_type']}")
+        with cols[3]:
+            st.write(f"{row['c_rate_range']}")
+        with cols[4]:
+            st.write(f"{row['soc_range']}")
+        with cols[5]:
+            st.write(f"{row['temperature_range']}")
+        with cols[6]:
+            # Create unique key for each checkbox
+            checkbox_key = f"select_step_{idx}_{row['step_number']}"
+            # Check if this step is already in the temp selection
+            is_selected = idx in st.session_state.temp_selected_steps_for_db
+            
+            # Initialize the checkbox state in session_state if it doesn't exist
+            if checkbox_key not in st.session_state:
+                st.session_state[checkbox_key] = is_selected
+                
+            # Create the checkbox with the current selection state
+            checked = st.checkbox("", value=st.session_state[checkbox_key], key=checkbox_key, 
+                                 on_change=handle_selection_change, 
+                                 args=(idx, checkbox_key))
         
     # Use the actual selections for returning
     selected_db_indices = st.session_state.selected_steps_for_db
