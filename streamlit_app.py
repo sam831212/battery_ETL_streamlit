@@ -73,6 +73,7 @@ st.sidebar.markdown('<div class="sidebar-title">Navigation</div>', unsafe_allow_
 # Menu items with icons
 menu_items = {
     "Upload & Process": "📤",
+    "Step Selection": "✅",
     "Dashboard": "📊",
     "Settings": "⚙️"
 }
@@ -111,6 +112,25 @@ st.title(f"{menu_items[st.session_state['current_page']]} {st.session_state['cur
 if st.session_state['current_page'] == "Upload & Process":
     from app.ui.upload import render_upload_page
     render_upload_page()
+    
+elif st.session_state['current_page'] == "Step Selection":
+    # Import step selection page
+    from app.ui.step_selection import render_step_selection_page
+    
+    # Check if we have data in session state
+    if 'steps_df' not in st.session_state or 'details_df' not in st.session_state:
+        st.warning("No data available for step selection. Please upload and process files first.")
+        st.info("Go to the Upload & Process page to upload battery test files.")
+        
+        # Add a button to navigate to upload page
+        if st.button("Go to Upload & Process", type="primary"):
+            change_page("Upload & Process")
+    else:
+        # Render the step selection page with data from session state
+        render_step_selection_page(
+            st.session_state.steps_df,
+            st.session_state.details_df
+        )
     
 elif st.session_state['current_page'] == "Dashboard":
     from app.ui.dashboard import render_dashboard_page
