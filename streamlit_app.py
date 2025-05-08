@@ -136,7 +136,10 @@ elif st.session_state['current_page'] == "Step Selection":
 elif st.session_state['current_page'] == "Experiment Info":
     from app.ui.upload import render_upload_page  # Temporarily reuse the upload page for experiment info
     
-    # Check if steps have been selected in session state
+    # Always render the tabbed interface for experiment info
+    render_upload_page()
+    
+    # Check if steps have been selected in session state and show appropriate message
     if 'selected_steps_for_db' not in st.session_state or not st.session_state.selected_steps_for_db:
         st.warning("No steps selected for database loading. Please select steps first.")
         st.info("Go to the Step Selection page to select steps for processing.")
@@ -147,9 +150,6 @@ elif st.session_state['current_page'] == "Experiment Info":
     else:
         # Show success message
         st.success(f"You've selected {len(st.session_state.selected_steps_for_db)} steps for processing.")
-        
-        # Render the experiment info form (currently reusing upload page)
-        render_upload_page()
     
 elif st.session_state['current_page'] == "Dashboard":
     from app.ui.dashboard import render_dashboard_page
