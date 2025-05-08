@@ -20,7 +20,7 @@ from app.etl.validation import generate_validation_report
 from app.models import Experiment, Step, Measurement, ProcessedFile, Cell, Machine
 from app.models.database import CellChemistry, CellFormFactor
 from app.utils.database import get_session
-from app.utils.temp_files import temp_file_from_upload, calculate_file_hash_from_memory, calculate_file_hash
+from app.utils.temp_files import temp_file_from_upload, calculate_file_hash_from_memory, calculate_file_hash, create_session_temp_file
 from sqlmodel import select, desc, delete, func
 import hashlib
 
@@ -1026,19 +1026,37 @@ def render_upload_page():
             step_headers = []
             detail_headers = []
             
-            # Use temporary files for validation
-            with temp_file_from_upload(step_file, suffix=".csv") as temp_step_path:
-                with temp_file_from_upload(detail_file, suffix=".csv") as temp_detail_path:
-                    # Check if the file formats are valid
-                    step_valid, step_missing, step_headers = validate_csv_format(
-                        temp_step_path, 
-                        STEP_REQUIRED_HEADERS
-                    )
-                    
-                    detail_valid, detail_missing, detail_headers = validate_csv_format(
-                        temp_detail_path, 
-                        DETAIL_REQUIRED_HEADERS
-                    )
+            # Use session-persistent temporary files for validation
+            step_file_hash = calculate_file_hash_from_memory(step_file.getbuffer())
+            detail_file_hash = calculate_file_hash_from_memory(detail_file.getbuffer())
+            
+            # Store the hash values in session state for later use
+            st.session_state["step_file_hash"] = step_file_hash
+            st.session_state["detail_file_hash"] = detail_file_hash
+            
+            # Create persistent temp files
+            temp_step_path = create_session_temp_file(
+                step_file, 
+                file_key=f"step_{step_file_hash}", 
+                suffix=".csv"
+            )
+            
+            temp_detail_path = create_session_temp_file(
+                detail_file,
+                file_key=f"detail_{detail_file_hash}",
+                suffix=".csv"
+            )
+            
+            # Check if the file formats are valid
+            step_valid, step_missing, step_headers = validate_csv_format(
+                temp_step_path, 
+                STEP_REQUIRED_HEADERS
+            )
+            
+            detail_valid, detail_missing, detail_headers = validate_csv_format(
+                temp_detail_path, 
+                DETAIL_REQUIRED_HEADERS
+            )
             
             # Show validation results
             validation_col1, validation_col2 = st.columns(2)
@@ -1086,14 +1104,29 @@ def render_upload_page():
                             if step_file_exists or detail_file_exists:
                                 st.warning("One or both files have already been processed. Skipping...")
                             else:
-                                # Use temporary files for processing
-                                with temp_file_from_upload(step_file, suffix=".csv") as temp_step_path:
-                                    with temp_file_from_upload(detail_file, suffix=".csv") as temp_detail_path:
-                                        # Use ETL functions to process files
-                                        step_df, detail_df, metadata = load_and_preprocess_files(
-                                            temp_step_path, temp_detail_path,
-                                            nominal_capacity=st.session_state["nominal_capacity"]
-                                        )
+                                # Use session-persistent temporary files for processing
+                                # Reuse the hash values already stored in session state
+                                step_file_hash = st.session_state["step_file_hash"]
+                                detail_file_hash = st.session_state["detail_file_hash"]
+                                
+                                # Create persistent temp files (or retrieve if already created)
+                                temp_step_path = create_session_temp_file(
+                                    step_file, 
+                                    file_key=f"step_{step_file_hash}", 
+                                    suffix=".csv"
+                                )
+                                
+                                temp_detail_path = create_session_temp_file(
+                                    detail_file,
+                                    file_key=f"detail_{detail_file_hash}",
+                                    suffix=".csv"
+                                )
+                                
+                                # Use ETL functions to process files
+                                step_df, detail_df, metadata = load_and_preprocess_files(
+                                    temp_step_path, temp_detail_path,
+                                    nominal_capacity=st.session_state["nominal_capacity"]
+                                )
                                 
                                 # Generate validation reports
                                 step_validation_report = generate_validation_report(

@@ -37,7 +37,7 @@ from app.visualization import (
     plot_current_vs_time,
     plot_combined_voltage_current
 )
-from app.utils.temp_files import temp_file_from_upload, calculate_file_hash_from_memory
+from app.utils.temp_files import temp_file_from_upload, calculate_file_hash_from_memory, create_session_temp_file
 
 # Define the path to example files
 EXAMPLE_FOLDER = "./example_csv_chromaLex"
@@ -616,9 +616,12 @@ def create_file_upload_area() -> Tuple[Optional[str], Optional[str]]:
                 st.session_state["step_file_hash"] = calculate_file_hash_from_memory(step_file.getbuffer())
                 # Store the file in memory
                 st.session_state["step_file_content"] = step_file
-                # Use a temporary file when processing is needed
-                with temp_file_from_upload(step_file, suffix=".csv") as temp_path:
-                    step_file_path = temp_path
+                # Use a session-persistent temporary file
+                step_file_path = create_session_temp_file(
+                    step_file, 
+                    file_key=f"step_{st.session_state['step_file_hash']}", 
+                    suffix=".csv"
+                )
         
         with col2:
             detail_file = st.file_uploader(
@@ -635,9 +638,12 @@ def create_file_upload_area() -> Tuple[Optional[str], Optional[str]]:
                 st.session_state["detail_file_hash"] = calculate_file_hash_from_memory(detail_file.getbuffer())
                 # Store the file in memory
                 st.session_state["detail_file_content"] = detail_file
-                # Use a temporary file when processing is needed
-                with temp_file_from_upload(detail_file, suffix=".csv") as temp_path:
-                    detail_file_path = temp_path
+                # Use a session-persistent temporary file
+                detail_file_path = create_session_temp_file(
+                    detail_file,
+                    file_key=f"detail_{st.session_state['detail_file_hash']}",
+                    suffix=".csv"
+                )
     
     return step_file_path, detail_file_path
 
