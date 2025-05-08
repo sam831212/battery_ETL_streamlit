@@ -521,9 +521,10 @@ def render_upload_page():
                                     processed_file = ProcessedFile(
                                         experiment_id=experiment.id,
                                         file_type=file_type,
-                                        file_name=file_path,
+                                        filename=file_path,  # Correct field name: "filename" not "file_name"
                                         file_hash="from_session_state",  # Since we're using session state data
-                                        processed_date=datetime.now(),
+                                        processed_at=datetime.now(),  # Correct field name: "processed_at" not "processed_date"
+                                        row_count=len(selected_steps_df) if file_type == "step" else 0  # Adding required row_count field
                                     )
                                     session.add(processed_file)
                                 
