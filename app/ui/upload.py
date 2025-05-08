@@ -391,6 +391,13 @@ def render_upload_page():
     with exp_tab:
         # Render experiment metadata form
         submit_experiment, experiment_name, nominal_capacity, selected_cell_id, experiment_date, operator, description, selected_machine_id = render_experiment_metadata(cells, machines, has_data_from_preview)
+        
+        # Display message about data files if no data is available
+        if not has_data_from_preview:
+            st.info("Please go to the Step Selection page to process data files before saving experiment metadata.")
+            if st.button("Go to Step Selection", type="primary"):
+                st.session_state['current_page'] = "Step Selection"
+                st.rerun()
     
     with cell_tab:
         # Render cell management UI
