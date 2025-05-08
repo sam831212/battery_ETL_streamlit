@@ -20,18 +20,12 @@ def render_settings_page():
     file formats, and user preferences.
     """
     # Create tabs for different settings categories
-    db_tab, cells_tab, machines_tab, file_tab, ui_tab = st.tabs([
-        "Database", "Cell Management", "Machine Management", "File Formats", "UI Preferences"
+    db_tab, file_tab, ui_tab = st.tabs([
+        "Database", "File Formats", "UI Preferences"
     ])
     
     with db_tab:
         render_database_settings()
-    
-    with cells_tab:
-        render_cell_management()
-    
-    with machines_tab:
-        render_machine_management()
     
     with file_tab:
         render_file_format_settings()

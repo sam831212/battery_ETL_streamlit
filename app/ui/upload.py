@@ -19,27 +19,260 @@ from app.etl import (
 from app.etl.extraction import STEP_REQUIRED_HEADERS, DETAIL_REQUIRED_HEADERS
 from app.etl.validation import generate_validation_report
 from app.models import Experiment, Step, Measurement, ProcessedFile, Cell, Machine
+from app.models.database import CellChemistry, CellFormFactor
 from app.utils.database import get_session
-from sqlmodel import select, desc
+from sqlmodel import select, desc, delete, func
 import hashlib
 
 # Define the path to example files
 EXAMPLE_FOLDER = "./example_csv_chromaLex"
 
 
-def render_upload_page():
-    """Render the upload page UI
+def render_cell_management():
+    """Render cell management UI"""
+    st.header("Cell Management")
     
-    This function displays the upload UI components for Step.csv and Detail.csv files,
-    processes the uploaded files, and provides feedback to the user.
-    """
-    st.header("Experiment Information")
+    # Display existing cells
+    st.subheader("Existing Cells")
     
-    # Get available cells and machines from database
     with get_session() as session:
         cells = session.exec(select(Cell).order_by(Cell.id)).all()
-        machines = session.exec(select(Machine).order_by(Machine.name)).all()
+        
+        if cells:
+            # Create a table to display cells
+            cell_data = []
+            for cell in cells:
+                cell_data.append({
+                    "ID": cell.id,
+                    "Name": cell.name or "N/A",
+                    "Chemistry": cell.chemistry.value,
+                    "Capacity (Ah)": cell.capacity,
+                    "Form Factor": cell.form.value,
+                    "Created": cell.created_at.strftime("%Y-%m-%d")
+                })
+            
+            st.dataframe(cell_data, use_container_width=True)
+        else:
+            st.info("No cells have been added yet.")
     
+    # Form to add a new cell
+    st.subheader("Add New Cell")
+    
+    with st.form(key="add_cell_form"):
+        # Cell properties
+        cell_name = st.text_input(
+            "Cell Name",
+            help="Give this cell a descriptive name (optional)"
+        )
+        
+        chemistry = st.selectbox(
+            "Chemistry",
+            options=[chem.value for chem in CellChemistry],
+            help="Select the chemistry type of the cell"
+        )
+        
+        capacity = st.number_input(
+            "Capacity (Ah)",
+            min_value=0.1,
+            max_value=1000.0,
+            value=1.0,
+            step=0.1,
+            help="Nominal capacity of the cell in Ampere-hours"
+        )
+        
+        form_factor = st.selectbox(
+            "Form Factor",
+            options=[form.value for form in CellFormFactor],
+            help="Select the physical form factor of the cell"
+        )
+        
+        # Submit button
+        submitted = st.form_submit_button("Add Cell", type="primary")
+    
+    if submitted:
+        # Create new cell in database
+        with get_session() as session:
+            new_cell = Cell(
+                name=cell_name if cell_name else None,
+                chemistry=CellChemistry(chemistry),
+                capacity=capacity,
+                form=CellFormFactor(form_factor)
+            )
+            
+            session.add(new_cell)
+            session.commit()
+            
+            st.success(f"New cell added successfully! ID: {new_cell.id}")
+            st.rerun()
+    
+    # Delete cell section
+    st.subheader("Delete Cell")
+    
+    with get_session() as session:
+        all_cells = session.exec(select(Cell).order_by(Cell.id)).all()
+        
+        if all_cells:
+            cell_options = [f"ID {cell.id}: {cell.chemistry.value}, {cell.capacity} Ah, {cell.form.value}" for cell in all_cells]
+            cell_ids = [cell.id for cell in all_cells]
+            
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                selected_cell_index = st.selectbox(
+                    "Select Cell to Delete",
+                    options=range(len(cell_options)),
+                    format_func=lambda x: cell_options[x]
+                )
+            
+            with col2:
+                delete_button = st.button("Delete Cell", type="secondary")
+            
+            if delete_button:
+                if st.session_state.get("confirm_delete_cell", False):
+                    # Perform deletion
+                    cell_id = cell_ids[selected_cell_index]
+                    
+                    # Check if the cell is referenced by any experiments
+                    experiment_count = session.exec(select(func.count("*")).where(Experiment.cell_id == cell_id)).one()
+                    
+                    if experiment_count > 0:
+                        st.error(f"Cannot delete cell (ID: {cell_id}) because it is referenced by {experiment_count} experiments.")
+                    else:
+                        # Safe to delete
+                        session.exec(delete(Cell).where(Cell.id == cell_id))
+                        session.commit()
+                        st.success(f"Cell with ID {cell_id} deleted successfully!")
+                        st.session_state["confirm_delete_cell"] = False
+                        st.rerun()
+                else:
+                    st.warning("⚠️ Are you sure you want to delete this cell? This action cannot be undone.")
+                    if st.button("Confirm Delete", type="primary"):
+                        st.session_state["confirm_delete_cell"] = True
+                        st.rerun()
+        else:
+            st.info("No cells available to delete.")
+
+
+def render_machine_management():
+    """Render machine management UI"""
+    st.header("Machine Management")
+    
+    # Display existing machines
+    st.subheader("Existing Machines")
+    
+    with get_session() as session:
+        machines = session.exec(select(Machine).order_by(Machine.id)).all()
+        
+        if machines:
+            # Create a table to display machines
+            machine_data = []
+            for machine in machines:
+                machine_data.append({
+                    "ID": machine.id,
+                    "Name": machine.name,
+                    "Model": machine.model_number or "N/A",
+                    "Description": machine.description or "N/A",
+                    "Created": machine.created_at.strftime("%Y-%m-%d")
+                })
+            
+            st.dataframe(machine_data, use_container_width=True)
+        else:
+            st.info("No machines have been added yet.")
+    
+    # Form to add a new machine
+    st.subheader("Add New Machine")
+    
+    with st.form(key="add_machine_form"):
+        # Machine properties
+        name = st.text_input(
+            "Name",
+            max_chars=100,
+            help="Name of the testing machine"
+        )
+        
+        model_number = st.text_input(
+            "Model Number",
+            max_chars=50,
+            help="Model number of the testing machine (optional)"
+        )
+        
+        description = st.text_area(
+            "Description",
+            max_chars=500,
+            help="Additional information about the testing machine (optional)"
+        )
+        
+        # Submit button
+        submitted = st.form_submit_button("Add Machine", type="primary")
+    
+    if submitted:
+        if not name:
+            st.error("Machine name is required!")
+        else:
+            # Create new machine in database
+            with get_session() as session:
+                new_machine = Machine(
+                    name=name,
+                    model_number=model_number if model_number else None,
+                    description=description if description else None
+                )
+                
+                session.add(new_machine)
+                session.commit()
+                
+                st.success(f"New machine added successfully! ID: {new_machine.id}")
+                st.rerun()
+    
+    # Delete machine section
+    st.subheader("Delete Machine")
+    
+    with get_session() as session:
+        all_machines = session.exec(select(Machine).order_by(Machine.id)).all()
+        
+        if all_machines:
+            machine_options = [f"ID {machine.id}: {machine.name}" + (f" ({machine.model_number})" if machine.model_number else "") for machine in all_machines]
+            machine_ids = [machine.id for machine in all_machines]
+            
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                selected_machine_index = st.selectbox(
+                    "Select Machine to Delete",
+                    options=range(len(machine_options)),
+                    format_func=lambda x: machine_options[x]
+                )
+            
+            with col2:
+                delete_button = st.button("Delete Machine", type="secondary")
+            
+            if delete_button:
+                if st.session_state.get("confirm_delete_machine", False):
+                    # Perform deletion
+                    machine_id = machine_ids[selected_machine_index]
+                    
+                    # Check if the machine is referenced by any experiments
+                    experiment_count = session.exec(select(func.count("*")).where(Experiment.machine_id == machine_id)).one()
+                    
+                    if experiment_count > 0:
+                        st.error(f"Cannot delete machine (ID: {machine_id}) because it is referenced by {experiment_count} experiments.")
+                    else:
+                        # Safe to delete
+                        session.exec(delete(Machine).where(Machine.id == machine_id))
+                        session.commit()
+                        st.success(f"Machine with ID {machine_id} deleted successfully!")
+                        st.session_state["confirm_delete_machine"] = False
+                        st.rerun()
+                else:
+                    st.warning("⚠️ Are you sure you want to delete this machine? This action cannot be undone.")
+                    if st.button("Confirm Delete", type="primary"):
+                        st.session_state["confirm_delete_machine"] = True
+                        st.rerun()
+        else:
+            st.info("No machines available to delete.")
+
+
+def render_experiment_metadata(cells, machines, has_data_from_preview):
+    """Render experiment metadata form"""
     # Create experiment info form
     with st.form(key="experiment_info"):
         st.subheader("Experiment Metadata")
@@ -76,7 +309,7 @@ def render_upload_page():
                 )
                 selected_cell_id = cell_ids[selected_cell_index] if selected_cell_index < len(cell_ids) else None
             else:
-                st.warning("No cells available. Please add cells in the Settings page.")
+                st.warning("No cells available. Please add cells in the Cell Management tab.")
                 selected_cell_id = None
         
         with col2:
@@ -92,6 +325,14 @@ def render_upload_page():
                 value=st.session_state.get("operator", ""),
             )
             
+            # Description field
+            description = st.text_area(
+                "Description",
+                help="Additional details about this experiment",
+                value=st.session_state.get("description", ""),
+                height=100
+            )
+            
             # Machine selection
             if machines:
                 machine_options = [f"{machine.name} ({machine.model_number or 'N/A'})" for machine in machines]
@@ -105,13 +346,79 @@ def render_upload_page():
                 )
                 selected_machine_id = machine_ids[selected_machine_index] if selected_machine_index < len(machine_ids) else None
             else:
-                st.warning("No testing machines available. Please add machines in the Settings page.")
+                st.warning("No testing machines available. Please add machines in the Machine Management tab.")
                 selected_machine_id = None
         
         st.markdown("*Required fields")
         
         # Save experiment info to session state
-        submit_experiment = st.form_submit_button("Save Experiment Info", type="primary")
+        submit_enabled = has_data_from_preview
+        submit_help = "" if submit_enabled else "Upload data files before saving experiment info"
+        
+        submit_experiment = st.form_submit_button(
+            "Save Experiment Info", 
+            type="primary",
+            disabled=not submit_enabled,
+            help=submit_help
+        )
+        
+        if not submit_enabled:
+            st.info("Upload data files in the Data Files section below before saving experiment info.")
+    
+    return submit_experiment, experiment_name, nominal_capacity, selected_cell_id, experiment_date, operator, description, selected_machine_id
+
+
+def render_upload_page():
+    """Render the upload page UI
+    
+    This function displays the upload UI components for Step.csv and Detail.csv files,
+    processes the uploaded files, and provides feedback to the user.
+    """
+    st.header("Experiment Information")
+    
+    # Get available cells and machines from database
+    with get_session() as session:
+        cells = session.exec(select(Cell).order_by(Cell.id)).all()
+        machines = session.exec(select(Machine).order_by(Machine.name)).all()
+    
+    # Check if we have data from previous steps
+    has_data_from_preview = ('steps_df' in st.session_state and 
+                            'details_df' in st.session_state)
+    
+    # Create tabs for different components                        
+    exp_tab, cell_tab, machine_tab = st.tabs(["Experiment Metadata", "Cell Management", "Machine Management"])
+    
+    with exp_tab:
+        # Render experiment metadata form
+        submit_experiment, experiment_name, nominal_capacity, selected_cell_id, experiment_date, operator, description, selected_machine_id = render_experiment_metadata(cells, machines, has_data_from_preview)
+    
+    with cell_tab:
+        # Render cell management UI
+        render_cell_management()
+    
+    with machine_tab:
+        # Render machine management UI
+        render_machine_management()
+    
+    # Handle form submission
+    if submit_experiment:
+        if not experiment_name or nominal_capacity <= 0:
+            st.error("Please fill in all required fields with valid values.")
+        elif cells and selected_cell_id is None:
+            st.error("Please select a battery cell for this experiment.")
+        elif machines and selected_machine_id is None:
+            st.error("Please select a testing machine for this experiment.")
+        else:
+            # Save experiment info to session state
+            st.session_state["experiment_name"] = experiment_name
+            st.session_state["nominal_capacity"] = nominal_capacity
+            st.session_state["experiment_date"] = experiment_date
+            st.session_state["operator"] = operator
+            st.session_state["description"] = description
+            st.session_state["cell_id"] = selected_cell_id
+            st.session_state["machine_id"] = selected_machine_id
+            
+            st.success("Experiment information saved.")
     
     if submit_experiment:
         if not experiment_name or nominal_capacity <= 0:
@@ -131,12 +438,12 @@ def render_upload_page():
             
             st.success("Experiment information saved.")
     
-    # Check if we have data from previous steps
-    has_data_from_preview = ('steps_df' in st.session_state and 
-                            'details_df' in st.session_state)
-                            
     # Display data status
     st.subheader("Data Files")
+    
+    # Check if we have data from previous steps
+    has_data_from_preview = ('steps_df' in st.session_state and 
+                             'details_df' in st.session_state)
     
     if has_data_from_preview:
         st.success("Using data files from Data Preview page")
