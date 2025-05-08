@@ -33,7 +33,7 @@ def render_upload_page():
     This function displays the upload UI components for Step.csv and Detail.csv files,
     processes the uploaded files, and provides feedback to the user.
     """
-    st.header("Upload Battery Test Files")
+    st.header("Experiment Information")
     
     # Get available cells and machines from database
     with get_session() as session:
@@ -42,7 +42,7 @@ def render_upload_page():
     
     # Create experiment info form
     with st.form(key="experiment_info"):
-        st.subheader("Experiment Information")
+        st.subheader("Experiment Metadata")
         
         col1, col2 = st.columns(2)
         
@@ -129,10 +129,126 @@ def render_upload_page():
             st.session_state["cell_id"] = selected_cell_id
             st.session_state["machine_id"] = selected_machine_id
             
-            st.success("Experiment information saved. Now upload data files.")
+            st.success("Experiment information saved.")
     
-    # File upload section
-    st.subheader("Upload Data Files")
+    # Check if we have data from previous steps
+    has_data_from_preview = ('steps_df' in st.session_state and 
+                            'details_df' in st.session_state)
+                            
+    # Display data status
+    st.subheader("Data Files")
+    
+    if has_data_from_preview:
+        st.success("Using data files from Data Preview page")
+        steps_df = st.session_state['steps_df']
+        details_df = st.session_state['details_df']
+        
+        # Display data summary
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Step Records", len(steps_df))
+            st.metric("Step Types", steps_df['step_type'].nunique())
+        with col2:
+            st.metric("Detail Records", len(details_df))
+            st.metric("Selected Steps", len(st.session_state.get('selected_steps_for_db', [])))
+        
+        # Add a button to save the data to the database
+        if 'selected_steps_for_db' in st.session_state and st.session_state.get('selected_steps_for_db'):
+            if st.button("Save Selected Steps to Database", type="primary"):
+                if not st.session_state.get("experiment_name"):
+                    st.error("Please fill in and save the experiment information before processing files.")
+                else:
+                    # Use the data from session state to save to database
+                    with st.spinner("Saving data to database..."):
+                        try:
+                            # Get the transformed data if available, otherwise use the raw data
+                            steps_df_to_use = st.session_state.get('steps_df_transformed', steps_df)
+                            details_df_to_use = st.session_state.get('details_df_transformed', details_df)
+                            
+                            # Use only the selected steps
+                            selected_step_indices = st.session_state.get('selected_steps_for_db', [])
+                            selected_steps_df = steps_df_to_use.loc[selected_step_indices]
+                            
+                            # Create experiment in database
+                            with get_session() as session:
+                                # Create experiment
+                                experiment = Experiment(
+                                    name=st.session_state["experiment_name"],
+                                    nominal_capacity=st.session_state["nominal_capacity"],
+                                    date=st.session_state["experiment_date"],
+                                    operator=st.session_state.get("operator", ""),
+                                    cell_id=st.session_state["cell_id"],
+                                    machine_id=st.session_state["machine_id"],
+                                )
+                                
+                                session.add(experiment)
+                                session.commit()
+                                session.refresh(experiment)
+                                
+                                # Process each selected step
+                                for _, step_row in selected_steps_df.iterrows():
+                                    # Convert numpy values to Python native types
+                                    step_data = convert_numpy_types(step_row.to_dict())
+                                    
+                                    # Create Step object
+                                    step = Step(
+                                        experiment_id=experiment.id,
+                                        step_number=step_data["step_number"],
+                                        step_type=step_data["step_type"],
+                                        original_step_type=step_data.get("original_step_type", step_data["step_type"]),
+                                        c_rate=step_data.get("c_rate"),
+                                        soc_start=step_data.get("soc_start"),
+                                        soc_end=step_data.get("soc_end"),
+                                        temperature=step_data.get("temperature"),
+                                        temperature_min=step_data.get("temperature_min"),
+                                        temperature_max=step_data.get("temperature_max"),
+                                        duration_seconds=step_data.get("duration_seconds"),
+                                        capacity_ah=step_data.get("capacity_ah"),
+                                        energy_wh=step_data.get("energy_wh"),
+                                        ocv_start=step_data.get("ocv_start"),
+                                        ocv_end=step_data.get("ocv_end"),
+                                    )
+                                    
+                                    session.add(step)
+                                
+                                # Add file processing records
+                                for file_type, file_path in [("step", "Step.csv"), ("detail", "Detail.csv")]:
+                                    processed_file = ProcessedFile(
+                                        experiment_id=experiment.id,
+                                        file_type=file_type,
+                                        file_name=file_path,
+                                        file_hash="from_session_state",  # Since we're using session state data
+                                        processed_date=datetime.now(),
+                                    )
+                                    session.add(processed_file)
+                                
+                                session.commit()
+                                
+                                st.success(f"Experiment '{experiment.name}' saved to database with {len(selected_steps_df)} steps.")
+                                
+                                # Clear the step selection state to avoid duplicate submissions
+                                st.session_state['selected_steps_for_db'] = []
+                                
+                                # Show a button to go to the dashboard
+                                if st.button("Go to Dashboard", type="primary"):
+                                    st.session_state['current_page'] = "Dashboard"
+                                    st.rerun()
+                                
+                        except Exception as e:
+                            st.error(f"Error saving data to database: {str(e)}")
+                            st.exception(e)
+            
+        # Option to use different files
+        use_different_files = st.checkbox("Use different files instead", key="use_different_files")
+        
+        if not use_different_files:
+            step_file = None
+            detail_file = None
+        else:
+            st.info("You've chosen to upload new files instead of using the ones from Data Preview.")
+    else:
+        st.warning("No data available from previous steps. Please upload files.")
+        use_different_files = True
     
     # Option to use example files
     use_example_files = st.checkbox("Use example files from example_csv_chromaLex folder", key="use_example_files")
