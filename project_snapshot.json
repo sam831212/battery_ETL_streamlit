@@ -82,26 +82,6 @@
     }
   },
   "etl_functions": {
-    "validation.py:validate_soc_range": {
-      "signature": "validate_soc_range(df, tolerance)",
-      "docstring": "Validate that State of Charge (SOC) values are within expected range\n\n    Args:\n        df: DataFram..."
-    },
-    "validation.py:validate_c_rate": {
-      "signature": "validate_c_rate(df, max_c_rate)",
-      "docstring": "Validate that C-rate values are within expected range\n\n    Args:\n        df: DataFrame containing c_..."
-    },
-    "validation.py:validate_data_continuity": {
-      "signature": "validate_data_continuity(df, time_col, max_gap_seconds)",
-      "docstring": "Validate data continuity (check for gaps in time series)\n\n    Args:\n        df: DataFrame containing..."
-    },
-    "validation.py:validate_value_jumps": {
-      "signature": "validate_value_jumps(df, column, max_jump_percent)",
-      "docstring": "Validate that there are no sudden jumps in values\n\n    Args:\n        df: DataFrame containing data\n ..."
-    },
-    "validation.py:generate_validation_report": {
-      "signature": "generate_validation_report(df, step_type)",
-      "docstring": "Generate a comprehensive validation report for battery data\n\n    Args:\n        df: DataFrame contain..."
-    },
     "transformation.py:calculate_c_rate": {
       "signature": "calculate_c_rate(current, nominal_capacity)",
       "docstring": "Calculate C-rate based on current and nominal capacity.\n\n    C-rate = |Current (A)| / Nominal Capaci..."
@@ -121,6 +101,42 @@
     "transformation.py:transform_data": {
       "signature": "transform_data(steps_df, details_df, nominal_capacity)",
       "docstring": "Apply all transformation functions to the step and detail data.\n    \n    Args:\n        steps_df: Dat..."
+    },
+    "validation.py:detect_voltage_anomalies": {
+      "signature": "detect_voltage_anomalies(df, voltage_col, window_size, z_threshold)",
+      "docstring": "Detect anomalies in voltage measurements using statistical methods.\n    \n    Args:\n        df: DataF..."
+    },
+    "validation.py:detect_capacity_anomalies": {
+      "signature": "detect_capacity_anomalies(df, capacity_col, total_capacity_col, step_type_col, min_capacity_threshold, max_change_pct)",
+      "docstring": "Detect anomalies in capacity measurements.\n    \n    Args:\n        df: DataFrame containing capacity ..."
+    },
+    "validation.py:detect_temperature_anomalies": {
+      "signature": "detect_temperature_anomalies(df, temp_col, min_temp, max_temp, max_temp_change)",
+      "docstring": "Detect anomalies in temperature measurements.\n    \n    Args:\n        df: DataFrame containing temper..."
+    },
+    "validation.py:validate_soc_range": {
+      "signature": "validate_soc_range(df, tolerance)",
+      "docstring": "Validate that State of Charge (SOC) values are within expected range\n\n    Args:\n        df: DataFram..."
+    },
+    "validation.py:validate_c_rate": {
+      "signature": "validate_c_rate(df, max_c_rate)",
+      "docstring": "Validate that C-rate values are within expected range\n\n    Args:\n        df: DataFrame containing c_..."
+    },
+    "validation.py:validate_data_continuity": {
+      "signature": "validate_data_continuity(df, time_col, max_gap_seconds)",
+      "docstring": "Validate data continuity (check for gaps in time series)\n\n    Args:\n        df: DataFrame containing..."
+    },
+    "validation.py:validate_value_jumps": {
+      "signature": "validate_value_jumps(df, column, max_jump_percent)",
+      "docstring": "Validate that there are no sudden jumps in values\n\n    Args:\n        df: DataFrame containing data\n ..."
+    },
+    "validation.py:generate_validation_report": {
+      "signature": "generate_validation_report(df, step_type, detect_anomalies)",
+      "docstring": "Generate a comprehensive validation report for battery data\n\n    Args:\n        df: DataFrame contain..."
+    },
+    "validation.py:generate_summary_table": {
+      "signature": "generate_summary_table(selected_steps, include_stats, include_validation)",
+      "docstring": "Generate a summary table with key statistics for selected steps.\n    \n    Args:\n        selected_ste..."
     },
     "extraction.py:convert_numpy_types": {
       "signature": "convert_numpy_types(obj)",
@@ -197,8 +213,10 @@
   },
   "ui_components": [
     "__init__.py",
-    "settings.py",
     "dashboard.py",
+    "step_selection.py",
+    "settings.py",
+    "preview.py",
     "upload.py"
   ],
   "utils": [
@@ -208,6 +226,8 @@
     "migration.py"
   ],
   "visualization": [
-    "__init__.py"
+    "utils.py",
+    "__init__.py",
+    "battery_plots.py"
   ]
 }
