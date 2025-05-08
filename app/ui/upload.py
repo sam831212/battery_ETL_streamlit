@@ -420,23 +420,7 @@ def render_upload_page():
             
             st.success("Experiment information saved.")
     
-    if submit_experiment:
-        if not experiment_name or nominal_capacity <= 0:
-            st.error("Please fill in all required fields with valid values.")
-        elif cells and selected_cell_id is None:
-            st.error("Please select a battery cell for this experiment.")
-        elif machines and selected_machine_id is None:
-            st.error("Please select a testing machine for this experiment.")
-        else:
-            # Save experiment info to session state
-            st.session_state["experiment_name"] = experiment_name
-            st.session_state["nominal_capacity"] = nominal_capacity
-            st.session_state["experiment_date"] = experiment_date
-            st.session_state["operator"] = operator
-            st.session_state["cell_id"] = selected_cell_id
-            st.session_state["machine_id"] = selected_machine_id
-            
-            st.success("Experiment information saved.")
+
     
     # Display data status
     st.subheader("Data Files")
@@ -478,11 +462,18 @@ def render_upload_page():
                             
                             # Create experiment in database
                             with get_session() as session:
+                                # Get cell to determine battery type
+                                with get_session() as cell_session:
+                                    cell = cell_session.get(Cell, st.session_state["cell_id"])
+                                    battery_type = cell.chemistry.value if cell else "Unknown"
+                                
                                 # Create experiment
                                 experiment = Experiment(
                                     name=st.session_state["experiment_name"],
+                                    description=st.session_state.get("description", ""),
+                                    battery_type=battery_type,
                                     nominal_capacity=st.session_state["nominal_capacity"],
-                                    date=st.session_state["experiment_date"],
+                                    start_date=datetime.combine(st.session_state["experiment_date"], datetime.min.time()),
                                     operator=st.session_state.get("operator", ""),
                                     cell_id=st.session_state["cell_id"],
                                     machine_id=st.session_state["machine_id"],
@@ -770,7 +761,7 @@ def render_upload_page():
                                     
                                     experiment = Experiment(
                                         name=st.session_state["experiment_name"],
-                                        description="",  # Could add a description field to the form
+                                        description=st.session_state.get("description", ""),
                                         battery_type=battery_type,
                                         nominal_capacity=st.session_state["nominal_capacity"],
                                         temperature_avg=float(step_df["temperature_avg"].mean()),  # Convert numpy.float64 to Python float
