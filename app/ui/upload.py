@@ -495,23 +495,29 @@ def render_upload_page():
                                     # Convert numpy values to Python native types
                                     step_data = convert_numpy_types(step_row.to_dict())
                                     
-                                    # Create Step object
+                                    # Create Step object with correct field names
                                     step = Step(
                                         experiment_id=experiment.id,
                                         step_number=step_data["step_number"],
                                         step_type=step_data["step_type"],
-                                        original_step_type=step_data.get("original_step_type", step_data["step_type"]),
-                                        c_rate=step_data.get("c_rate"),
+                                        # Required fields that must be provided
+                                        start_time=datetime.now(),  # Get proper timestamp or from data
+                                        duration=step_data.get("duration_seconds", 0.0),
+                                        voltage_start=step_data.get("voltage_start", 0.0),
+                                        voltage_end=step_data.get("voltage_end", 0.0),
+                                        current=step_data.get("current", 0.0),
+                                        capacity=step_data.get("capacity_ah", 0.0),
+                                        energy=step_data.get("energy_wh", 0.0),
+                                        temperature_avg=step_data.get("temperature", 25.0),
+                                        temperature_min=step_data.get("temperature_min", 25.0),
+                                        temperature_max=step_data.get("temperature_max", 25.0),
+                                        c_rate=step_data.get("c_rate", 0.0),
+                                        # Optional fields
+                                        end_time=datetime.now(),  # Get proper timestamp or from data
                                         soc_start=step_data.get("soc_start"),
                                         soc_end=step_data.get("soc_end"),
-                                        temperature=step_data.get("temperature"),
-                                        temperature_min=step_data.get("temperature_min"),
-                                        temperature_max=step_data.get("temperature_max"),
-                                        duration_seconds=step_data.get("duration_seconds"),
-                                        capacity_ah=step_data.get("capacity_ah"),
-                                        energy_wh=step_data.get("energy_wh"),
-                                        ocv_start=step_data.get("ocv_start"),
-                                        ocv_end=step_data.get("ocv_end"),
+                                        ocv=step_data.get("ocv_end"),  # Store final OCV value
+                                        data_meta={"original_step_type": step_data.get("original_step_type", step_data["step_type"])}
                                     )
                                     
                                     session.add(step)
