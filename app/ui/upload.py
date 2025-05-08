@@ -1018,20 +1018,27 @@ def render_upload_page():
             with st.expander("Detail.csv Preview"):
                 st.dataframe(detail_df.head(5))
             
-            # Validate file formats
-            step_file_path = os.path.join(UPLOAD_FOLDER, step_file.name)
-            detail_file_path = os.path.join(UPLOAD_FOLDER, detail_file.name)
+            # Validate file formats using temporary files
+            step_valid = False
+            detail_valid = False
+            step_missing = []
+            detail_missing = []
+            step_headers = []
+            detail_headers = []
             
-            # Check if the file formats are valid
-            step_valid, step_missing, step_headers = validate_csv_format(
-                step_file_path, 
-                STEP_REQUIRED_HEADERS
-            )
-            
-            detail_valid, detail_missing, detail_headers = validate_csv_format(
-                detail_file_path, 
-                DETAIL_REQUIRED_HEADERS
-            )
+            # Use temporary files for validation
+            with temp_file_from_upload(step_file, suffix=".csv") as temp_step_path:
+                with temp_file_from_upload(detail_file, suffix=".csv") as temp_detail_path:
+                    # Check if the file formats are valid
+                    step_valid, step_missing, step_headers = validate_csv_format(
+                        temp_step_path, 
+                        STEP_REQUIRED_HEADERS
+                    )
+                    
+                    detail_valid, detail_missing, detail_headers = validate_csv_format(
+                        temp_detail_path, 
+                        DETAIL_REQUIRED_HEADERS
+                    )
             
             # Show validation results
             validation_col1, validation_col2 = st.columns(2)
@@ -1058,9 +1065,9 @@ def render_upload_page():
                     # Process the files
                     with st.spinner("Processing files..."):
                         try:
-                            # Calculate file hashes to check for duplicates
-                            step_file_hash = hashlib.md5(step_file.getvalue()).hexdigest()
-                            detail_file_hash = hashlib.md5(detail_file.getvalue()).hexdigest()
+                            # Use file hashes already calculated earlier when files were uploaded
+                            step_file_hash = st.session_state["step_file_hash"] 
+                            detail_file_hash = st.session_state["detail_file_hash"]
                             
                             # Check if files have already been processed
                             with get_session() as session:
@@ -1079,11 +1086,14 @@ def render_upload_page():
                             if step_file_exists or detail_file_exists:
                                 st.warning("One or both files have already been processed. Skipping...")
                             else:
-                                # Use ETL functions to process files
-                                step_df, detail_df, metadata = load_and_preprocess_files(
-                                    step_file_path, detail_file_path,
-                                    nominal_capacity=st.session_state["nominal_capacity"]
-                                )
+                                # Use temporary files for processing
+                                with temp_file_from_upload(step_file, suffix=".csv") as temp_step_path:
+                                    with temp_file_from_upload(detail_file, suffix=".csv") as temp_detail_path:
+                                        # Use ETL functions to process files
+                                        step_df, detail_df, metadata = load_and_preprocess_files(
+                                            temp_step_path, temp_detail_path,
+                                            nominal_capacity=st.session_state["nominal_capacity"]
+                                        )
                                 
                                 # Generate validation reports
                                 step_validation_report = generate_validation_report(
