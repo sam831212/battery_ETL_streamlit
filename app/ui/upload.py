@@ -395,7 +395,7 @@ def render_upload_page():
         # Display message about data files if no data is available
         if not has_data_from_preview:
             st.info("Please go to the Step Selection page to process data files before saving experiment metadata.")
-            if st.button("Go to Step Selection", type="primary"):
+            if st.button("Go to Step Selection", type="primary", key="upload_goto_step_selection_btn"):
                 st.session_state['current_page'] = "Step Selection"
                 st.rerun()
     

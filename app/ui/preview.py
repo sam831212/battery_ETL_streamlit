@@ -703,7 +703,7 @@ def render_preview_page():
                         # Provide a button to continue to step selection
                         st.success("Data preview complete! You can now proceed to Step Selection to choose which steps to include.")
                         
-                        if st.button("Continue to Step Selection", type="primary"):
+                        if st.button("Continue to Step Selection", type="primary", key="continue_to_step_selection_btn"):
                             st.session_state['current_page'] = "Step Selection"
                             st.rerun()
                         

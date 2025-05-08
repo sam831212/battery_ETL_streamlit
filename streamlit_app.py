@@ -124,7 +124,7 @@ elif st.session_state['current_page'] == "Step Selection":
         st.info("Go to the Data Preview page to upload and preview battery test files.")
         
         # Add a button to navigate to preview page
-        if st.button("Go to Data Preview", type="primary"):
+        if st.button("Go to Data Preview", type="primary", key="goto_preview_btn"):
             change_page("Data Preview")
     else:
         # Render the step selection page with data from session state
@@ -145,7 +145,7 @@ elif st.session_state['current_page'] == "Experiment Info":
         st.info("Go to the Step Selection page to select steps for processing.")
         
         # Add a button to navigate to step selection page
-        if st.button("Go to Step Selection", type="primary"):
+        if st.button("Go to Step Selection", type="primary", key="goto_step_selection_btn"):
             change_page("Step Selection")
     else:
         # Show success message
