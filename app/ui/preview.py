@@ -549,6 +549,10 @@ def apply_transformations(step_df: pd.DataFrame, detail_df: pd.DataFrame, nomina
 def create_file_upload_area() -> Tuple[Optional[str], Optional[str]]:
     """
     Create file upload area for step and detail files.
+    """
+    # Initialize temp files registry
+    from app.utils.temp_files import init_temp_files_registry
+    init_temp_files_registry()
     
     Returns:
         Tuple containing:

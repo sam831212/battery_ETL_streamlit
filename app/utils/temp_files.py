@@ -14,8 +14,13 @@ import streamlit as st
 
 
 # Global registry to track temporary files created for the session
-if "temp_files_registry" not in st.session_state:
-    st.session_state.temp_files_registry = {}
+def init_temp_files_registry():
+    """Initialize the temporary files registry in session state if it doesn't exist."""
+    if not hasattr(st.session_state, 'temp_files_registry'):
+        st.session_state.temp_files_registry = {}
+
+# Initialize registry
+init_temp_files_registry()
 
 
 @contextmanager
