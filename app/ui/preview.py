@@ -37,6 +37,7 @@ from app.visualization import (
     plot_current_vs_time,
     plot_combined_voltage_current
 )
+from app.utils.temp_files import temp_file_from_upload, calculate_file_hash_from_memory
 
 # Define the path to example files
 EXAMPLE_FOLDER = "./example_csv_chromaLex"
@@ -609,11 +610,15 @@ def create_file_upload_area() -> Tuple[Optional[str], Optional[str]]:
             )
             
             if step_file:
-                # Save the uploaded file
-                file_path = os.path.join(".", step_file.name)
-                with open(file_path, "wb") as f:
-                    f.write(step_file.getbuffer())
-                step_file_path = file_path
+                # Store the file name in session state so we can access it later
+                st.session_state["step_file_name"] = step_file.name
+                # Calculate hash from memory for duplicate detection
+                st.session_state["step_file_hash"] = calculate_file_hash_from_memory(step_file.getbuffer())
+                # Store the file in memory
+                st.session_state["step_file_content"] = step_file
+                # Use a temporary file when processing is needed
+                with temp_file_from_upload(step_file, suffix=".csv") as temp_path:
+                    step_file_path = temp_path
         
         with col2:
             detail_file = st.file_uploader(
@@ -624,11 +629,15 @@ def create_file_upload_area() -> Tuple[Optional[str], Optional[str]]:
             )
             
             if detail_file:
-                # Save the uploaded file
-                file_path = os.path.join(".", detail_file.name)
-                with open(file_path, "wb") as f:
-                    f.write(detail_file.getbuffer())
-                detail_file_path = file_path
+                # Store the file name in session state so we can access it later
+                st.session_state["detail_file_name"] = detail_file.name
+                # Calculate hash from memory for duplicate detection
+                st.session_state["detail_file_hash"] = calculate_file_hash_from_memory(detail_file.getbuffer())
+                # Store the file in memory
+                st.session_state["detail_file_content"] = detail_file
+                # Use a temporary file when processing is needed
+                with temp_file_from_upload(detail_file, suffix=".csv") as temp_path:
+                    detail_file_path = temp_path
     
     return step_file_path, detail_file_path
 

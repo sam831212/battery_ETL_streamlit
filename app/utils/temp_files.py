@@ -6,13 +6,13 @@ This module provides utilities for handling temporary files during data processi
 import os
 import tempfile
 import hashlib
-from typing import Tuple, Optional, BinaryIO
+from typing import Tuple, Optional, BinaryIO, Generator, Any
 import shutil
 from contextlib import contextmanager
 
 
 @contextmanager
-def temp_file_from_upload(uploaded_file, suffix: Optional[str] = None) -> str:
+def temp_file_from_upload(uploaded_file, suffix: Optional[str] = None) -> Generator[str, Any, None]:
     """
     Creates a temporary file from a Streamlit uploaded file object and
     manages its lifecycle with a context manager.

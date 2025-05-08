@@ -13,7 +13,6 @@ from app.etl import (
     parse_step_csv, 
     parse_detail_csv, 
     load_and_preprocess_files,
-    calculate_file_hash,
     convert_numpy_types
 )
 from app.etl.extraction import STEP_REQUIRED_HEADERS, DETAIL_REQUIRED_HEADERS
@@ -21,6 +20,7 @@ from app.etl.validation import generate_validation_report
 from app.models import Experiment, Step, Measurement, ProcessedFile, Cell, Machine
 from app.models.database import CellChemistry, CellFormFactor
 from app.utils.database import get_session
+from app.utils.temp_files import temp_file_from_upload, calculate_file_hash_from_memory, calculate_file_hash
 from sqlmodel import select, desc, delete, func
 import hashlib
 
@@ -979,17 +979,17 @@ def render_upload_page():
     elif step_file and detail_file:
         st.info("Both files uploaded. Processing...")
         
-        # Create upload directory if it doesn't exist
-        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        # Calculate hashes from memory for duplicate detection
+        step_file_hash = calculate_file_hash_from_memory(step_file.getbuffer())
+        detail_file_hash = calculate_file_hash_from_memory(detail_file.getbuffer())
         
-        # Save files to upload directory
-        with open(os.path.join(UPLOAD_FOLDER, step_file.name), "wb") as f:
-            f.write(step_file.getbuffer())
+        # Store metadata in session state
+        st.session_state["step_file_name"] = step_file.name
+        st.session_state["detail_file_name"] = detail_file.name
+        st.session_state["step_file_hash"] = step_file_hash
+        st.session_state["detail_file_hash"] = detail_file_hash
         
-        with open(os.path.join(UPLOAD_FOLDER, detail_file.name), "wb") as f:
-            f.write(detail_file.getbuffer())
-        
-        # Read files into DataFrames
+        # Read files into DataFrames directly from memory
         try:
             step_df = pd.read_csv(step_file)
             detail_df = pd.read_csv(detail_file)
