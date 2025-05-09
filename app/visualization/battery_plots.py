@@ -394,18 +394,24 @@ def plot_temperature_vs_time(df: pd.DataFrame,
     
     
     # Add anomaly markers if requested
-    if highlight_anomalies and 'temperature' in df.columns:
+    if highlight_anomalies and temperature_col in df.columns:
         # Detect temperature anomalies
-        temp_outliers = df[df['temperature'].abs() > df['temperature'].abs().quantile(0.95)]
+        temp_outliers = df[df[temperature_col].abs() > df[temperature_col].abs().quantile(0.95)]
         if not temp_outliers.empty:
-            fig = add_anomaly_markers(
-                fig,
-                temp_outliers,
-                x_col=time_col,
-                y_col=temperature_col,
-                marker_size=10,
-                tooltip_text='Temperature anomaly detected'
-            )
+            # Add markers directly
+            fig.add_trace(go.Scatter(
+                x=temp_outliers[time_col],
+                y=temp_outliers[temperature_col],
+                mode='markers',
+                name='Temperature Anomalies',
+                marker=dict(
+                    symbol='circle',
+                    size=10,
+                    color='red',
+                    line=dict(width=2, color='darkred')
+                ),
+                hovertemplate='Time: %{x}<br>Temperature: %{y}°C<br>Anomaly<extra></extra>'
+            ))
     
     # Format time axis for better readability
     fig = format_time_axis(fig, time_col=time_col)
@@ -429,20 +435,25 @@ def plot_combined_voltage_current(
         df: pd.DataFrame,
         voltage_col: str = 'voltage',
         current_col: str = 'current',
+        temperature_col: str = 'temperature',
         time_col: str = 'timestamp',
         step_type_col: str = 'step_type',
         step_number_col: str = 'step_number',
+        include_temperature: bool = True,
         highlight_anomalies: bool = True,
-        title: str = 'Voltage and Current vs Time') -> go.Figure:
+        title: str = 'Voltage, Current, and Temperature vs Time') -> go.Figure:
     """
-    Create combined voltage and current plot with dual y-axis.
+    Create combined voltage, current, and temperature plot with multiple y-axes.
     
     Args:
         df: DataFrame containing the data
         voltage_col: Name of the voltage column
         current_col: Name of the current column
+        temperature_col: Name of the temperature column
         time_col: Name of the time column
         step_type_col: Name of the step type column
+        include_temperature: Whether to include temperature in the plot
+        highlight_anomalies: Whether to highlight anomalies
         title: Plot title
         
     Returns:
@@ -512,12 +523,32 @@ def plot_combined_voltage_current(
         hovertemplate=(f"Time: %{{x}}<br>"
                        f"Current: %{{y}} A<extra></extra>")),
                   secondary_y=True)
+    
+    # Add temperature trace if requested and available
+    if include_temperature and temperature_col in processed_df.columns:
+        # Create a copy of the figure for combining later
+        temp_fig = go.Figure()
+        
+        # Add temperature trace with dotted line and different color
+        temp_fig.add_trace(go.Scatter(
+            x=processed_df[time_col],
+            y=processed_df[temperature_col],
+            mode='lines',
+            name='Temperature',
+            line=dict(color='rgba(50, 150, 50, 0.7)', dash='dot', width=2),
+            hovertemplate=(f"Time: %{{x}}<br>"
+                          f"Temperature: %{{y}} °C<extra></extra>")
+        ))
+        
+        # Add the temperature trace to the main figure
+        for trace in temp_fig.data:
+            fig.add_trace(trace, secondary_y=True)
 
     # Set titles
     fig.update_layout(title=title)
     fig.update_xaxes(title_text='Time')
     fig.update_yaxes(title_text='Voltage (V)', secondary_y=False)
-    fig.update_yaxes(title_text='Current (A)', secondary_y=True)
+    fig.update_yaxes(title_text='Current (A) / Temperature (°C)', secondary_y=True)
 
     # Format time axis for better readability
     fig = format_time_axis(fig, time_col=time_col)

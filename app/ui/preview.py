@@ -219,33 +219,14 @@ def display_visualizations(step_df: pd.DataFrame, detail_df: pd.DataFrame):
     
     # Create tabs for different visualization types
     viz_tabs = st.tabs([
-        "Capacity-Voltage", 
         "Voltage-Time", 
         "Current-Time",
+        "Temperature-Time",
         "Combined Plots"
     ])
     
-    # Tab 1: Capacity vs Voltage
+    # Tab 1: Voltage vs Time
     with viz_tabs[0]:
-        st.write("### Capacity vs Voltage")
-        
-        try:
-            cv_fig = plot_capacity_vs_voltage(
-                step_df,
-                voltage_col='voltage_end',
-                capacity_col='capacity',
-                step_type_col='step_type',
-                step_number_col='step_number',
-                highlight_anomalies=True,
-                title='Capacity vs Voltage by Step Type'
-            )
-            st.plotly_chart(cv_fig, use_container_width=True)
-        except Exception as e:
-            st.error(f"Error generating Capacity vs Voltage plot: {str(e)}")
-            st.info("This plot requires 'voltage_end' and 'capacity' columns in the step data.")
-    
-    # Tab 2: Voltage vs Time
-    with viz_tabs[1]:
         st.write("### Voltage vs Time")
         
         try:
@@ -271,8 +252,8 @@ def display_visualizations(step_df: pd.DataFrame, detail_df: pd.DataFrame):
             st.error(f"Error generating Voltage vs Time plot: {str(e)}")
             st.info("This plot requires 'voltage', 'timestamp', and 'step_type' columns in the detail data.")
     
-    # Tab 3: Current vs Time
-    with viz_tabs[2]:
+    # Tab 2: Current vs Time
+    with viz_tabs[1]:
         st.write("### Current vs Time")
         
         try:
@@ -297,9 +278,35 @@ def display_visualizations(step_df: pd.DataFrame, detail_df: pd.DataFrame):
             st.error(f"Error generating Current vs Time plot: {str(e)}")
             st.info("This plot requires 'current', 'timestamp', and 'step_type' columns in the detail data.")
     
+    # Tab 3: Temperature vs Time
+    with viz_tabs[2]:
+        st.write("### Temperature vs Time")
+        
+        try:
+            # Use detail data for time series plots
+            # Limit to 10,000 points for performance
+            if len(detail_df) > 10000:
+                plot_data = detail_df.sample(10000)
+            else:
+                plot_data = detail_df
+                
+            temp_fig = plot_temperature_vs_time(
+                plot_data,
+                temperature_col='temperature',
+                time_col='timestamp',
+                step_type_col='step_type',
+                step_number_col='step_number',
+                highlight_anomalies=True,
+                title='Temperature vs Time by Step Type'
+            )
+            st.plotly_chart(temp_fig, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error generating Temperature vs Time plot: {str(e)}")
+            st.info("This plot requires 'temperature', 'timestamp', and 'step_type' columns in the detail data.")
+    
     # Tab 4: Combined Plots
     with viz_tabs[3]:
-        st.write("### Combined Voltage and Current")
+        st.write("### Combined Voltage, Current, and Temperature")
         
         try:
             # Use detail data for time series plots
@@ -313,16 +320,18 @@ def display_visualizations(step_df: pd.DataFrame, detail_df: pd.DataFrame):
                 plot_data,
                 voltage_col='voltage',
                 current_col='current',
+                temperature_col='temperature',
                 time_col='timestamp',
                 step_type_col='step_type',
                 step_number_col='step_number',
+                include_temperature=True,
                 highlight_anomalies=True,
-                title='Voltage and Current vs Time'
+                title='Voltage, Current, and Temperature vs Time'
             )
             st.plotly_chart(combined_fig, use_container_width=True)
         except Exception as e:
             st.error(f"Error generating Combined plot: {str(e)}")
-            st.info("This plot requires 'voltage', 'current', 'timestamp', and 'step_type' columns in the detail data.")
+            st.info("This plot requires 'voltage', 'current', 'temperature', 'timestamp', and 'step_type' columns in the detail data.")
 
 
 def display_data_validation(step_df: pd.DataFrame, detail_df: pd.DataFrame):
