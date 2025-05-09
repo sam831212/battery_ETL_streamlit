@@ -48,8 +48,111 @@ def render_entity_management(
         display_fields: List of dictionaries mapping entity attributes to display names
         reference_check: Optional function to check if entity can be deleted
     """
-    # Existing code (unchanged)
-    pass
+    st.subheader(header_text)
+    
+    # Create columns - one for adding new entities, one for listing existing ones
+    col1, col2 = st.columns(2)
+    
+    # Add new entity section
+    with col1:
+        st.write(f"#### Add New {entity_type.capitalize()}")
+        # Use a form to collect input data
+        with st.form(f"add_{entity_type}_form"):
+            # Create the fields based on provided form_fields
+            field_values = {}
+            for field in form_fields:
+                field_name = field["name"]
+                field_type = field.get("type", "text")
+                field_label = field.get("label", field_name.replace("_", " ").capitalize())
+                field_options = field.get("options", None)
+                field_default = field.get("default", None)
+                
+                # Create different input types based on field_type
+                if field_type == "text":
+                    field_values[field_name] = st.text_input(field_label, value=field_default or "")
+                elif field_type == "number":
+                    field_values[field_name] = st.number_input(field_label, value=field_default or 0.0)
+                elif field_type == "select":
+                    field_values[field_name] = st.selectbox(field_label, options=field_options, index=0 if field_default is None else field_options.index(field_default))
+                elif field_type == "date":
+                    field_values[field_name] = st.date_input(field_label, value=field_default)
+                elif field_type == "textarea":
+                    field_values[field_name] = st.text_area(field_label, value=field_default or "")
+            
+            # Add submit button
+            submit_button = st.form_submit_button(f"Add {entity_type.capitalize()}")
+    
+        # Process form submission
+        if submit_button:
+            try:
+                # Create entity object with form data
+                entity_data = {}
+                for field in form_fields:
+                    field_name = field["name"]
+                    entity_data[field_name] = field_values[field_name]
+                
+                new_entity = entity_class(**entity_data)
+                
+                # Save to database
+                with get_session() as session:
+                    session.add(new_entity)
+                    session.commit()
+                    session.refresh(new_entity)
+                
+                st.success(f"{entity_type.capitalize()} added successfully!")
+                
+            except Exception as e:
+                st.error(f"Error adding {entity_type}: {str(e)}")
+    
+    # Display existing entities
+    with col2:
+        st.write(f"#### Existing {entity_type.capitalize()}s")
+        
+        with get_session() as session:
+            # Get all entities
+            entities = session.query(entity_class).all()
+            
+            if not entities:
+                st.info(f"No {entity_type}s found. Add one using the form.")
+            else:
+                # Display as a table
+                for entity in entities:
+                    with st.expander(f"{entity_type.capitalize()} #{entity.id}"):
+                        # Display each field defined in display_fields
+                        for field in display_fields:
+                            attr_name = field["attr"]
+                            display_name = field["display"]
+                            # Get attribute value, handle nested attributes with dots
+                            if "." in attr_name:
+                                parts = attr_name.split(".")
+                                value = entity
+                                for part in parts:
+                                    value = getattr(value, part, None)
+                            else:
+                                value = getattr(entity, attr_name, None)
+                            
+                            st.write(f"**{display_name}:** {value}")
+                        
+                        # Add delete button
+                        if st.button(f"Delete {entity_type.capitalize()}", key=f"delete_{entity_type}_{entity.id}"):
+                            # Check if entity can be deleted
+                            can_delete = True
+                            message = ""
+                            
+                            if reference_check:
+                                can_delete, message = reference_check(session, entity.id)
+                            
+                            if can_delete:
+                                try:
+                                    # Delete the entity
+                                    session.delete(entity)
+                                    session.commit()
+                                    st.success(f"{entity_type.capitalize()} deleted successfully!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error deleting {entity_type}: {str(e)}")
+                            else:
+                                st.error(message)
 
 
 def cell_reference_check(session, cell_id):
