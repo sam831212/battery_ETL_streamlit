@@ -180,14 +180,29 @@ def check_file_already_processed(file_hash: str) -> bool:
     """
     if not file_hash:
         return False
-        
-    with get_db_session() as session:
-        # Check if any ProcessedFile with this hash exists
-        existing_file = session.query(ProcessedFile).filter(
-            ProcessedFile.file_hash == file_hash
-        ).first()
-        
-        return existing_file is not None
+    
+    try:
+        with get_db_session() as session:
+            # Check if any ProcessedFile with this hash exists
+            existing_file = session.query(ProcessedFile).filter(
+                ProcessedFile.file_hash == file_hash
+            ).first()
+            
+            return existing_file is not None
+    except Exception as e:
+        # If database connection fails, reset connection and try again
+        try:
+            reset_engine_connection()
+            with get_db_session() as session:
+                existing_file = session.query(ProcessedFile).filter(
+                    ProcessedFile.file_hash == file_hash
+                ).first()
+                
+                return existing_file is not None
+        except Exception as retry_error:
+            # Log the error and assume file has not been processed
+            print(f"Database error in check_file_already_processed: {str(retry_error)}")
+            return False
 
 
 def display_file_statistics(step_df: pd.DataFrame, detail_df: pd.DataFrame):
@@ -1577,9 +1592,24 @@ def render_upload_page():
     st.title("Battery ETL Dashboard - Data Upload")
     
     # Get database entities for references
-    with get_db_session() as session:
-        cells = session.query(Cell).order_by(Cell.name).all()
-        machines = session.query(Machine).order_by(Machine.name).all()
+    # Try to get cells and machines with connection retry logic
+    try:
+        with get_db_session() as session:
+            cells = session.query(Cell).order_by(Cell.name).all()
+            machines = session.query(Machine).order_by(Machine.name).all()
+    except Exception as e:
+        # If first attempt fails, try resetting the connection pool
+        st.warning("Database connection issue detected. Attempting to reconnect...")
+        reset_engine_connection()
+        try:
+            with get_db_session() as session:
+                cells = session.query(Cell).order_by(Cell.name).all()
+                machines = session.query(Machine).order_by(Machine.name).all()
+        except Exception as retry_error:
+            st.error(f"Database connection error: {str(retry_error)}")
+            st.info("Please try refreshing the page. If the issue persists, contact support.")
+            cells = []
+            machines = []
     
     # Create tabs for different sections
     tab1, tab2, tab3, tab4 = st.tabs([
