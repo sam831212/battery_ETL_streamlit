@@ -138,7 +138,7 @@ elif st.session_state['current_page'] == "Step Selection":
         )
 
 elif st.session_state['current_page'] == "Experiment Info":
-    from app.ui.upload import render_upload_page  # Temporarily reuse the upload page for experiment info
+    from app.ui.refactored_upload import render_upload_page  # Use the refactored upload module
     
     # Always render the tabbed interface for experiment info
     render_upload_page()
