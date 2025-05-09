@@ -17,6 +17,7 @@ from .battery_plots import (
     plot_capacity_vs_voltage,
     plot_voltage_vs_time,
     plot_current_vs_time,
+    plot_temperature_vs_time,
     plot_combined_voltage_current
 )
 
@@ -36,5 +37,6 @@ __all__ = [
     'plot_capacity_vs_voltage',
     'plot_voltage_vs_time',
     'plot_current_vs_time',
+    'plot_temperature_vs_time',
     'plot_combined_voltage_current'
 ]

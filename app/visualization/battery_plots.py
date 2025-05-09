@@ -318,6 +318,113 @@ def plot_current_vs_time(df: pd.DataFrame,
 
 @handle_plotting_error
 @cache_plot(ttl=300)
+def plot_temperature_vs_time(df: pd.DataFrame,
+                           temperature_col: str = 'temperature',
+                           time_col: str = 'timestamp',
+                           step_type_col: str = 'step_type',
+                           step_number_col: str = 'step_number',
+                           highlight_anomalies: bool = True,
+                           title: str = 'Temperature vs Time') -> go.Figure:
+    """
+    Create temperature vs time plot.
+    
+    Args:
+        df: DataFrame containing the data
+        temperature_col: Name of the temperature column
+        time_col: Name of the time column
+        step_type_col: Name of the step type column
+        step_number_col: Name of the step number column
+        highlight_anomalies: Whether to highlight anomalies
+        title: Plot title
+        
+    Returns:
+        Plotly figure object
+    """
+    # Validate data
+    if temperature_col not in df.columns or time_col not in df.columns:
+        fig = go.Figure()
+        fig.update_layout(
+            title=
+            f"Cannot create plot: Missing required columns ({temperature_col}, {time_col})"
+        )
+        return fig
+
+    # Preprocess data for visualization
+    processed_df = preprocess_for_visualization(df)
+    
+    # Create figure
+    fig = go.Figure()
+    
+    # Plot data by step type
+    # If step_type column exists, plot data by step type
+    if step_type_col in processed_df.columns:
+        for step_type in processed_df[step_type_col].unique():
+            step_df = processed_df[processed_df[step_type_col] == step_type]
+            
+            # Skip if step dataframe is empty
+            if len(step_df) == 0:
+                continue
+                
+            # Get color for step type
+            color = get_color_by_step_type(step_type)
+            
+            # Add trace for this step type
+            fig.add_trace(go.Scatter(
+                x=step_df[time_col],
+                y=step_df[temperature_col],
+                mode='lines+markers',
+                name=f"{step_type.capitalize()}",
+                line=dict(color=color),
+                marker=dict(size=5, color=color),
+                hovertemplate=(f"Time: %{{x}}<br>"
+                               f"Temperature: %{{y}} °C<br>"
+                               f"Step Type: {step_type}<extra></extra>")
+            ))
+    else:
+        # Add single trace if no step type information
+        fig.add_trace(go.Scatter(
+            x=processed_df[time_col],
+            y=processed_df[temperature_col],
+            mode='lines+markers',
+            name='Temperature',
+            marker=dict(size=5),
+            hovertemplate=(f"Time: %{{x}}<br>"
+                          f"Temperature: %{{y}} °C<extra></extra>")
+        ))
+    
+    
+    # Add anomaly markers if requested
+    if highlight_anomalies and 'temperature' in df.columns:
+        # Detect temperature anomalies
+        temp_outliers = df[df['temperature'].abs() > df['temperature'].abs().quantile(0.95)]
+        if not temp_outliers.empty:
+            fig = add_anomaly_markers(
+                fig,
+                temp_outliers,
+                x_col=time_col,
+                y_col=temperature_col,
+                marker_size=10,
+                tooltip_text='Temperature anomaly detected'
+            )
+    
+    # Format time axis for better readability
+    fig = format_time_axis(fig, time_col=time_col)
+    
+    # Update layout
+    fig.update_layout(
+        title=title,
+        xaxis_title='Time',
+        yaxis_title='Temperature (°C)',
+        legend_title='Step Type',
+        hovermode='closest'
+    )
+    
+    # Apply consistent styling
+    fig = apply_consistent_styling(fig)
+    
+    return fig
+
+
 def plot_combined_voltage_current(
         df: pd.DataFrame,
         voltage_col: str = 'voltage',
