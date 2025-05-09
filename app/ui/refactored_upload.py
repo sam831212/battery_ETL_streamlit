@@ -1041,20 +1041,178 @@ def machine_reference_check(session, machine_id):
 
 def render_machine_management():
     """Render machine management UI"""
-    # Existing code (unchanged)
-    pass
+    form_fields = [
+        {"name": "name", "type": "text", "label": "Machine Name"},
+        {"name": "manufacturer", "type": "text", "label": "Manufacturer"},
+        {"name": "model", "type": "text", "label": "Model"},
+        {"name": "serial_number", "type": "text", "label": "Serial Number"},
+        {"name": "firmware_version", "type": "text", "label": "Firmware Version", "default": ""},
+        {"name": "calibration_date", "type": "date", "label": "Last Calibration Date"}
+    ]
+    
+    display_fields = [
+        {"attr": "name", "display": "Name"},
+        {"attr": "manufacturer", "display": "Manufacturer"},
+        {"attr": "model", "display": "Model"},
+        {"attr": "serial_number", "display": "Serial Number"},
+        {"attr": "firmware_version", "display": "Firmware Version"},
+        {"attr": "calibration_date", "display": "Last Calibration Date"},
+    ]
+    
+    render_entity_management(
+        entity_type="machine",
+        entity_class=Machine,
+        header_text="Machine Management",
+        form_fields=form_fields,
+        display_fields=display_fields,
+        reference_check=machine_reference_check
+    )
 
 
 def render_cell_management():
     """Render cell management UI"""
-    # Existing code (unchanged)
-    pass
+    form_fields = [
+        {"name": "name", "type": "text", "label": "Cell Name"},
+        {"name": "manufacturer", "type": "text", "label": "Manufacturer"},
+        {"name": "chemistry", "type": "select", "label": "Chemistry", 
+         "options": [chemistry.value for chemistry in CellChemistry]},
+        {"name": "form_factor", "type": "select", "label": "Form Factor", 
+         "options": [form_factor.value for form_factor in CellFormFactor]},
+        {"name": "nominal_capacity", "type": "number", "label": "Nominal Capacity (Ah)"},
+        {"name": "nominal_voltage", "type": "number", "label": "Nominal Voltage (V)"},
+        {"name": "serial_number", "type": "text", "label": "Serial Number", "default": ""},
+        {"name": "date_received", "type": "date", "label": "Date Received"},
+        {"name": "notes", "type": "textarea", "label": "Notes", "default": ""}
+    ]
+    
+    display_fields = [
+        {"attr": "name", "display": "Name"},
+        {"attr": "manufacturer", "display": "Manufacturer"},
+        {"attr": "chemistry", "display": "Chemistry"},
+        {"attr": "form_factor", "display": "Form Factor"},
+        {"attr": "nominal_capacity", "display": "Nominal Capacity (Ah)"},
+        {"attr": "nominal_voltage", "display": "Nominal Voltage (V)"},
+        {"attr": "serial_number", "display": "Serial Number"},
+        {"attr": "date_received", "display": "Date Received"},
+        {"attr": "notes", "display": "Notes"}
+    ]
+    
+    render_entity_management(
+        entity_type="cell",
+        entity_class=Cell,
+        header_text="Cell Management",
+        form_fields=form_fields,
+        display_fields=display_fields,
+        reference_check=cell_reference_check
+    )
 
 
 def render_experiment_metadata(cells, machines, has_data_from_preview):
     """Render experiment metadata form"""
-    # Existing code (unchanged)
-    pass
+    # Create form for experiment metadata
+    st.header("Experiment Information")
+    
+    with st.form("experiment_metadata_form"):
+        # Basic metadata
+        experiment_name = st.text_input(
+            "Experiment Name*", 
+            key="experiment_name_input",
+            value=st.session_state.get("experiment_name", ""),
+            help="A unique name for this experiment"
+        )
+        
+        # Cell selection
+        cell_options = {cell.id: f"{cell.name} ({cell.manufacturer} - {cell.chemistry})" for cell in cells}
+        
+        if not cell_options:
+            st.warning("No cells available. Please add a cell first.")
+            selected_cell_id = None
+        else:
+            selected_cell_id = st.selectbox(
+                "Select Cell*",
+                options=list(cell_options.keys()),
+                format_func=lambda x: cell_options.get(x, "Unknown"),
+                index=0 if st.session_state.get("selected_cell_id") is None else 
+                      list(cell_options.keys()).index(st.session_state["selected_cell_id"])
+                      if st.session_state.get("selected_cell_id") in cell_options else 0,
+                help="The cell used in this experiment"
+            )
+        
+        # Machine selection
+        machine_options = {machine.id: f"{machine.name} ({machine.manufacturer} - {machine.model})" 
+                          for machine in machines}
+        
+        if not machine_options:
+            st.warning("No machines available. Please add a machine first.")
+            selected_machine_id = None
+        else:
+            selected_machine_id = st.selectbox(
+                "Select Machine*",
+                options=list(machine_options.keys()),
+                format_func=lambda x: machine_options.get(x, "Unknown"),
+                index=0 if st.session_state.get("selected_machine_id") is None else 
+                      list(machine_options.keys()).index(st.session_state["selected_machine_id"])
+                      if st.session_state.get("selected_machine_id") in machine_options else 0,
+                help="The machine used for testing"
+            )
+        
+        # Get the selected cell to use its nominal capacity as default
+        selected_cell = None
+        if selected_cell_id:
+            for cell in cells:
+                if cell.id == selected_cell_id:
+                    selected_cell = cell
+                    break
+        
+        # Nominal capacity
+        nominal_capacity = st.number_input(
+            "Nominal Capacity (Ah)*", 
+            min_value=0.001, 
+            value=float(st.session_state.get("nominal_capacity", 
+                                            selected_cell.nominal_capacity if selected_cell else 1.0)),
+            help="The nominal capacity of the battery used for normalization"
+        )
+        
+        # Additional metadata
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            experiment_date = st.date_input(
+                "Experiment Date*",
+                value=st.session_state.get("experiment_date", datetime.now().date()),
+                help="The date when the experiment was conducted"
+            )
+        
+        with col2:
+            operator = st.text_input(
+                "Operator*", 
+                value=st.session_state.get("operator", ""),
+                help="The person who conducted the experiment"
+            )
+        
+        # Description
+        description = st.text_area(
+            "Description", 
+            value=st.session_state.get("description", ""),
+            help="Additional notes about the experiment"
+        )
+        
+        # Submit button
+        submit_button = st.form_submit_button("Save Experiment Information")
+        
+        if submit_button:
+            # Save metadata to session state
+            save_experiment_metadata(
+                experiment_name,
+                nominal_capacity,
+                selected_cell_id,
+                experiment_date,
+                operator,
+                description,
+                selected_machine_id,
+                cells,
+                machines
+            )
 
 
 def save_experiment_metadata(
@@ -1069,20 +1227,193 @@ def save_experiment_metadata(
     machines
 ):
     """Save experiment metadata to session state"""
-    # Existing code (unchanged)
-    pass
+    # Validate required fields
+    if not experiment_name:
+        st.error("Experiment name is required")
+        return False
+    
+    if not selected_cell_id:
+        st.error("Cell selection is required")
+        return False
+    
+    if not selected_machine_id:
+        st.error("Machine selection is required")
+        return False
+    
+    if not operator:
+        st.error("Operator name is required")
+        return False
+    
+    # Save to session state
+    st.session_state["experiment_name"] = experiment_name
+    st.session_state["nominal_capacity"] = nominal_capacity
+    st.session_state["selected_cell_id"] = selected_cell_id
+    st.session_state["experiment_date"] = experiment_date
+    st.session_state["operator"] = operator
+    st.session_state["description"] = description
+    st.session_state["selected_machine_id"] = selected_machine_id
+    
+    # Get cell and machine info
+    selected_cell = None
+    for cell in cells:
+        if cell.id == selected_cell_id:
+            selected_cell = cell
+            break
+    
+    selected_machine = None
+    for machine in machines:
+        if machine.id == selected_machine_id:
+            selected_machine = machine
+            break
+    
+    # Display success message with details
+    if selected_cell and selected_machine:
+        st.success(f"""
+        Experiment information saved:
+        - Name: {experiment_name}
+        - Cell: {selected_cell.name} ({selected_cell.manufacturer})
+        - Machine: {selected_machine.name} ({selected_machine.manufacturer})
+        - Nominal Capacity: {nominal_capacity} Ah
+        - Date: {experiment_date}
+        - Operator: {operator}
+        """)
+    else:
+        st.success("Experiment information saved.")
+    
+    return True
 
 
 def render_preview_data_section():
     """Render UI section for data from preview page"""
-    # Existing code (unchanged)
-    pass
+    if "selected_steps" not in st.session_state:
+        st.info("No data available from Step Selection. Please select steps first.")
+        return
+    
+    # Show preview of selected steps
+    st.header("Data from Step Selection")
+    st.success(f"{len(st.session_state['selected_steps'])} steps selected from Step Selection.")
+    
+    # Display info about the steps
+    if len(st.session_state["selected_steps"]) > 0:
+        step_numbers = [step["step_number"] for step in st.session_state["selected_steps"]]
+        step_types = set([step["step_type"] for step in st.session_state["selected_steps"]])
+        
+        st.info(f"""
+        Selected Steps: {', '.join(str(s) for s in sorted(step_numbers))}
+        Step Types: {', '.join(sorted(step_types))}
+        """)
+    
+    # Add a button to process the selected steps
+    if st.button("Process Selected Steps", type="primary"):
+        if not st.session_state.get("experiment_name"):
+            st.error("Please fill in and save the experiment information before processing steps.")
+        else:
+            handle_selected_steps_save()
 
 
 def handle_selected_steps_save():
     """Handle saving selected steps to database"""
-    # Existing code (unchanged)
-    pass
+    if "selected_steps" not in st.session_state or len(st.session_state["selected_steps"]) == 0:
+        st.error("No steps selected. Please select steps first.")
+        return
+    
+    if not st.session_state.get("experiment_name"):
+        st.error("Please fill in experiment information first.")
+        return
+    
+    # Get experiment metadata from session state
+    experiment_name = st.session_state["experiment_name"]
+    nominal_capacity = st.session_state["nominal_capacity"]
+    cell_id = st.session_state["selected_cell_id"]
+    machine_id = st.session_state["selected_machine_id"]
+    experiment_date = st.session_state["experiment_date"]
+    operator = st.session_state["operator"]
+    description = st.session_state.get("description", "")
+    
+    # Process selected steps
+    with st.spinner("Processing selected steps..."):
+        try:
+            # Create connection to the database
+            with get_db_session() as session:
+                # Check if cell exists
+                cell = session.query(Cell).filter(Cell.id == cell_id).first()
+                if not cell:
+                    st.error(f"Cell with ID {cell_id} not found. Please select a valid cell.")
+                    return
+                
+                # Check if machine exists
+                machine = session.query(Machine).filter(Machine.id == machine_id).first()
+                if not machine:
+                    st.error(f"Machine with ID {machine_id} not found. Please select a valid machine.")
+                    return
+                
+                # Create experiment metadata
+                experiment = Experiment(
+                    name=experiment_name,
+                    date=experiment_date,
+                    operator=operator,
+                    description=description,
+                    cell_id=cell_id,
+                    machine_id=machine_id,
+                    nominal_capacity=nominal_capacity,
+                    battery_type=cell.chemistry,
+                    temperature_avg=0.0  # Will be updated after measurements are processed
+                )
+                
+                session.add(experiment)
+                session.flush()  # Flush to get experiment ID
+                
+                # Process selected steps
+                step_metadata = []
+                
+                # This is a simplified version to demonstrate the structure
+                # In a real implementation, we would extract and transform details data for each step
+                for step_data in st.session_state["selected_steps"]:
+                    step = Step(
+                        experiment_id=experiment.id,
+                        step_number=step_data["step_number"],
+                        step_type=step_data["step_type"],
+                        start_time=step_data.get("start_time"),
+                        end_time=step_data.get("end_time"),
+                        duration=step_data.get("duration", 0),
+                        capacity_change=step_data.get("capacity_change", 0),
+                        energy_change=step_data.get("energy_change", 0),
+                        avg_voltage=step_data.get("avg_voltage", 0),
+                        max_voltage=step_data.get("max_voltage", 0),
+                        min_voltage=step_data.get("min_voltage", 0),
+                        avg_current=step_data.get("avg_current", 0),
+                        max_current=step_data.get("max_current", 0),
+                        min_current=step_data.get("min_current", 0),
+                        avg_temperature=step_data.get("avg_temperature", 0),
+                        max_temperature=step_data.get("max_temperature", 0),
+                        min_temperature=step_data.get("min_temperature", 0),
+                        normalized_capacity=step_data.get("normalized_capacity", 0),
+                    )
+                    session.add(step)
+                    step_metadata.append(step_data)
+                
+                # In a real implementation, we would also process measurement data here
+                
+                # Commit the changes
+                session.commit()
+                
+                st.success(f"""
+                Successfully saved experiment '{experiment_name}' with {len(step_metadata)} steps.
+                
+                You can view the results in the dashboard or add more data.
+                """)
+                
+                # Clear session state for processed data
+                st.session_state.pop("selected_steps", None)
+                
+                # Provide navigation to the dashboard
+                if st.button("Go to Dashboard", type="primary"):
+                    st.session_state["current_page"] = "Dashboard"
+                    st.rerun()
+        
+        except Exception as e:
+            st.error(f"Error saving data to database: {str(e)}")
+            st.exception(e)
 
 
 def render_example_files_section():
@@ -1248,5 +1579,63 @@ def render_upload_page():
     This function displays the upload UI components for Step.csv and Detail.csv files,
     processes the uploaded files, and provides feedback to the user.
     """
-    # Existing code (unchanged)
-    pass
+    # Set up page
+    st.title("Battery ETL Dashboard - Data Upload")
+    
+    # Get database entities for references
+    with get_db_session() as session:
+        cells = session.query(Cell).order_by(Cell.name).all()
+        machines = session.query(Machine).order_by(Machine.name).all()
+    
+    # Create tabs for different sections
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "Cell & Machine Management",
+        "Experiment Information",
+        "File Upload",
+        "Example Files"
+    ])
+    
+    # Tab 1: Cell & Machine Management
+    with tab1:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            render_cell_management()
+        
+        with col2:
+            render_machine_management()
+    
+    # Tab 2: Experiment Information
+    with tab2:
+        # Check if data is available from previous step
+        has_data_from_preview = "selected_steps" in st.session_state
+        
+        # Render experiment metadata form
+        render_experiment_metadata(cells, machines, has_data_from_preview)
+        
+        # Render section for data from preview
+        if has_data_from_preview:
+            st.markdown("---")
+            render_preview_data_section()
+    
+    # Tab 3: File Upload
+    with tab3:
+        st.header("Upload CSV Files")
+        st.info("""
+        Upload Step.csv and Detail.csv files for battery test data.
+        Both files should come from the same test session.
+        """)
+        
+        # Render file upload section
+        render_file_upload_section()
+    
+    # Tab 4: Example Files
+    with tab4:
+        st.header("Example Files")
+        st.info("""
+        Use example files from the example_csv_chromaLex folder.
+        These files contain sample battery test data for demonstration purposes.
+        """)
+        
+        # Render example files section
+        render_example_files_section()
