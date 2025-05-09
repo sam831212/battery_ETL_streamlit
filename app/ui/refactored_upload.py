@@ -1585,11 +1585,10 @@ def process_uploaded_files(step_file, detail_file):
 def render_upload_page():
     """Render the upload page UI
     
-    This function displays the upload UI components for Step.csv and Detail.csv files,
-    processes the uploaded files, and provides feedback to the user.
+    This function displays the experiment information components.
     """
     # Set up page
-    st.title("Battery ETL Dashboard - Data Upload")
+    st.title("Battery ETL Dashboard - Experiment Information")
     
     # Get database entities for references
     # Try to get cells and machines with connection retry logic
@@ -1612,11 +1611,9 @@ def render_upload_page():
             machines = []
     
     # Create tabs for different sections
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2 = st.tabs([
         "Cell & Machine Management",
-        "Experiment Information",
-        "File Upload",
-        "Example Files"
+        "Experiment Information"
     ])
     
     # Tab 1: Cell & Machine Management
@@ -1641,25 +1638,3 @@ def render_upload_page():
         if has_data_from_preview:
             st.markdown("---")
             render_preview_data_section()
-    
-    # Tab 3: File Upload
-    with tab3:
-        st.header("Upload CSV Files")
-        st.info("""
-        Upload Step.csv and Detail.csv files for battery test data.
-        Both files should come from the same test session.
-        """)
-        
-        # Render file upload section
-        render_file_upload_section()
-    
-    # Tab 4: Example Files
-    with tab4:
-        st.header("Example Files")
-        st.info("""
-        Use example files from the example_csv_chromaLex folder.
-        These files contain sample battery test data for demonstration purposes.
-        """)
-        
-        # Render example files section
-        render_example_files_section()
