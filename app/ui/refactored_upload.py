@@ -724,7 +724,7 @@ def handle_file_processing_pipeline(file_data: Dict[str, Any]) -> bool:
             experiment = save_experiment_to_db(
                 experiment_metadata={
                     'name': st.session_state["experiment_name"],
-                    'date': st.session_state["experiment_date"],
+                    'start_date': st.session_state["experiment_date"],
                     'operator': st.session_state["operator"],
                     'description': st.session_state["description"],
                     'nominal_capacity': st.session_state["nominal_capacity"],
@@ -819,16 +819,13 @@ def save_experiment_to_db(
         Created Experiment object
     """
     experiment = Experiment(
-        name=st.session_state["experiment_name"],
-        description=st.session_state.get("description", ""),
+        name=experiment_metadata['name'],
+        description=experiment_metadata.get('description', ''),
         battery_type=battery_type,
-        nominal_capacity=st.session_state["nominal_capacity"],
+        nominal_capacity=experiment_metadata['nominal_capacity'],
         temperature_avg=temperature_avg,  # Convert numpy.float64 to Python float
-        operator=st.session_state.get("operator", ""),
-        start_date=datetime.combine(
-            st.session_state["experiment_date"], 
-            datetime.min.time()
-        ),
+        operator=experiment_metadata.get('operator', ''),
+        start_date=experiment_metadata['start_date'],
         end_date=None,  # Will be updated after processing
         data_meta=experiment_metadata,
         validation_status=validation_report['valid'],
@@ -1376,18 +1373,15 @@ def handle_selected_steps_save():
                         start_time=step_data.get("start_time"),
                         end_time=step_data.get("end_time"),
                         duration=step_data.get("duration", 0),
-                        capacity_change=step_data.get("capacity_change", 0),
-                        energy_change=step_data.get("energy_change", 0),
-                        avg_voltage=step_data.get("avg_voltage", 0),
-                        max_voltage=step_data.get("max_voltage", 0),
-                        min_voltage=step_data.get("min_voltage", 0),
-                        avg_current=step_data.get("avg_current", 0),
-                        max_current=step_data.get("max_current", 0),
-                        min_current=step_data.get("min_current", 0),
-                        avg_temperature=step_data.get("avg_temperature", 0),
-                        max_temperature=step_data.get("max_temperature", 0),
-                        min_temperature=step_data.get("min_temperature", 0),
-                        normalized_capacity=step_data.get("normalized_capacity", 0),
+                        voltage_start=step_data.get("voltage_start", 0.0),
+                        voltage_end=step_data.get("voltage_end", 0.0),
+                        current=step_data.get("current", 0.0),
+                        capacity=step_data.get("capacity", 0.0),
+                        energy=step_data.get("energy", 0.0),
+                        temperature_avg=step_data.get("temperature_avg", 0.0),
+                        temperature_min=step_data.get("temperature_min", 0.0),
+                        temperature_max=step_data.get("temperature_max", 0.0),
+                        c_rate=step_data.get("c_rate", 0.0)
                     )
                     session.add(step)
                     step_metadata.append(step_data)
