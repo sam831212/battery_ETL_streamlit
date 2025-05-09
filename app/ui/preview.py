@@ -35,6 +35,7 @@ from app.visualization import (
     plot_capacity_vs_voltage,
     plot_voltage_vs_time,
     plot_current_vs_time,
+    plot_temperature_vs_time,
     plot_combined_voltage_current
 )
 from app.utils.temp_files import temp_file_from_upload, calculate_file_hash_from_memory, create_session_temp_file
