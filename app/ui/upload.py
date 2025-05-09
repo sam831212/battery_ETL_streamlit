@@ -28,247 +28,306 @@ import hashlib
 EXAMPLE_FOLDER = "./example_csv_chromaLex"
 
 
-def render_cell_management():
-    """Render cell management UI"""
-    st.header("Cell Management")
+def render_entity_management(
+    entity_type, 
+    entity_class, 
+    header_text, 
+    form_fields, 
+    display_fields,
+    reference_check=None,
+):
+    """
+    Generic entity management UI component
     
-    # Display existing cells
-    st.subheader("Existing Cells")
+    Args:
+        entity_type: String name of the entity type (e.g., "cell", "machine")
+        entity_class: The SQLModel class for the entity
+        header_text: Text to display as the header
+        form_fields: List of dictionaries defining form fields for adding entities
+        display_fields: List of dictionaries mapping entity attributes to display names
+        reference_check: Optional function to check if entity can be deleted
+    """
+    st.header(header_text)
+    
+    # Display existing entities
+    st.subheader(f"Existing {header_text}")
     
     with get_session() as session:
-        cells = session.exec(select(Cell).order_by(Cell.id)).all()
+        entities = session.exec(select(entity_class).order_by(entity_class.id)).all()
         
-        if cells:
-            # Create a table to display cells
-            cell_data = []
-            for cell in cells:
-                cell_data.append({
-                    "ID": cell.id,
-                    "Name": cell.name or "N/A",
-                    "Chemistry": cell.chemistry.value,
-                    "Capacity (Ah)": cell.capacity,
-                    "Form Factor": cell.form.value,
-                    "Created": cell.created_at.strftime("%Y-%m-%d")
-                })
+        if entities:
+            # Create a table to display entities
+            entity_data = []
+            for entity in entities:
+                data_row = {"ID": entity.id}
+                for field in display_fields:
+                    attr_value = getattr(entity, field["attr"], None)
+                    if attr_value is None and "default" in field:
+                        formatted_value = field["default"]
+                    elif "format" in field and callable(field["format"]):
+                        formatted_value = field["format"](attr_value)
+                    else:
+                        formatted_value = attr_value
+                    data_row[field["display"]] = formatted_value
+                entity_data.append(data_row)
             
-            st.dataframe(cell_data, use_container_width=True)
+            st.dataframe(entity_data, use_container_width=True)
         else:
-            st.info("No cells have been added yet.")
+            st.info(f"No {entity_type}s have been added yet.")
     
-    # Form to add a new cell
-    st.subheader("Add New Cell")
+    # Form to add a new entity
+    st.subheader(f"Add New {header_text}")
     
-    with st.form(key="add_cell_form"):
-        # Cell properties
-        cell_name = st.text_input(
-            "Cell Name",
-            help="Give this cell a descriptive name (optional)"
-        )
-        
-        chemistry = st.selectbox(
-            "Chemistry",
-            options=[chem.value for chem in CellChemistry],
-            help="Select the chemistry type of the cell"
-        )
-        
-        capacity = st.number_input(
-            "Capacity (Ah)",
-            min_value=0.1,
-            max_value=1000.0,
-            value=1.0,
-            step=0.1,
-            help="Nominal capacity of the cell in Ampere-hours"
-        )
-        
-        form_factor = st.selectbox(
-            "Form Factor",
-            options=[form.value for form in CellFormFactor],
-            help="Select the physical form factor of the cell"
-        )
+    with st.form(key=f"add_{entity_type}_form"):
+        # Form fields
+        field_values = {}
+        for field in form_fields:
+            field_type = field.get("type", "text")
+            
+            if field_type == "text":
+                field_values[field["name"]] = st.text_input(
+                    field["label"],
+                    max_chars=field.get("max_chars"),
+                    help=field.get("help", ""),
+                )
+            elif field_type == "number":
+                field_values[field["name"]] = st.number_input(
+                    field["label"],
+                    min_value=field.get("min_value"),
+                    max_value=field.get("max_value"),
+                    value=field.get("default_value", 0.0),
+                    step=field.get("step", 1.0),
+                    help=field.get("help", ""),
+                )
+            elif field_type == "select":
+                field_values[field["name"]] = st.selectbox(
+                    field["label"],
+                    options=field["options"],
+                    help=field.get("help", ""),
+                )
+            elif field_type == "textarea":
+                field_values[field["name"]] = st.text_area(
+                    field["label"],
+                    max_chars=field.get("max_chars"),
+                    help=field.get("help", ""),
+                )
         
         # Submit button
-        submitted = st.form_submit_button("Add Cell", type="primary")
+        submitted = st.form_submit_button(f"Add {header_text}", type="primary")
     
     if submitted:
-        # Create new cell in database
-        with get_session() as session:
-            new_cell = Cell(
-                name=cell_name if cell_name else None,
-                chemistry=CellChemistry(chemistry),
-                capacity=capacity,
-                form=CellFormFactor(form_factor)
-            )
+        # Validate required fields if specified
+        required_fields = [f for f in form_fields if f.get("required", False)]
+        missing_fields = [f["label"] for f in required_fields if not field_values.get(f["name"])]
+        
+        if missing_fields:
+            st.error(f"Please fill in all required fields: {', '.join(missing_fields)}")
+        else:
+            # Create entity with collected values
+            entity_args = {}
+            for field in form_fields:
+                value = field_values[field["name"]]
+                
+                # Apply transformations if needed
+                if "transform" in field and callable(field["transform"]):
+                    value = field["transform"](value)
+                
+                # Handle empty values
+                if not value and field.get("allow_none", False):
+                    value = None
+                
+                entity_args[field["name"]] = value
             
-            session.add(new_cell)
-            session.commit()
-            
-            st.success(f"New cell added successfully! ID: {new_cell.id}")
-            st.rerun()
+            # Create new entity in database
+            with get_session() as session:
+                new_entity = entity_class(**entity_args)
+                
+                session.add(new_entity)
+                session.commit()
+                
+                st.success(f"New {entity_type} added successfully! ID: {new_entity.id}")
+                st.rerun()
     
-    # Delete cell section
-    st.subheader("Delete Cell")
+    # Delete entity section
+    st.subheader(f"Delete {header_text}")
     
     with get_session() as session:
-        all_cells = session.exec(select(Cell).order_by(Cell.id)).all()
+        all_entities = session.exec(select(entity_class).order_by(entity_class.id)).all()
         
-        if all_cells:
-            cell_options = [f"ID {cell.id}: {cell.chemistry.value}, {cell.capacity} Ah, {cell.form.value}" for cell in all_cells]
-            cell_ids = [cell.id for cell in all_cells]
+        if all_entities:
+            # Create display options for the select dropdown
+            if hasattr(entity_class, "name") and all(getattr(e, "name", None) for e in all_entities):
+                entity_options = [f"ID {e.id}: {e.name}" for e in all_entities]
+            else:
+                entity_options = [f"ID {e.id}" for e in all_entities]
+            entity_ids = [e.id for e in all_entities]
             
             col1, col2 = st.columns([3, 1])
             
             with col1:
-                selected_cell_index = st.selectbox(
-                    "Select Cell to Delete",
-                    options=range(len(cell_options)),
-                    format_func=lambda x: cell_options[x]
+                selected_entity_index = st.selectbox(
+                    f"Select {header_text} to Delete",
+                    options=range(len(entity_options)),
+                    format_func=lambda x: entity_options[x]
                 )
             
             with col2:
-                delete_button = st.button("Delete Cell", type="secondary")
+                delete_button = st.button(f"Delete {header_text}", type="secondary")
             
             if delete_button:
-                if st.session_state.get("confirm_delete_cell", False):
+                confirm_key = f"confirm_delete_{entity_type}"
+                if st.session_state.get(confirm_key, False):
                     # Perform deletion
-                    cell_id = cell_ids[selected_cell_index]
+                    entity_id = entity_ids[selected_entity_index]
                     
-                    # Check if the cell is referenced by any experiments
-                    experiment_count = session.exec(select(func.count("*")).where(Experiment.cell_id == cell_id)).one()
+                    # Check if the entity can be deleted (if reference check provided)
+                    if reference_check:
+                        can_delete, message = reference_check(session, entity_id)
+                        if not can_delete:
+                            st.error(message)
+                            st.session_state[confirm_key] = False
+                            return
                     
-                    if experiment_count > 0:
-                        st.error(f"Cannot delete cell (ID: {cell_id}) because it is referenced by {experiment_count} experiments.")
-                    else:
-                        # Safe to delete
-                        session.exec(delete(Cell).where(Cell.id == cell_id))
-                        session.commit()
-                        st.success(f"Cell with ID {cell_id} deleted successfully!")
-                        st.session_state["confirm_delete_cell"] = False
-                        st.rerun()
+                    # Safe to delete
+                    session.exec(delete(entity_class).where(entity_class.id == entity_id))
+                    session.commit()
+                    st.success(f"{header_text} with ID {entity_id} deleted successfully!")
+                    st.session_state[confirm_key] = False
+                    st.rerun()
                 else:
-                    st.warning("⚠️ Are you sure you want to delete this cell? This action cannot be undone.")
+                    st.warning(f"⚠️ Are you sure you want to delete this {entity_type}? This action cannot be undone.")
                     if st.button("Confirm Delete", type="primary"):
-                        st.session_state["confirm_delete_cell"] = True
+                        st.session_state[confirm_key] = True
                         st.rerun()
         else:
-            st.info("No cells available to delete.")
+            st.info(f"No {entity_type}s available to delete.")
+
+
+def cell_reference_check(session, cell_id):
+    """Check if a cell can be safely deleted"""
+    experiment_count = session.exec(select(func.count("*")).where(Experiment.cell_id == cell_id)).one()
+    if experiment_count > 0:
+        return False, f"Cannot delete cell (ID: {cell_id}) because it is referenced by {experiment_count} experiments."
+    return True, ""
+
+
+def render_cell_management():
+    """Render cell management UI"""
+    # Define form fields for adding a cell
+    cell_form_fields = [
+        {
+            "name": "name",
+            "label": "Cell Name",
+            "type": "text",
+            "help": "Give this cell a descriptive name (optional)",
+            "allow_none": True,
+        },
+        {
+            "name": "chemistry",
+            "label": "Chemistry",
+            "type": "select",
+            "options": [chem.value for chem in CellChemistry],
+            "help": "Select the chemistry type of the cell",
+            "transform": lambda v: CellChemistry(v),
+            "required": True,
+        },
+        {
+            "name": "capacity",
+            "label": "Capacity (Ah)",
+            "type": "number",
+            "min_value": 0.1,
+            "max_value": 1000.0,
+            "default_value": 1.0,
+            "step": 0.1,
+            "help": "Nominal capacity of the cell in Ampere-hours",
+            "required": True,
+        },
+        {
+            "name": "form",
+            "label": "Form Factor",
+            "type": "select",
+            "options": [form.value for form in CellFormFactor],
+            "help": "Select the physical form factor of the cell",
+            "transform": lambda v: CellFormFactor(v),
+            "required": True,
+        },
+    ]
+    
+    # Define display fields for cells
+    cell_display_fields = [
+        {"attr": "name", "display": "Name", "default": "N/A"},
+        {"attr": "chemistry", "display": "Chemistry", "format": lambda c: c.value},
+        {"attr": "capacity", "display": "Capacity (Ah)"},
+        {"attr": "form", "display": "Form Factor", "format": lambda f: f.value},
+        {"attr": "created_at", "display": "Created", "format": lambda d: d.strftime("%Y-%m-%d")},
+    ]
+    
+    # Use the generic component
+    render_entity_management(
+        entity_type="cell",
+        entity_class=Cell,
+        header_text="Cell Management",
+        form_fields=cell_form_fields,
+        display_fields=cell_display_fields,
+        reference_check=cell_reference_check
+    )
+
+
+def machine_reference_check(session, machine_id):
+    """Check if a machine can be safely deleted"""
+    experiment_count = session.exec(select(func.count("*")).where(Experiment.machine_id == machine_id)).one()
+    if experiment_count > 0:
+        return False, f"Cannot delete machine (ID: {machine_id}) because it is referenced by {experiment_count} experiments."
+    return True, ""
 
 
 def render_machine_management():
     """Render machine management UI"""
-    st.header("Machine Management")
+    # Define form fields for adding a machine
+    machine_form_fields = [
+        {
+            "name": "name",
+            "label": "Name",
+            "type": "text",
+            "max_chars": 100,
+            "help": "Name of the testing machine",
+            "required": True,
+        },
+        {
+            "name": "model_number",
+            "label": "Model Number",
+            "type": "text",
+            "max_chars": 50,
+            "help": "Model number of the testing machine (optional)",
+            "allow_none": True,
+        },
+        {
+            "name": "description",
+            "label": "Description",
+            "type": "textarea",
+            "max_chars": 500,
+            "help": "Additional information about the testing machine (optional)",
+            "allow_none": True,
+        },
+    ]
     
-    # Display existing machines
-    st.subheader("Existing Machines")
+    # Define display fields for machines
+    machine_display_fields = [
+        {"attr": "name", "display": "Name"},
+        {"attr": "model_number", "display": "Model", "default": "N/A"},
+        {"attr": "description", "display": "Description", "default": "N/A"},
+        {"attr": "created_at", "display": "Created", "format": lambda d: d.strftime("%Y-%m-%d")},
+    ]
     
-    with get_session() as session:
-        machines = session.exec(select(Machine).order_by(Machine.id)).all()
-        
-        if machines:
-            # Create a table to display machines
-            machine_data = []
-            for machine in machines:
-                machine_data.append({
-                    "ID": machine.id,
-                    "Name": machine.name,
-                    "Model": machine.model_number or "N/A",
-                    "Description": machine.description or "N/A",
-                    "Created": machine.created_at.strftime("%Y-%m-%d")
-                })
-            
-            st.dataframe(machine_data, use_container_width=True)
-        else:
-            st.info("No machines have been added yet.")
-    
-    # Form to add a new machine
-    st.subheader("Add New Machine")
-    
-    with st.form(key="add_machine_form"):
-        # Machine properties
-        name = st.text_input(
-            "Name",
-            max_chars=100,
-            help="Name of the testing machine"
-        )
-        
-        model_number = st.text_input(
-            "Model Number",
-            max_chars=50,
-            help="Model number of the testing machine (optional)"
-        )
-        
-        description = st.text_area(
-            "Description",
-            max_chars=500,
-            help="Additional information about the testing machine (optional)"
-        )
-        
-        # Submit button
-        submitted = st.form_submit_button("Add Machine", type="primary")
-    
-    if submitted:
-        if not name:
-            st.error("Machine name is required!")
-        else:
-            # Create new machine in database
-            with get_session() as session:
-                new_machine = Machine(
-                    name=name,
-                    model_number=model_number if model_number else None,
-                    description=description if description else None
-                )
-                
-                session.add(new_machine)
-                session.commit()
-                
-                st.success(f"New machine added successfully! ID: {new_machine.id}")
-                st.rerun()
-    
-    # Delete machine section
-    st.subheader("Delete Machine")
-    
-    with get_session() as session:
-        all_machines = session.exec(select(Machine).order_by(Machine.id)).all()
-        
-        if all_machines:
-            machine_options = [f"ID {machine.id}: {machine.name}" + (f" ({machine.model_number})" if machine.model_number else "") for machine in all_machines]
-            machine_ids = [machine.id for machine in all_machines]
-            
-            col1, col2 = st.columns([3, 1])
-            
-            with col1:
-                selected_machine_index = st.selectbox(
-                    "Select Machine to Delete",
-                    options=range(len(machine_options)),
-                    format_func=lambda x: machine_options[x]
-                )
-            
-            with col2:
-                delete_button = st.button("Delete Machine", type="secondary")
-            
-            if delete_button:
-                if st.session_state.get("confirm_delete_machine", False):
-                    # Perform deletion
-                    machine_id = machine_ids[selected_machine_index]
-                    
-                    # Check if the machine is referenced by any experiments
-                    experiment_count = session.exec(select(func.count("*")).where(Experiment.machine_id == machine_id)).one()
-                    
-                    if experiment_count > 0:
-                        st.error(f"Cannot delete machine (ID: {machine_id}) because it is referenced by {experiment_count} experiments.")
-                    else:
-                        # Safe to delete
-                        session.exec(delete(Machine).where(Machine.id == machine_id))
-                        session.commit()
-                        st.success(f"Machine with ID {machine_id} deleted successfully!")
-                        st.session_state["confirm_delete_machine"] = False
-                        st.rerun()
-                else:
-                    st.warning("⚠️ Are you sure you want to delete this machine? This action cannot be undone.")
-                    if st.button("Confirm Delete", type="primary"):
-                        st.session_state["confirm_delete_machine"] = True
-                        st.rerun()
-        else:
-            st.info("No machines available to delete.")
+    # Use the generic component
+    render_entity_management(
+        entity_type="machine",
+        entity_class=Machine,
+        header_text="Machine Management",
+        form_fields=machine_form_fields,
+        display_fields=machine_display_fields,
+        reference_check=machine_reference_check
+    )
 
 
 def render_experiment_metadata(cells, machines, has_data_from_preview):
