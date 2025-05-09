@@ -55,9 +55,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state for navigation
+# Initialize session state variables
 if 'current_page' not in st.session_state:
     st.session_state['current_page'] = "Data Preview"
+
+# Initialize temp files registry if it doesn't exist
+if 'temp_files_registry' not in st.session_state:
+    st.session_state.temp_files_registry = {}
 
 # Function to change page
 def change_page(page):

@@ -14,8 +14,7 @@ import streamlit as st
 
 
 # Global registry to track temporary files created for the session
-if "temp_files_registry" not in st.session_state:
-    st.session_state.temp_files_registry = {}
+# This registry is initialized in streamlit_app.py
 
 
 @contextmanager
