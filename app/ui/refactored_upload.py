@@ -19,7 +19,7 @@ from app.etl.extraction import STEP_REQUIRED_HEADERS, DETAIL_REQUIRED_HEADERS
 from app.etl.validation import generate_validation_report
 from app.models import Experiment, Step, Measurement, ProcessedFile, Cell, Machine
 from app.models.database import CellChemistry, CellFormFactor
-from app.utils.database import get_session as get_db_session
+from app.utils.database import get_session as get_db_session, reset_engine_connection
 from app.utils.temp_files import temp_file_from_upload, calculate_file_hash_from_memory, calculate_file_hash, create_session_temp_file
 from sqlmodel import select, desc, delete, func
 import hashlib
