@@ -19,7 +19,7 @@ from app.etl.extraction import STEP_REQUIRED_HEADERS, DETAIL_REQUIRED_HEADERS
 from app.etl.validation import generate_validation_report
 from app.models import Experiment, Step, Measurement, ProcessedFile, Cell, Machine
 from app.models.database import CellChemistry, CellFormFactor
-from app.utils.database import get_session
+from app.utils.database import get_session as get_db_session
 from app.utils.temp_files import temp_file_from_upload, calculate_file_hash_from_memory, calculate_file_hash, create_session_temp_file
 from sqlmodel import select, desc, delete, func
 import hashlib
@@ -94,7 +94,7 @@ def render_entity_management(
                 new_entity = entity_class(**entity_data)
                 
                 # Save to database
-                with get_session() as session:
+                with get_db_session() as session:
                     session.add(new_entity)
                     session.commit()
                     session.refresh(new_entity)
@@ -108,7 +108,7 @@ def render_entity_management(
     with col2:
         st.write(f"#### Existing {entity_type.capitalize()}s")
         
-        with get_session() as session:
+        with get_db_session() as session:
             # Get all entities
             entities = session.query(entity_class).all()
             
@@ -181,7 +181,7 @@ def check_file_already_processed(file_hash: str) -> bool:
     if not file_hash:
         return False
         
-    with get_session() as session:
+    with get_db_session() as session:
         # Check if any ProcessedFile with this hash exists
         existing_file = session.query(ProcessedFile).filter(
             ProcessedFile.file_hash == file_hash
@@ -705,7 +705,7 @@ def handle_file_processing_pipeline(file_data: Dict[str, Any]) -> bool:
         )
         
         # Get battery type from cell
-        with get_session() as cell_session:
+        with get_db_session() as cell_session:
             cell = cell_session.get(Cell, st.session_state["cell_id"])
             battery_type = cell.chemistry.value if cell else "Unknown"
         
@@ -719,7 +719,7 @@ def handle_file_processing_pipeline(file_data: Dict[str, Any]) -> bool:
         converted_step_report = convert_numpy_types(step_validation_report)
         
         # Store experiment data in the database
-        with get_session() as session:
+        with get_db_session() as session:
             # Create new experiment
             experiment = save_experiment_to_db(
                 experiment_metadata={
@@ -837,7 +837,7 @@ def save_experiment_to_db(
         machine_id=machine_id
     )
     
-    with get_session() as session:
+    with get_db_session() as session:
         session.add(experiment)
         session.commit()
         session.refresh(experiment)
@@ -863,7 +863,7 @@ def save_steps_to_db(
     """
     steps = []
     
-    with get_session() as session:
+    with get_db_session() as session:
         for _, row in steps_df.iterrows():
             row_dict = convert_numpy_types(row.to_dict())
             
@@ -916,7 +916,7 @@ def save_measurements_to_db(
     """
     detail_df_len = len(details_df)
     
-    with get_session() as session:
+    with get_db_session() as session:
         for i in range(0, detail_df_len, batch_size):
             batch = details_df.iloc[i:min(i+batch_size, detail_df_len)]
             measurements = []
@@ -968,7 +968,7 @@ def save_processed_files_to_db(
         step_metadata: Metadata about the step file
         detail_metadata: Metadata about the detail file
     """
-    with get_session() as session:
+    with get_db_session() as session:
         session.add(ProcessedFile(
             experiment_id=experiment_id,
             filename=step_filename,
@@ -998,7 +998,7 @@ def update_experiment_end_date(experiment_id: int, end_time: datetime):
         experiment_id: ID of the experiment
         end_time: End time to set
     """
-    with get_session() as session:
+    with get_db_session() as session:
         experiment = session.get(Experiment, experiment_id)
         if experiment:
             experiment.end_date = end_time
@@ -1350,7 +1350,7 @@ def handle_selected_steps_save():
                 # Create experiment metadata
                 experiment = Experiment(
                     name=experiment_name,
-                    date=experiment_date,
+                    start_date=experiment_date,
                     operator=operator,
                     description=description,
                     cell_id=cell_id,
