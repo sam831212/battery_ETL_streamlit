@@ -54,8 +54,15 @@ def render_entity_management(
 
 def cell_reference_check(session, cell_id):
     """Check if a cell can be safely deleted"""
-    # Existing code (unchanged)
-    pass
+    # Check if cell is referenced in any experiments
+    experiment_count = session.query(Experiment).filter(
+        Experiment.cell_id == cell_id
+    ).count()
+    
+    if experiment_count > 0:
+        return False, f"Cannot delete cell: It is referenced by {experiment_count} experiments."
+    
+    return True, "Cell can be safely deleted."
 
 
 def check_file_already_processed(file_hash: str) -> bool:
@@ -68,8 +75,16 @@ def check_file_already_processed(file_hash: str) -> bool:
     Returns:
         True if already processed, False otherwise
     """
-    # Existing code (unchanged)
-    pass
+    if not file_hash:
+        return False
+        
+    with get_session() as session:
+        # Check if any ProcessedFile with this hash exists
+        existing_file = session.query(ProcessedFile).filter(
+            ProcessedFile.file_hash == file_hash
+        ).first()
+        
+        return existing_file is not None
 
 
 def display_file_statistics(step_df: pd.DataFrame, detail_df: pd.DataFrame):
@@ -431,8 +446,31 @@ def save_experiment_to_db(
     Returns:
         Created Experiment object
     """
-    # Existing code (unchanged)
-    pass
+    experiment = Experiment(
+        name=st.session_state["experiment_name"],
+        description=st.session_state.get("description", ""),
+        battery_type=battery_type,
+        nominal_capacity=st.session_state["nominal_capacity"],
+        temperature_avg=temperature_avg,  # Convert numpy.float64 to Python float
+        operator=st.session_state.get("operator", ""),
+        start_date=datetime.combine(
+            st.session_state["experiment_date"], 
+            datetime.min.time()
+        ),
+        end_date=None,  # Will be updated after processing
+        data_meta=experiment_metadata,
+        validation_status=validation_report['valid'],
+        validation_report=validation_report,
+        cell_id=cell_id,
+        machine_id=machine_id
+    )
+    
+    with get_session() as session:
+        session.add(experiment)
+        session.commit()
+        session.refresh(experiment)
+        
+    return experiment
 
 
 def save_steps_to_db(
@@ -451,8 +489,40 @@ def save_steps_to_db(
     Returns:
         List of created Step objects
     """
-    # Existing code (unchanged)
-    pass
+    steps = []
+    
+    with get_session() as session:
+        for _, row in steps_df.iterrows():
+            row_dict = convert_numpy_types(row.to_dict())
+            
+            step = Step(
+                experiment_id=experiment_id,
+                step_number=row_dict["step_number"],
+                step_type=row_dict["step_type"],
+                start_time=row_dict["start_time"],
+                end_time=row_dict["end_time"],
+                duration=row_dict["duration"],
+                voltage_start=row_dict.get("voltage_start", 0.0),
+                voltage_end=row_dict.get("voltage_end", 0.0),
+                current=row_dict.get("current", 0.0),
+                capacity=row_dict.get("capacity", 0.0),
+                energy=row_dict.get("energy", 0.0),
+                temperature_avg=row_dict.get("temperature_avg", 25.0),
+                temperature_min=row_dict.get("temperature_min", 25.0),
+                temperature_max=row_dict.get("temperature_max", 25.0),
+                c_rate=abs(row_dict.get("current", 0.0)) / nominal_capacity,
+                soc_start=row_dict.get("soc_start"),
+                soc_end=row_dict.get("soc_end"),
+                ocv=row_dict.get("ocv"),
+                data_meta=row_dict
+            )
+            
+            session.add(step)
+            steps.append(step)
+        
+        session.commit()
+    
+    return steps
 
 
 def save_measurements_to_db(
@@ -472,8 +542,33 @@ def save_measurements_to_db(
         nominal_capacity: Nominal capacity of the battery
         batch_size: Size of batches for database inserts
     """
-    # Existing code (unchanged)
-    pass
+    detail_df_len = len(details_df)
+    
+    with get_session() as session:
+        for i in range(0, detail_df_len, batch_size):
+            batch = details_df.iloc[i:min(i+batch_size, detail_df_len)]
+            measurements = []
+            
+            for _, row in batch.iterrows():
+                row_dict = convert_numpy_types(row.to_dict())
+                step_id = step_mapping.get(row_dict["step_number"])
+                
+                if step_id is not None:
+                    measurement = Measurement(
+                        step_id=step_id,
+                        timestamp=row_dict["timestamp"],
+                        voltage=row_dict["voltage"],
+                        current=row_dict["current"],
+                        temperature=row_dict["temperature"],
+                        capacity=row_dict["capacity"],
+                        energy=row_dict["energy"],
+                        soc=row_dict.get("soc")
+                    )
+                    measurements.append(measurement)
+            
+            # Add batch of measurements
+            session.add_all(measurements)
+            session.commit()
 
 
 def save_processed_files_to_db(
@@ -501,8 +596,26 @@ def save_processed_files_to_db(
         step_metadata: Metadata about the step file
         detail_metadata: Metadata about the detail file
     """
-    # Existing code (unchanged)
-    pass
+    with get_session() as session:
+        session.add(ProcessedFile(
+            experiment_id=experiment_id,
+            filename=step_filename,
+            file_type="step",
+            file_hash=step_file_hash,
+            row_count=step_df_len,
+            data_meta=step_metadata
+        ))
+        
+        session.add(ProcessedFile(
+            experiment_id=experiment_id,
+            filename=detail_filename,
+            file_type="detail",
+            file_hash=detail_file_hash,
+            row_count=detail_df_len,
+            data_meta=detail_metadata
+        ))
+        
+        session.commit()
 
 
 def update_experiment_end_date(experiment_id: int, end_time: datetime):
@@ -513,8 +626,12 @@ def update_experiment_end_date(experiment_id: int, end_time: datetime):
         experiment_id: ID of the experiment
         end_time: End time to set
     """
-    # Existing code (unchanged)
-    pass
+    with get_session() as session:
+        experiment = session.get(Experiment, experiment_id)
+        if experiment:
+            experiment.end_date = end_time
+            session.add(experiment)
+            session.commit()
 
 
 def find_example_file_pairs() -> List[Tuple[str, str, str]]:
@@ -524,14 +641,30 @@ def find_example_file_pairs() -> List[Tuple[str, str, str]]:
     Returns:
         List of tuples containing (base_name, step_file, detail_file)
     """
-    # Existing code (unchanged)
-    pass
+    example_step_files = [f for f in os.listdir(EXAMPLE_FOLDER) if f.endswith("_Step.csv")]
+    example_detail_files = [f for f in os.listdir(EXAMPLE_FOLDER) if f.endswith("_Detail.csv")]
+    
+    example_pairs = []
+    for step_file in example_step_files:
+        base_name = step_file.replace("_Step.csv", "")
+        detail_file = f"{base_name}_Detail.csv"
+        if detail_file in example_detail_files:
+            example_pairs.append((base_name, os.path.join(EXAMPLE_FOLDER, step_file), os.path.join(EXAMPLE_FOLDER, detail_file)))
+    
+    return example_pairs
 
 
 def machine_reference_check(session, machine_id):
     """Check if a machine can be safely deleted"""
-    # Existing code (unchanged)
-    pass
+    # Check if machine is referenced in any experiments
+    experiment_count = session.query(Experiment).filter(
+        Experiment.machine_id == machine_id
+    ).count()
+    
+    if experiment_count > 0:
+        return False, f"Cannot delete machine: It is referenced by {experiment_count} experiments."
+    
+    return True, "Machine can be safely deleted."
 
 
 def render_machine_management():
@@ -582,9 +715,39 @@ def handle_selected_steps_save():
 
 def render_example_files_section():
     """Render UI section for example files"""
-    # Existing code (unchanged)
-    # But modify to use the new unified functions
-    pass
+    # Find example file pairs
+    example_pairs = find_example_file_pairs()
+    
+    if not example_pairs:
+        st.error("No example files found in the example_csv_chromaLex folder.")
+        return
+    
+    st.success(f"Found {len(example_pairs)} step and detail file pairs.")
+    
+    # Display dropdown to select file pair
+    selected_pair = st.selectbox(
+        "Select example file pair:",
+        options=range(len(example_pairs)),
+        format_func=lambda i: example_pairs[i][0]
+    )
+    
+    base_name, step_file_path, detail_file_path = example_pairs[selected_pair]
+    
+    st.info(f"Selected files: {os.path.basename(step_file_path)} and {os.path.basename(detail_file_path)}")
+    
+    # Load the selected example files
+    if st.button("Load Example Files", type="primary"):
+        # Store the selected pair in session state
+        st.session_state["selected_example_pair"] = example_pairs[selected_pair]
+        
+        st.success(f"Example files loaded: {os.path.basename(step_file_path)} and {os.path.basename(detail_file_path)}")
+        st.info("Click 'Process Example Files' below to process these example files.")
+        
+        st.rerun()
+    
+    # Process example files if loaded
+    if "selected_example_pair" in st.session_state:
+        process_loaded_example_files()
 
 
 def process_loaded_example_files():
