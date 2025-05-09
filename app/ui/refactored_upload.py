@@ -1134,7 +1134,7 @@ def render_experiment_metadata(cells, machines, has_data_from_preview):
         )
         
         # Cell selection
-        cell_options = {cell.id: f"{cell.name} ({cell.manufacturer} - {cell.chemistry})" for cell in cells}
+        cell_options = {cell.id: f"{cell.name or 'Cell '+str(cell.id)} ({cell.chemistry.value}, {cell.capacity} Ah)" for cell in cells}
         
         if not cell_options:
             st.warning("No cells available. Please add a cell first.")
@@ -1151,7 +1151,7 @@ def render_experiment_metadata(cells, machines, has_data_from_preview):
             )
         
         # Machine selection
-        machine_options = {machine.id: f"{machine.name} ({machine.manufacturer} - {machine.model})" 
+        machine_options = {machine.id: f"{machine.name or 'Machine '+str(machine.id)}" 
                           for machine in machines}
         
         if not machine_options:
@@ -1181,7 +1181,7 @@ def render_experiment_metadata(cells, machines, has_data_from_preview):
             "Nominal Capacity (Ah)*", 
             min_value=0.001, 
             value=float(st.session_state.get("nominal_capacity", 
-                                            selected_cell.nominal_capacity if selected_cell else 1.0)),
+                                            selected_cell.capacity if selected_cell else 1.0)),
             help="The nominal capacity of the battery used for normalization"
         )
         
@@ -1283,8 +1283,8 @@ def save_experiment_metadata(
         st.success(f"""
         Experiment information saved:
         - Name: {experiment_name}
-        - Cell: {selected_cell.name} ({selected_cell.manufacturer})
-        - Machine: {selected_machine.name} ({selected_machine.manufacturer})
+        - Cell: {selected_cell.name or f'Cell {selected_cell.id}'} ({selected_cell.chemistry.value})
+        - Machine: {selected_machine.name or f'Machine {selected_machine.id}'}
         - Nominal Capacity: {nominal_capacity} Ah
         - Date: {experiment_date}
         - Operator: {operator}
@@ -1611,23 +1611,22 @@ def render_upload_page():
             machines = []
     
     # Create tabs for different sections
-    tab1, tab2 = st.tabs([
-        "Cell & Machine Management",
+    tab1, tab2, tab3 = st.tabs([
+        "Cell Management",
+        "Machine Management",
         "Experiment Information"
     ])
     
-    # Tab 1: Cell & Machine Management
+    # Tab 1: Cell Management
     with tab1:
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            render_cell_management()
-        
-        with col2:
-            render_machine_management()
+        render_cell_management()
     
-    # Tab 2: Experiment Information
+    # Tab 2: Machine Management
     with tab2:
+        render_machine_management()
+    
+    # Tab 3: Experiment Information
+    with tab3:
         # Check if data is available from previous step
         has_data_from_preview = "selected_steps" in st.session_state
         
