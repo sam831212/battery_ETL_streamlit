@@ -7,8 +7,7 @@ from app.utils.database import init_db
 import os
 
 # Initialize the database
-# Use recreate_tables=True to rebuild the database schema
-db_init_success = init_db(recreate_tables=True)
+db_init_success = init_db()
 
 # Configure the page
 st.set_page_config(
