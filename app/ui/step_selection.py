@@ -612,9 +612,26 @@ def render_step_selection_page(steps_df: pd.DataFrame, details_df: pd.DataFrame)
     # Handle load to DB button click
     if load_db_clicked:
         if validate_step_selections() and st.session_state.steps_df_with_soc is not None:
-            st.success("Ready to load selected steps to database!")
-            # Here you would add logic to load the selected steps to the database
-            # This would likely involve passing the selected steps to a database loading function
+            # Prepare selected steps data to be used in the experiment info page
+            selected_steps = []
+            steps_df_with_soc = st.session_state.steps_df_with_soc
+            details_df_with_soc = st.session_state.details_df_with_soc
+            
+            # Create list of step data dictionaries
+            for step_idx in st.session_state.selected_steps_for_db:
+                step_row = steps_df_with_soc.loc[step_idx].to_dict()
+                # Add the step_number explicitly to make it easier to reference
+                step_row['step_number'] = int(step_idx)
+                selected_steps.append(step_row)
+            
+            # Store the selected steps and related data in session state for the experiment info page
+            st.session_state["selected_steps"] = selected_steps
+            st.session_state["selected_steps_details_df"] = details_df_with_soc
+            
+            # Navigate to the experiment info page
+            st.session_state['current_page'] = "Experiment Info"
+            st.success("Steps selected and ready for database loading! Redirecting to Experiment Info page...")
+            st.rerun()
     
     # Return current selections for use in other components
     return get_current_selections()

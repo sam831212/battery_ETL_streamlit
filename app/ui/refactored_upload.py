@@ -1415,7 +1415,83 @@ def handle_selected_steps_save():
                     session.add(step)
                     step_metadata.append(step_data)
                 
-                # In a real implementation, we would also process measurement data here
+                # Process measurement data if available
+                if "selected_steps_details_df" in st.session_state and st.session_state["selected_steps_details_df"] is not None:
+                    details_df = st.session_state["selected_steps_details_df"]
+                    
+                    # Create a mapping from step_number to step_id for linking measurements to steps
+                    step_mapping = {}
+                    for step in session.query(Step).filter(Step.experiment_id == experiment.id).all():
+                        step_mapping[step.step_number] = step.id
+                    
+                    # Save measurements to database
+                    batch_size = 1000  # Use a batch size to avoid memory issues
+                    detail_df_len = len(details_df)
+                    
+                    with st.spinner(f"Processing {detail_df_len} measurements..."):
+                        for i in range(0, detail_df_len, batch_size):
+                            batch = details_df.iloc[i:min(i+batch_size, detail_df_len)]
+                            measurements = []
+                            
+                            for _, row in batch.iterrows():
+                                row_dict = convert_numpy_types(row.to_dict())
+                                step_number = row_dict.get("step_number")
+                                step_id = step_mapping.get(step_number)
+                                
+                                if step_id is not None:
+                                    measurement = Measurement(
+                                        step_id=step_id,
+                                        timestamp=row_dict.get("timestamp"),
+                                        voltage=row_dict.get("voltage"),
+                                        current=row_dict.get("current"),
+                                        temperature=row_dict.get("temperature"),
+                                        capacity=row_dict.get("capacity"),
+                                        energy=row_dict.get("energy"),
+                                        soc=row_dict.get("soc")
+                                    )
+                                    measurements.append(measurement)
+                            
+                            # Add batch of measurements
+                            session.add_all(measurements)
+                            session.flush()
+                    
+                    # Save processed file records
+                    session.add(ProcessedFile(
+                        experiment_id=experiment.id,
+                        filename="Selected steps from session",
+                        file_type="step",
+                        file_hash="selected_steps",
+                        row_count=len(step_metadata),
+                        data_meta={"source": "selected_steps"}
+                    ))
+                    
+                    session.add(ProcessedFile(
+                        experiment_id=experiment.id,
+                        filename="Selected details from session",
+                        file_type="detail",
+                        file_hash="selected_details",
+                        row_count=detail_df_len,
+                        data_meta={"source": "selected_details"}
+                    ))
+                    
+                    # Update experiment end time based on the last measurement
+                    if len(step_metadata) > 0:
+                        last_step = session.query(Step).filter(
+                            Step.experiment_id == experiment.id
+                        ).order_by(desc(Step.end_time)).first()
+                        
+                        if last_step and last_step.end_time:
+                            experiment.end_date = last_step.end_time
+                    
+                    # Update experiment temperature_avg based on all measurements
+                    avg_temp = session.query(func.avg(Measurement.temperature)).join(
+                        Step, Measurement.step_id == Step.id
+                    ).filter(
+                        Step.experiment_id == experiment.id
+                    ).scalar()
+                    
+                    if avg_temp:
+                        experiment.temperature_avg = float(avg_temp)
                 
                 # Commit the changes
                 session.commit()
