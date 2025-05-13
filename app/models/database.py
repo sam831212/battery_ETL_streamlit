@@ -36,9 +36,16 @@ class Cell(BaseModel, table=True, extend_existing=True):
     """Model representing a battery cell"""
     id: Optional[int] = Field(default=None, primary_key=True)
     name: Optional[str] = Field(default=None)  # Cell name
+    manufacturer: Optional[str] = Field(default=None)
     chemistry: CellChemistry = Field(nullable=False)
-    capacity: float = Field(nullable=False)  # Ah
-    form: CellFormFactor = Field(nullable=False)
+    capacity: Optional[float] = Field(default=None)  # Ah (legacy field)
+    form: Optional[CellFormFactor] = Field(default=None)  # Legacy field
+    nominal_capacity: Optional[float] = Field(default=None)  # Ah
+    nominal_voltage: Optional[float] = Field(default=None)  # V
+    form_factor: Optional[CellFormFactor] = Field(default=None)
+    serial_number: Optional[str] = Field(default=None)
+    date_received: Optional[datetime] = Field(default=None)
+    notes: Optional[str] = Field(default=None)
     
     # Relationships
     experiments: List["Experiment"] = Relationship(back_populates="cell")

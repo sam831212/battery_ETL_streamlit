@@ -89,7 +89,21 @@ def render_entity_management(
                 entity_data = {}
                 for field in form_fields:
                     field_name = field["name"]
-                    entity_data[field_name] = field_values[field_name]
+                    field_value = field_values[field_name]
+                    
+                    # Special handling for empty string values
+                    if isinstance(field_value, str) and field_value.strip() == "":
+                        field_value = None
+                    
+                    entity_data[field_name] = field_value
+                
+                # Handle special case for Cell model backward compatibility
+                if entity_type == "cell":
+                    # Map from new fields to legacy fields
+                    if "nominal_capacity" in entity_data:
+                        entity_data["capacity"] = entity_data["nominal_capacity"]
+                    if "form_factor" in entity_data:
+                        entity_data["form"] = CellFormFactor(entity_data["form_factor"])
                 
                 new_entity = entity_class(**entity_data)
                 
