@@ -58,12 +58,21 @@ def get_session() -> Session:
     return Session(engine)
 
 
-def init_db():
+def init_db(recreate_tables=False):
     """Initialize the database and create tables
     
     This function should be called once at application startup.
+    
+    Args:
+        recreate_tables (bool): If True, drop existing tables and recreate them
     """
     try:
+        if recreate_tables:
+            # Drop all tables and recreate them
+            SQLModel.metadata.drop_all(engine)
+            print("Database tables dropped successfully.")
+        
+        # Create tables
         create_db_and_tables()
         print("Database tables created successfully.")
         return True
