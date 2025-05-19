@@ -1,0 +1,67 @@
+Error saving data to database: (raised as a result of Query-invoked autoflush; consider using a session.no_autoflush block if this flush is occurring prematurely) (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "processedfile_file_hash_key" DETAIL: Key (file_hash)=(selected_steps) already exists.
+
+[SQL: INSERT INTO processedfile (created_at, updated_at, experiment_id, filename, file_type, file_hash, processed_at, row_count, data_meta) SELECT p0::TIMESTAMP WITHOUT TIME ZONE, p1::TIMESTAMP WITHOUT TIME ZONE, p2::INTEGER, p3::VARCHAR, p4::VARCHAR, p5:: ... 473 characters truncated ... p6, p7, p8, sen_counter) ORDER BY sen_counter RETURNING processedfile.id, processedfile.id AS id__1] [parameters: {'processed_at__0': datetime.datetime(2025, 5, 19, 8, 19, 18, 381381), 'experiment_id__0': 6, 'file_type__0': 'step', 'updated_at__0': datetime.datetime(2025, 5, 19, 8, 19, 18, 381366), 'row_count__0': 1, 'data_meta__0': '{"source": "selected_steps"}', 'file_hash__0': 'selected_steps', 'created_at__0': datetime.datetime(2025, 5, 19, 8, 19, 18, 381355), 'filename__0': 'Selected steps from session', 'processed_at__1': datetime.datetime(2025, 5, 19, 8, 19, 18, 381524), 'experiment_id__1': 6, 'file_type__1': 'detail', 'updated_at__1': datetime.datetime(2025, 5, 19, 8, 19, 18, 381517), 'row_count__1': 2400, 'data_meta__1': '{"source": "selected_details"}', 'file_hash__1': 'selected_details', 'created_at__1': datetime.datetime(2025, 5, 19, 8, 19, 18, 381510), 'filename__1': 'Selected details from session'}] (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+IntegrityError: (raised as a result of Query-invoked autoflush; consider using a session.no_autoflush block if this flush is occurring prematurely) (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "processedfile_file_hash_key" DETAIL: Key (file_hash)=(selected_steps) already exists. [SQL: INSERT INTO processedfile (created_at, updated_at, experiment_id, filename, file_type, file_hash, processed_at, row_count, data_meta) SELECT p0::TIMESTAMP WITHOUT TIME ZONE, p1::TIMESTAMP WITHOUT TIME ZONE, p2::INTEGER, p3::VARCHAR, p4::VARCHAR, p5:: ... 473 characters truncated ... p6, p7, p8, sen_counter) ORDER BY sen_counter RETURNING processedfile.id, processedfile.id AS id__1] [parameters: {'processed_at__0': datetime.datetime(2025, 5, 19, 8, 19, 18, 381381), 'experiment_id__0': 6, 'file_type__0': 'step', 'updated_at__0': datetime.datetime(2025, 5, 19, 8, 19, 18, 381366), 'row_count__0': 1, 'data_meta__0': '{"source": "selected_steps"}', 'file_hash__0': 'selected_steps', 'created_at__0': datetime.datetime(2025, 5, 19, 8, 19, 18, 381355), 'filename__0': 'Selected steps from session', 'processed_at__1': datetime.datetime(2025, 5, 19, 8, 19, 18, 381524), 'experiment_id__1': 6, 'file_type__1': 'detail', 'updated_at__1': datetime.datetime(2025, 5, 19, 8, 19, 18, 381517), 'row_count__1': 2400, 'data_meta__1': '{"source": "selected_details"}', 'file_hash__1': 'selected_details', 'created_at__1': datetime.datetime(2025, 5, 19, 8, 19, 18, 381510), 'filename__1': 'Selected details from session'}] (Background on this error at: https://sqlalche.me/e/20/gkpj)
+Traceback:
+File "/home/runner/workspace/app/ui/refactored_upload.py", line 1481, in handle_selected_steps_save
+    ).order_by(desc(Step.end_time)).first()
+                                    ^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2759, in first
+    return self.limit(1)._iter().first()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2858, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+                                                  ^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlmodel/orm/session.py", line 127, in execute
+    return super().execute(
+           ^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2230, in _execute_internal
+    ) = compile_state_cls.orm_pre_session_exec(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 577, in orm_pre_session_exec
+    session._autoflush()
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 3065, in _autoflush
+    raise e.with_traceback(sys.exc_info()[2])
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 3054, in _autoflush
+    self.flush()
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 4353, in flush
+    self._flush(objects)
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 4488, in _flush
+    with util.safe_reraise():
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py", line 146, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 4449, in _flush
+    flush_context.execute()
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/unitofwork.py", line 466, in execute
+    rec.execute(self)
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/persistence.py", line 1143, in _emit_insert_statements
+    result = connection.execute(
+             ^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1416, in execute
+    return meth(
+           ^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1638, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1841, in _execute_context
+    return self._exec_insertmany_context(dialect, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2123, in _exec_insertmany_context
+    self._handle_dbapi_exception(
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2352, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2115, in _exec_insertmany_context
+    dialect.do_execute(
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 945, in do_execute
+    cursor.execute(statement, parameters)
