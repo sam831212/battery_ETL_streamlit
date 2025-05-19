@@ -1455,23 +1455,28 @@ def handle_selected_steps_save():
                             session.add_all(measurements)
                             session.flush()
                     
-                    # Save processed file records
+                    # Generate unique file hashes with timestamp to avoid duplicates
+                    timestamp_str = datetime.now().strftime("%Y%m%d%H%M%S%f")
+                    step_file_hash = f"selected_steps_{timestamp_str}"
+                    detail_file_hash = f"selected_details_{timestamp_str}"
+                    
+                    # Save processed file records with unique hashes
                     session.add(ProcessedFile(
                         experiment_id=experiment.id,
                         filename="Selected steps from session",
                         file_type="step",
-                        file_hash="selected_steps",
+                        file_hash=step_file_hash,
                         row_count=len(step_metadata),
-                        data_meta={"source": "selected_steps"}
+                        data_meta={"source": "selected_steps", "timestamp": timestamp_str}
                     ))
                     
                     session.add(ProcessedFile(
                         experiment_id=experiment.id,
                         filename="Selected details from session",
                         file_type="detail",
-                        file_hash="selected_details",
+                        file_hash=detail_file_hash,
                         row_count=detail_df_len,
-                        data_meta={"source": "selected_details"}
+                        data_meta={"source": "selected_details", "timestamp": timestamp_str}
                     ))
                     
                     # Update experiment end time based on the last measurement
