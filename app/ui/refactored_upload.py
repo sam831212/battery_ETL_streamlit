@@ -1375,9 +1375,19 @@ def handle_selected_steps_save():
                 
                 # Get the transformed data if available, otherwise use the original selected steps
                 if "steps_df_transformed" in st.session_state and st.session_state["steps_df_transformed"] is not None:
-                    # Get selected step indices and use the transformed dataframe
-                    selected_step_indices = [step["index"] for step in st.session_state["selected_steps"]]
-                    steps_df_to_use = st.session_state["steps_df_transformed"].loc[selected_step_indices]
+                    # Get selected step numbers and use the transformed dataframe
+                    selected_step_numbers = [step["step_number"] for step in st.session_state["selected_steps"]]
+                    
+                    # Map step numbers to indices in the transformed dataframe
+                    # This handles the case where the indices in the transformed dataframe 
+                    # might not match the step numbers
+                    transformed_df = st.session_state["steps_df_transformed"]
+                    if "step_number" in transformed_df.columns:
+                        # Find rows where step_number is in our selected list
+                        steps_df_to_use = transformed_df[transformed_df["step_number"].isin(selected_step_numbers)]
+                    else:
+                        # If step_number column doesn't exist, just use the original selected steps
+                        steps_df_to_use = pd.DataFrame(st.session_state["selected_steps"])
                 else:
                     # No transformed data available, convert list of dicts to DataFrame
                     steps_df_to_use = pd.DataFrame(st.session_state["selected_steps"])
