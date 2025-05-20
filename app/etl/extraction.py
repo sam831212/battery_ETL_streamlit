@@ -83,10 +83,9 @@ STEP_COLUMN_MAPPING_CHROMALEX = {
 }
 
 DETAIL_COLUMN_MAPPING_CHROMALEX = {
-    '工步': 'step_number',  # Alternative column name
-    '實際開始時間': 'timestamp',  # Keep the original timestamp for reference
-    '工步執行時間(秒)': 'execution_time',  # Add step execution time in seconds
-    '電壓(V)': 'voltage',
+    '工步': 'step_number',  # Step number
+    '工步執行時間(秒)': 'execution_time',  # Step execution time in seconds
+    '電壓(V)': 'voltage', 
     '電流(A)': 'current',
     'Aux T1': 'temperature',
     '電量(Ah)': 'capacity',
@@ -364,29 +363,14 @@ def parse_detail_csv(file_path: str) -> pd.DataFrame:
         ]
         df_filtered = df_renamed[standardized_columns].copy()
 
-        # Process timestamp - ChromaLex format has date as string
-        if 'timestamp' in df_filtered.columns:
-            df_filtered['timestamp'] = pd.to_datetime(df_filtered['timestamp'])
-
         # Process execution_time - make sure it's a float value
-        if '工步執行時間(秒)' in headers and 'execution_time' in df_filtered.columns:
+        if 'execution_time' in df_filtered.columns:
             # Ensure execution_time is stored as a float representing seconds
             df_filtered['execution_time'] = df_filtered['execution_time'].astype(float)
-        
-        # If we have both timestamp and execution_time, use execution_time as the primary time indicator
-        # but keep timestamp for reference
-        if 'timestamp' in df_filtered.columns and 'execution_time' not in df_filtered.columns:
-            # If we only have timestamp but not execution_time, calculate a relative time based on the first timestamp
-            if len(df_filtered) > 0:
-                first_timestamp = df_filtered['timestamp'].min()
-                df_filtered['execution_time'] = (df_filtered['timestamp'] - first_timestamp).dt.total_seconds()
-
-        # Sort by step number and execution_time if both columns exist, otherwise sort by step number and timestamp
-        if 'step_number' in df_filtered.columns:
-            if 'execution_time' in df_filtered.columns:
+            
+            # Sort by step number and execution_time
+            if 'step_number' in df_filtered.columns:
                 df_filtered = df_filtered.sort_values(['step_number', 'execution_time']).reset_index(drop=True)
-            elif 'timestamp' in df_filtered.columns:
-                df_filtered = df_filtered.sort_values(['step_number', 'timestamp']).reset_index(drop=True)
 
         return df_filtered
 

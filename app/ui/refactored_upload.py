@@ -1474,10 +1474,15 @@ def handle_selected_steps_save():
                                 step_id = step_mapping.get(step_number)
                                 
                                 if step_id is not None:
-                                    # Use execution_time instead of timestamp if available
+                                    # Store execution_time as a separate field, keep timestamp for reference
+                                    # If no execution_time is available, use timestamp converted to seconds
+                                    execution_time = row_dict.get("execution_time")
+                                    timestamp = row_dict.get("start_time", datetime.now())
+                                    
                                     measurement = Measurement(
                                         step_id=step_id,
-                                        timestamp=row_dict.get("execution_time", row_dict.get("timestamp")),
+                                        timestamp=timestamp,
+                                        execution_time=execution_time,
                                         voltage=row_dict.get("voltage"),
                                         current=row_dict.get("current"),
                                         temperature=row_dict.get("temperature"),
