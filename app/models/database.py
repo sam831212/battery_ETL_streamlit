@@ -89,7 +89,7 @@ class Experiment(BaseModel, table=True):
     machine: Optional["Machine"] = Relationship(back_populates="experiments")
 
 
-class Step(BaseModel, table=True, extend_existing=True):
+class Step(BaseModel, table=True):
     """Model representing a test step within an experiment"""
     id: Optional[int] = Field(default=None, primary_key=True)
     experiment_id: int = Field(foreign_key="experiment.id", nullable=False)
@@ -117,7 +117,7 @@ class Step(BaseModel, table=True, extend_existing=True):
     measurements: List["Measurement"] = Relationship(back_populates="step")
 
 
-class Measurement(BaseModel, table=True, extend_existing=True):
+class Measurement(BaseModel, table=True):
     """Model representing detailed measurements within a step"""
     id: Optional[int] = Field(default=None, primary_key=True)
     step_id: int = Field(foreign_key="step.id", nullable=False)
@@ -133,7 +133,7 @@ class Measurement(BaseModel, table=True, extend_existing=True):
     step: "Step" = Relationship(back_populates="measurements")
 
 
-class ProcessedFile(BaseModel, table=True, extend_existing=True):
+class ProcessedFile(BaseModel, table=True):
     """Model to track processed files to prevent duplicates"""
     id: Optional[int] = Field(default=None, primary_key=True)
     experiment_id: int = Field(foreign_key="experiment.id", nullable=False)
@@ -148,7 +148,7 @@ class ProcessedFile(BaseModel, table=True, extend_existing=True):
     experiment: "Experiment" = Relationship()
 
 
-class SavedView(BaseModel, table=True, extend_existing=True):
+class SavedView(BaseModel, table=True):
     """Model representing a saved dashboard configuration"""
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(nullable=False, index=True)
