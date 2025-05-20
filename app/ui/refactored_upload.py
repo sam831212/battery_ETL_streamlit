@@ -893,6 +893,19 @@ def save_steps_to_db(
         for _, row in steps_df.iterrows():
             row_dict = convert_numpy_types(row.to_dict())
             
+            # 確保使用原始數據中的值
+            current = row_dict.get("current")
+            if current is None or pd.isna(current):
+                current = 0.0
+                
+            capacity = row_dict.get("capacity")
+            if capacity is None or pd.isna(capacity):
+                capacity = 0.0
+                
+            energy = row_dict.get("energy")
+            if energy is None or pd.isna(energy):
+                energy = 0.0
+            
             step = Step(
                 experiment_id=experiment_id,
                 step_number=row_dict["step_number"],
@@ -902,13 +915,13 @@ def save_steps_to_db(
                 duration=row_dict["duration"],
                 voltage_start=row_dict.get("voltage_start", 0.0),
                 voltage_end=row_dict.get("voltage_end", 0.0),
-                current=row_dict.get("current", 0.0),
-                capacity=row_dict.get("capacity", 0.0),
-                energy=row_dict.get("energy", 0.0),
+                current=current,
+                capacity=capacity,
+                energy=energy,
                 temperature_avg=row_dict.get("temperature_avg", 25.0),
                 temperature_min=row_dict.get("temperature_min", 25.0),
                 temperature_max=row_dict.get("temperature_max", 25.0),
-                c_rate=abs(row_dict.get("current", 0.0)) / nominal_capacity,
+                c_rate=abs(current) / nominal_capacity if nominal_capacity > 0 else 0.0,
                 soc_start=row_dict.get("soc_start"),
                 soc_end=row_dict.get("soc_end"),
                 ocv=row_dict.get("ocv"),
@@ -949,18 +962,23 @@ def save_measurements_to_db(
             
             for _, row in batch.iterrows():
                 row_dict = convert_numpy_types(row.to_dict())
-                step_id = step_mapping.get(row_dict["step_number"])
+                step_number = row_dict.get("step_number")
+                step_id = step_mapping.get(step_number)
                 
                 if step_id is not None:
+                    # 確保 execution_time 有值
+                    execution_time = row_dict.get("execution_time")
+                    if execution_time is None:
+                        execution_time = 0.0
+                    
                     measurement = Measurement(
                         step_id=step_id,
-                        timestamp=row_dict["timestamp"],
-                        execution_time=row_dict.get("execution_time"),  # Use execution_time from transformed data
-                        voltage=row_dict["voltage"],
-                        current=row_dict["current"],
-                        temperature=row_dict["temperature"],
-                        capacity=row_dict["capacity"],
-                        energy=row_dict["energy"],
+                        execution_time=float(execution_time),  # 確保是 float 類型
+                        voltage=float(row_dict.get("voltage", 0.0)),
+                        current=float(row_dict.get("current", 0.0)),
+                        temperature=float(row_dict.get("temperature", 25.0)),
+                        capacity=float(row_dict.get("capacity", 0.0)),
+                        energy=float(row_dict.get("energy", 0.0)),
                         soc=row_dict.get("soc")
                     )
                     measurements.append(measurement)
@@ -1474,22 +1492,19 @@ def handle_selected_steps_save():
                                 step_id = step_mapping.get(step_number)
                                 
                                 if step_id is not None:
-                                    # Get execution_time from the row data 
-                                    # This should be available from our updated extraction process
-                                    execution_time = row_dict.get("execution_time", 0.0)
-                                    
-                                    # Use execution_time or 0.0 as a default
+                                    # 確保 execution_time 有值
+                                    execution_time = row_dict.get("execution_time")
                                     if execution_time is None:
                                         execution_time = 0.0
-                                        
+                                    
                                     measurement = Measurement(
                                         step_id=step_id,
-                                        execution_time=execution_time,
-                                        voltage=row_dict.get("voltage", 0.0),
-                                        current=row_dict.get("current", 0.0),
-                                        temperature=row_dict.get("temperature", 25.0),
-                                        capacity=row_dict.get("capacity", 0.0),
-                                        energy=row_dict.get("energy", 0.0),
+                                        execution_time=float(execution_time),  # 確保是 float 類型
+                                        voltage=float(row_dict.get("voltage", 0.0)),
+                                        current=float(row_dict.get("current", 0.0)),
+                                        temperature=float(row_dict.get("temperature", 25.0)),
+                                        capacity=float(row_dict.get("capacity", 0.0)),
+                                        energy=float(row_dict.get("energy", 0.0)),
                                         soc=row_dict.get("soc")
                                     )
                                     measurements.append(measurement)

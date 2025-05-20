@@ -55,6 +55,7 @@ STEP_REQUIRED_HEADERS_CHROMALEX = [
 
 DETAIL_REQUIRED_HEADERS_CHROMALEX = [
     '工步',  # Step number
+    '執行時間(秒)',
     '工步執行時間(秒)',  # Execution time
     '電壓(V)',  # Voltage
     '電流(A)',  # Current
@@ -84,6 +85,7 @@ STEP_COLUMN_MAPPING_CHROMALEX = {
 
 DETAIL_COLUMN_MAPPING_CHROMALEX = {
     '工步': 'step_number',  # Step number
+    '執行時間(秒)': 'execution_time_alt',  # Alternative name for execution time
     '工步執行時間(秒)': 'execution_time',  # Step execution time in seconds
     '電壓(V)': 'voltage', 
     '電流(A)': 'current',
@@ -426,8 +428,9 @@ def load_and_preprocess_files(
         except Exception as e:
             # Log the error but continue with the parsing
             print(f"Error applying transformations: {str(e)}")
-
-    # Use the module-level convert_numpy_types function
+            # 設置默認值
+            step_df['c_rate'] = 0.0
+            detail_df['c_rate'] = 0.0
 
     # Gather metadata
     metadata = {
@@ -458,7 +461,7 @@ def load_and_preprocess_files(
     }
 
     # Add transformation metadata if available
-    if apply_transformations and nominal_capacity is not None:
+    if apply_transformations and nominal_capacity is not None and nominal_capacity > 0:
         metadata['experiment']['nominal_capacity'] = float(nominal_capacity)
 
         # Add SOC range if available

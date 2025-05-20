@@ -4,10 +4,13 @@ Database models for the Battery ETL Dashboard
 This module defines SQLModel classes for the battery test data schema,
 including experiments, test steps, and measurement details.
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
 from datetime import datetime
 from enum import Enum
 from sqlmodel import Field, SQLModel, Relationship, Column, JSON
+
+if TYPE_CHECKING:
+    from .database import Experiment, Step, Measurement
 
 
 class BaseModel(SQLModel):
@@ -32,8 +35,10 @@ class CellFormFactor(str, Enum):
     OTHER = "others"
 
 
-class Cell(BaseModel, table=True, extend_existing=True):
+class Cell(BaseModel, table=True):
     """Model representing a battery cell"""
+    __table_args__ = {'extend_existing': True}
+    
     id: Optional[int] = Field(default=None, primary_key=True)
     name: Optional[str] = Field(default=None)  # Cell name
     manufacturer: Optional[str] = Field(default=None)
@@ -48,22 +53,26 @@ class Cell(BaseModel, table=True, extend_existing=True):
     notes: Optional[str] = Field(default=None)
     
     # Relationships
-    experiments: List["Experiment"] = Relationship(back_populates="cell")
+    experiments: List["Experiment"] = Relationship(back_populates="cell", sa_relationship_kwargs={"lazy": "selectin"})
 
 
 class Machine(BaseModel, table=True):
     """Model representing a testing machine"""
+    __table_args__ = {'extend_existing': True}
+    
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(nullable=False)
     description: Optional[str] = Field(default=None)
     model_number: Optional[str] = Field(default=None)
     
     # Relationships
-    experiments: List["Experiment"] = Relationship(back_populates="machine")
+    experiments: List["Experiment"] = Relationship(back_populates="machine", sa_relationship_kwargs={"lazy": "selectin"})
 
 
 class Experiment(BaseModel, table=True):
     """Model representing a battery test experiment"""
+    __table_args__ = {'extend_existing': True}
+    
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(nullable=False, index=True)
     description: Optional[str] = Field(default=None)
@@ -84,13 +93,15 @@ class Experiment(BaseModel, table=True):
     validation_report: Optional[dict] = Field(default=None, sa_column=Column(JSON))  # Validation report details
     
     # Relationships
-    steps: List["Step"] = Relationship(back_populates="experiment")
-    cell: Optional["Cell"] = Relationship(back_populates="experiments")
-    machine: Optional["Machine"] = Relationship(back_populates="experiments")
+    steps: List["Step"] = Relationship(back_populates="experiment", sa_relationship_kwargs={"lazy": "selectin"})
+    cell: Optional["Cell"] = Relationship(back_populates="experiments", sa_relationship_kwargs={"lazy": "selectin"})
+    machine: Optional["Machine"] = Relationship(back_populates="experiments", sa_relationship_kwargs={"lazy": "selectin"})
 
 
 class Step(BaseModel, table=True):
     """Model representing a test step within an experiment"""
+    __table_args__ = {'extend_existing': True}
+    
     id: Optional[int] = Field(default=None, primary_key=True)
     experiment_id: int = Field(foreign_key="experiment.id", nullable=False)
     step_number: int = Field(nullable=False)
@@ -113,12 +124,14 @@ class Step(BaseModel, table=True):
     data_meta: dict = Field(default={}, sa_column=Column(JSON))
     
     # Relationships
-    experiment: "Experiment" = Relationship(back_populates="steps")
-    measurements: List["Measurement"] = Relationship(back_populates="step")
+    experiment: "Experiment" = Relationship(back_populates="steps", sa_relationship_kwargs={"lazy": "selectin"})
+    measurements: List["Measurement"] = Relationship(back_populates="step", sa_relationship_kwargs={"lazy": "selectin"})
 
 
-class Measurement(BaseModel, table=True, extend_existing=True):
+class Measurement(BaseModel, table=True):
     """Model representing detailed measurements within a step"""
+    __table_args__ = {'extend_existing': True}
+    
     id: Optional[int] = Field(default=None, primary_key=True)
     step_id: int = Field(foreign_key="step.id", nullable=False)
     execution_time: float = Field(nullable=False)  # Step execution time in seconds
@@ -130,11 +143,13 @@ class Measurement(BaseModel, table=True, extend_existing=True):
     soc: Optional[float] = Field(default=None)  # %
     
     # Relationship
-    step: "Step" = Relationship(back_populates="measurements")
+    step: "Step" = Relationship(back_populates="measurements", sa_relationship_kwargs={"lazy": "selectin"})
 
 
 class ProcessedFile(BaseModel, table=True):
     """Model to track processed files to prevent duplicates"""
+    __table_args__ = {'extend_existing': True}
+    
     id: Optional[int] = Field(default=None, primary_key=True)
     experiment_id: int = Field(foreign_key="experiment.id", nullable=False)
     filename: str = Field(nullable=False)
@@ -145,11 +160,13 @@ class ProcessedFile(BaseModel, table=True):
     data_meta: dict = Field(default={}, sa_column=Column(JSON))
     
     # Relationship
-    experiment: "Experiment" = Relationship()
+    experiment: "Experiment" = Relationship(sa_relationship_kwargs={"lazy": "selectin"})
 
 
 class SavedView(BaseModel, table=True):
     """Model representing a saved dashboard configuration"""
+    __table_args__ = {'extend_existing': True}
+    
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(nullable=False, index=True)
     description: Optional[str] = Field(default=None)

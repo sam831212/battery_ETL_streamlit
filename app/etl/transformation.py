@@ -239,12 +239,16 @@ def transform_data(steps_df: pd.DataFrame, details_df: pd.DataFrame,
     details = details_df.copy()
     
     # 1. Calculate C-rate
-    steps['c_rate'] = steps['current'].apply(
-        lambda current: calculate_c_rate(current, nominal_capacity)
-    )
-    details['c_rate'] = details['current'].apply(
-        lambda current: calculate_c_rate(current, nominal_capacity)
-    )
+    if nominal_capacity > 0:
+        steps['c_rate'] = steps['current'].apply(
+            lambda current: calculate_c_rate(current, nominal_capacity)
+        )
+        details['c_rate'] = details['current'].apply(
+            lambda current: calculate_c_rate(current, nominal_capacity)
+        )
+    else:
+        steps['c_rate'] = 0.0
+        details['c_rate'] = 0.0
     
     # 2. Calculate temperature metrics for steps
     temp_metrics = calculate_temperature_metrics(details)

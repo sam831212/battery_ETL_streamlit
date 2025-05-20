@@ -151,6 +151,16 @@ def plot_capacity_vs_voltage(df: pd.DataFrame,
     return fig
 
 
+def _get_execution_time_col(df: pd.DataFrame) -> str:
+    """
+    自動選擇 detail data 的時間欄位，優先 'execution_time_alt'
+    """
+    if 'execution_time_alt' in df.columns:
+        return 'execution_time_alt'
+    else:
+        return 'timestamp'  # fallback
+
+
 @handle_plotting_error
 @cache_plot(ttl=300)
 def plot_voltage_vs_time(df: pd.DataFrame,
@@ -175,6 +185,9 @@ def plot_voltage_vs_time(df: pd.DataFrame,
     Returns:
         Plotly figure object
     """
+    # 自動選擇時間欄位
+    time_col = _get_execution_time_col(df) if time_col == 'timestamp' else time_col
+
     # Validate data
     if voltage_col not in df.columns or time_col not in df.columns:
         fig = go.Figure()
@@ -272,6 +285,9 @@ def plot_current_vs_time(df: pd.DataFrame,
     Returns:
         Plotly figure object
     """
+    # 自動選擇時間欄位
+    time_col = _get_execution_time_col(df) if time_col == 'timestamp' else time_col
+
     # Validate data
     if current_col not in df.columns or time_col not in df.columns:
         fig = go.Figure()
@@ -340,6 +356,9 @@ def plot_temperature_vs_time(df: pd.DataFrame,
     Returns:
         Plotly figure object
     """
+    # 自動選擇時間欄位
+    time_col = _get_execution_time_col(df) if time_col == 'timestamp' else time_col
+
     # Validate data
     if temperature_col not in df.columns or time_col not in df.columns:
         fig = go.Figure()
@@ -459,6 +478,9 @@ def plot_combined_voltage_current(
     Returns:
         Plotly figure object
     """
+    # 自動選擇時間欄位
+    time_col = _get_execution_time_col(df) if time_col == 'timestamp' else time_col
+
     # Validate data
     if voltage_col not in df.columns or current_col not in df.columns or time_col not in df.columns:
         fig = go.Figure()
