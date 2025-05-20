@@ -122,6 +122,7 @@ class Measurement(BaseModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     step_id: int = Field(foreign_key="step.id", nullable=False)
     timestamp: datetime = Field(nullable=False)
+    execution_time: Optional[float] = Field(default=None)  # Step execution time in seconds
     voltage: float  # V
     current: float  # A
     temperature: float  # Celsius

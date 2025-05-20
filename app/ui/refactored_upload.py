@@ -955,6 +955,7 @@ def save_measurements_to_db(
                     measurement = Measurement(
                         step_id=step_id,
                         timestamp=row_dict["timestamp"],
+                        execution_time=row_dict.get("execution_time"),  # Use execution_time from transformed data
                         voltage=row_dict["voltage"],
                         current=row_dict["current"],
                         temperature=row_dict["temperature"],
