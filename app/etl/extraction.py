@@ -55,7 +55,7 @@ STEP_REQUIRED_HEADERS_CHROMALEX = [
 
 DETAIL_REQUIRED_HEADERS_CHROMALEX = [
     '工步',  # Step number
-    '實際開始時間',  # Start time
+    '工步執行時間(秒)',  # Execution time
     '電壓(V)',  # Voltage
     '電流(A)',  # Current
     'Aux T1',  # Temperature
