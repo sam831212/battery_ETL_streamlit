@@ -32,7 +32,7 @@ class CellFormFactor(str, Enum):
     OTHER = "others"
 
 
-class Cell(BaseModel, table=True, extend_existing=True):
+class Cell(BaseModel, table=True):
     """Model representing a battery cell"""
     id: Optional[int] = Field(default=None, primary_key=True)
     name: Optional[str] = Field(default=None)  # Cell name
@@ -51,7 +51,7 @@ class Cell(BaseModel, table=True, extend_existing=True):
     experiments: List["Experiment"] = Relationship(back_populates="cell")
 
 
-class Machine(BaseModel, table=True, extend_existing=True):
+class Machine(BaseModel, table=True):
     """Model representing a testing machine"""
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(nullable=False)
@@ -62,7 +62,7 @@ class Machine(BaseModel, table=True, extend_existing=True):
     experiments: List["Experiment"] = Relationship(back_populates="machine")
 
 
-class Experiment(BaseModel, table=True, extend_existing=True):
+class Experiment(BaseModel, table=True):
     """Model representing a battery test experiment"""
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(nullable=False, index=True)
