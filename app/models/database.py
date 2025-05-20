@@ -117,12 +117,11 @@ class Step(BaseModel, table=True):
     measurements: List["Measurement"] = Relationship(back_populates="step")
 
 
-class Measurement(BaseModel, table=True):
+class Measurement(BaseModel, table=True, extend_existing=True):
     """Model representing detailed measurements within a step"""
     id: Optional[int] = Field(default=None, primary_key=True)
     step_id: int = Field(foreign_key="step.id", nullable=False)
-    timestamp: datetime = Field(nullable=False)
-    execution_time: Optional[float] = Field(default=None)  # Step execution time in seconds
+    execution_time: float = Field(nullable=False)  # Step execution time in seconds
     voltage: float  # V
     current: float  # A
     temperature: float  # Celsius

@@ -1474,20 +1474,22 @@ def handle_selected_steps_save():
                                 step_id = step_mapping.get(step_number)
                                 
                                 if step_id is not None:
-                                    # Store execution_time as a separate field, keep timestamp for reference
-                                    # If no execution_time is available, use timestamp converted to seconds
-                                    execution_time = row_dict.get("execution_time")
-                                    timestamp = row_dict.get("start_time", datetime.now())
+                                    # Get execution_time from the row data 
+                                    # This should be available from our updated extraction process
+                                    execution_time = row_dict.get("execution_time", 0.0)
                                     
+                                    # Use execution_time or 0.0 as a default
+                                    if execution_time is None:
+                                        execution_time = 0.0
+                                        
                                     measurement = Measurement(
                                         step_id=step_id,
-                                        timestamp=timestamp,
                                         execution_time=execution_time,
-                                        voltage=row_dict.get("voltage"),
-                                        current=row_dict.get("current"),
-                                        temperature=row_dict.get("temperature"),
-                                        capacity=row_dict.get("capacity"),
-                                        energy=row_dict.get("energy"),
+                                        voltage=row_dict.get("voltage", 0.0),
+                                        current=row_dict.get("current", 0.0),
+                                        temperature=row_dict.get("temperature", 25.0),
+                                        capacity=row_dict.get("capacity", 0.0),
+                                        energy=row_dict.get("energy", 0.0),
                                         soc=row_dict.get("soc")
                                     )
                                     measurements.append(measurement)
