@@ -1373,6 +1373,20 @@ def handle_selected_steps_save():
                     st.error(f"Machine with ID {machine_id} not found. Please select a valid machine.")
                     return
                 
+                # Get the transformed data if available, otherwise use the original selected steps
+                if "steps_df_transformed" in st.session_state and st.session_state["steps_df_transformed"] is not None:
+                    # Get selected step indices and use the transformed dataframe
+                    selected_step_indices = [step["index"] for step in st.session_state["selected_steps"]]
+                    steps_df_to_use = st.session_state["steps_df_transformed"].loc[selected_step_indices]
+                else:
+                    # No transformed data available, convert list of dicts to DataFrame
+                    steps_df_to_use = pd.DataFrame(st.session_state["selected_steps"])
+                
+                # Calculate average temperature from transformed data
+                temperature_avg = 25.0  # Default value
+                if "temperature_avg" in steps_df_to_use.columns:
+                    temperature_avg = float(steps_df_to_use["temperature_avg"].mean())
+                
                 # Create experiment metadata
                 experiment = Experiment(
                     name=experiment_name,
@@ -1383,46 +1397,56 @@ def handle_selected_steps_save():
                     machine_id=machine_id,
                     nominal_capacity=nominal_capacity,
                     battery_type=cell.chemistry,
-                    temperature_avg=0.0  # Will be updated after measurements are processed
+                    temperature_avg=temperature_avg
                 )
                 
                 session.add(experiment)
                 session.flush()  # Flush to get experiment ID
                 
-                # Process selected steps
-                step_metadata = []
+                # Process steps using transformed data
+                steps = []
                 
-                # This is a simplified version to demonstrate the structure
-                # In a real implementation, we would extract and transform details data for each step
-                for step_data in st.session_state["selected_steps"]:
+                for _, row in steps_df_to_use.iterrows():
+                    row_dict = convert_numpy_types(row.to_dict())
+                    
+                    # Create Step with all the available data including SOC and temperature metrics
                     step = Step(
                         experiment_id=experiment.id,
-                        step_number=step_data["step_number"],
-                        step_type=step_data["step_type"],
-                        start_time=step_data.get("start_time"),
-                        end_time=step_data.get("end_time"),
-                        duration=step_data.get("duration", 0),
-                        voltage_start=step_data.get("voltage_start", 0.0),
-                        voltage_end=step_data.get("voltage_end", 0.0),
-                        current=step_data.get("current", 0.0),
-                        capacity=step_data.get("capacity", 0.0),
-                        energy=step_data.get("energy", 0.0),
-                        temperature_avg=step_data.get("temperature_avg", 0.0),
-                        temperature_min=step_data.get("temperature_min", 0.0),
-                        temperature_max=step_data.get("temperature_max", 0.0),
-                        c_rate=step_data.get("c_rate", 0.0)
+                        step_number=row_dict["step_number"],
+                        step_type=row_dict["step_type"],
+                        start_time=row_dict.get("start_time"),
+                        end_time=row_dict.get("end_time"),
+                        duration=row_dict.get("duration", 0),
+                        voltage_start=row_dict.get("voltage_start", 0.0),
+                        voltage_end=row_dict.get("voltage_end", 0.0),
+                        current=row_dict.get("current", 0.0),
+                        capacity=row_dict.get("capacity", 0.0),
+                        energy=row_dict.get("energy", 0.0),
+                        temperature_avg=row_dict.get("temperature_avg", 25.0),
+                        temperature_min=row_dict.get("temperature_min", 25.0),
+                        temperature_max=row_dict.get("temperature_max", 25.0),
+                        c_rate=row_dict.get("c_rate", 0.0),
+                        soc_start=row_dict.get("soc_start"),  # Include SOC start value
+                        soc_end=row_dict.get("soc_end"),      # Include SOC end value
+                        ocv=row_dict.get("ocv")               # Include OCV value
                     )
                     session.add(step)
-                    step_metadata.append(step_data)
+                    steps.append(step)
+                
+                # Create step ID mapping
+                step_mapping = {step.step_number: step.id for step in steps}
                 
                 # Process measurement data if available
                 if "selected_steps_details_df" in st.session_state and st.session_state["selected_steps_details_df"] is not None:
                     details_df = st.session_state["selected_steps_details_df"]
                     
-                    # Create a mapping from step_number to step_id for linking measurements to steps
-                    step_mapping = {}
-                    for step in session.query(Step).filter(Step.experiment_id == experiment.id).all():
-                        step_mapping[step.step_number] = step.id
+                    # Get transformed details if available
+                    if "details_df_transformed" in st.session_state and st.session_state["details_df_transformed"] is not None:
+                        # Filter to only include selected steps
+                        selected_step_numbers = steps_df_to_use["step_number"].unique()
+                        details_df = st.session_state["details_df_transformed"][
+                            st.session_state["details_df_transformed"]["step_number"].isin(selected_step_numbers)
+                        ]
                     
                     # Save measurements to database
                     batch_size = 1000  # Use a batch size to avoid memory issues
@@ -1439,9 +1463,10 @@ def handle_selected_steps_save():
                                 step_id = step_mapping.get(step_number)
                                 
                                 if step_id is not None:
+                                    # Use execution_time instead of timestamp if available
                                     measurement = Measurement(
                                         step_id=step_id,
-                                        timestamp=row_dict.get("timestamp"),
+                                        timestamp=row_dict.get("execution_time", row_dict.get("timestamp")),
                                         voltage=row_dict.get("voltage"),
                                         current=row_dict.get("current"),
                                         temperature=row_dict.get("temperature"),
@@ -1466,7 +1491,7 @@ def handle_selected_steps_save():
                         filename="Selected steps from session",
                         file_type="step",
                         file_hash=step_file_hash,
-                        row_count=len(step_metadata),
+                        row_count=len(steps),
                         data_meta={"source": "selected_steps", "timestamp": timestamp_str}
                     ))
                     
@@ -1480,7 +1505,7 @@ def handle_selected_steps_save():
                     ))
                     
                     # Update experiment end time based on the last measurement
-                    if len(step_metadata) > 0:
+                    if len(steps) > 0:
                         last_step = session.query(Step).filter(
                             Step.experiment_id == experiment.id
                         ).order_by(desc(Step.end_time)).first()
@@ -1502,7 +1527,7 @@ def handle_selected_steps_save():
                 session.commit()
                 
                 st.success(f"""
-                Successfully saved experiment '{experiment_name}' with {len(step_metadata)} steps.
+                Successfully saved experiment '{experiment_name}' with {len(steps)} steps.
                 
                 You can view the results in the dashboard or add more data.
                 """)

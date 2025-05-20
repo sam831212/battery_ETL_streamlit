@@ -84,7 +84,8 @@ STEP_COLUMN_MAPPING_CHROMALEX = {
 
 DETAIL_COLUMN_MAPPING_CHROMALEX = {
     '工步': 'step_number',  # Alternative column name
-    '實際開始時間': 'timestamp',
+    '實際開始時間': 'timestamp',  # Keep the original timestamp for reference
+    '工步執行時間(秒)': 'execution_time',  # Add step execution time in seconds
     '電壓(V)': 'voltage',
     '電流(A)': 'current',
     'Aux T1': 'temperature',
