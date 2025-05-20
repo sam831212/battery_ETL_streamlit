@@ -32,7 +32,7 @@ class CellFormFactor(str, Enum):
     OTHER = "others"
 
 
-class Cell(BaseModel, table=True):
+class Cell(BaseModel, table=True, extend_existing=True):
     """Model representing a battery cell"""
     id: Optional[int] = Field(default=None, primary_key=True)
     name: Optional[str] = Field(default=None)  # Cell name
