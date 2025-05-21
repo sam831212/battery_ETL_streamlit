@@ -11,24 +11,25 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.utils.database import init_db, test_db_connection, engine
 from app.utils.migration import init_migration_system, create_migration
-from app.utils.config import DATABASE_URL
+from app.utils.config import DATABASE_URL, DB_PATH
+from sqlmodel import SQLModel
+
+target_metadata = SQLModel.metadata
 
 def main():
     """Initialize the database and migration system"""
     print("Initializing database...")
     
+    # 確保資料庫目錄存在
+    db_dir = os.path.dirname(DB_PATH)
+    if db_dir and not os.path.exists(db_dir):
+        os.makedirs(db_dir)
+    
     # Test database connection
-    success, error = test_db_connection()
-    if not success:
-        print(f"Error connecting to database: {error}")
-        print("\nPlease ensure PostgreSQL is installed and running.")
-        print("You can download PostgreSQL from: https://www.postgresql.org/download/windows/")
-        print("\nAfter installation, please set the following environment variables:")
-        print("PGHOST=localhost")
-        print("PGPORT=5432")
-        print("PGDATABASE=battery_db")
-        print("PGUSER=postgres")
-        print("PGPASSWORD=your_password")
+    if not test_db_connection():
+        print(f"Error connecting to database")
+        print("\nPlease check your database configuration:")
+        print(f"DB_PATH: {DB_PATH}")
         return 1
     
     print("Database connection successful!")
@@ -42,21 +43,26 @@ def main():
     
     # Initialize migration system
     print("\nSetting up database migration system...")
-    if init_migration_system(engine):
-        print("Migration system initialized successfully!")
-        
-        # Create initial migration
-        success, message = create_migration(engine, "Initial migration")
-        if success:
-            print(message)
+    try:
+        if init_migration_system(engine):
+            print("Migration system initialized successfully!")
+            
+            # Create initial migration
+            success, message = create_migration(engine, "Initial migration")
+            if success:
+                print(message)
+            else:
+                print(f"Error creating initial migration: {message}")
+                return 1
         else:
-            print(f"Error creating initial migration: {message}")
+            print("Error initializing migration system!")
             return 1
-    else:
-        print("Error initializing migration system!")
+    except Exception as e:
+        print(f"Error during migration setup: {str(e)}")
         return 1
     
     print("\nDatabase initialization complete!")
+    print(f"\nDatabase file created at: {os.path.abspath(DB_PATH)}")
     print("\nYou can now use the following commands:")
     print("  python -m scripts.migrate upgrade head    # Apply all migrations")
     print("  python -m scripts.migrate downgrade -1    # Rollback one revision")

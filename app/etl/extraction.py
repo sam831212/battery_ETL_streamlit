@@ -343,7 +343,10 @@ def parse_detail_csv(file_path: str) -> pd.DataFrame:
     try:
         df = pd.read_csv(file_path)
         headers = df.columns.tolist()
-
+        
+        print(f"===== DEBUG: parse_detail_csv =====")
+        print(f"Original headers: {headers}")
+    
         # Use ChromaLex mappings
         column_mapping = DETAIL_COLUMN_MAPPING
         expected_headers = DETAIL_REQUIRED_HEADERS

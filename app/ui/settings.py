@@ -7,100 +7,50 @@ file formats, and other application settings.
 import streamlit as st
 from app.utils.database import test_db_connection, init_db, get_session
 from app.utils.config import (
-    DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, DATABASE_URL
+    DB_PATH, DATABASE_URL
 )
 from app.models.database import Cell, CellChemistry, CellFormFactor, Machine, Experiment
 from sqlmodel import select, delete, func
 
 
 def render_settings_page():
-    """Render the settings page UI
+    """Render the settings page UI"""
+    st.title("Settings")
     
-    This function displays the settings UI components for database connections,
-    file formats, and user preferences.
-    """
-    # Create tabs for different settings categories
-    db_tab, file_tab, ui_tab = st.tabs([
-        "Database", "File Formats", "UI Preferences"
-    ])
+    st.subheader("Database Settings")
+    st.info("Using SQLite database")
+    st.write(f"Database file: {DB_PATH}")
+    st.write(f"Database URL: {DATABASE_URL}")
     
-    with db_tab:
-        render_database_settings()
-    
-    with file_tab:
-        render_file_format_settings()
-    
-    with ui_tab:
-        render_ui_preferences()
-
-
-def render_database_settings():
-    """Render database connection settings"""
-    st.header("Database Connection")
-    
-    # Database connection settings form
-    with st.form(key="database_settings"):
-        # Display current database settings
-        st.write("Current Database Configuration:")
-        st.code(
-            f"Host: {DB_HOST}\n"
-            f"Port: {DB_PORT}\n"
-            f"Database: {DB_NAME}\n"
-            f"User: {DB_USER}\n"
-            f"Connection URL: {DATABASE_URL.replace(DB_PASSWORD, '********') if DB_PASSWORD else DATABASE_URL}"
-        )
-        
-        # Test connection button
-        col1, col2 = st.columns([1, 3])
-        with col1:
-            test_connection = st.form_submit_button(
-                "Test Connection", type="primary"
-            )
-        with col2:
-            reinit_db = st.form_submit_button(
-                "Re-Initialize Database", type="secondary"
-            )
-    
-    # Handle test connection button click
-    if test_connection:
-        success, error_message = test_db_connection()
-        if success:
-            st.success("Database connection successful!")
-        else:
-            st.error(f"Database connection failed: {error_message}")
-    
-    # Handle re-initialize database button click
-    if reinit_db:
-        if st.session_state.get("confirm_reinit", False):
-            success = init_db()
-            if success:
-                st.success("Database tables re-initialized successfully!")
-                st.session_state["confirm_reinit"] = False
+    # Add a button to test database connection
+    if st.button("Test Database Connection"):
+        try:
+            from app.utils.database import test_db_connection
+            if test_db_connection():
+                st.success("Database connection successful!")
             else:
-                st.error("Failed to re-initialize database tables.")
-        else:
-            st.warning("⚠️ This will recreate all database tables. Any existing data will remain untouched, but schema changes will be applied.")
-            if st.button("Confirm Re-Initialize", type="primary"):
-                st.session_state["confirm_reinit"] = True
-                st.rerun()
+                st.error("Database connection failed!")
+        except Exception as e:
+            st.error(f"Error testing database connection: {str(e)}")
     
-    # Database information
-    st.subheader("Database Information")
-    st.info(
-        """
-        The application uses PostgreSQL database to store battery test data.
-        Database connection settings are configured using environment variables.
-        
-        To change database settings, update the following environment variables:
-        - `PGHOST` - Database host
-        - `PGPORT` - Database port
-        - `PGDATABASE` - Database name
-        - `PGUSER` - Database user
-        - `PGPASSWORD` - Database password
-        
-        Alternatively, you can set `DATABASE_URL` to override the individual settings.
-        """
-    )
+    # Add a button to initialize database
+    if st.button("Initialize Database"):
+        try:
+            from scripts.init_db import init_database
+            init_database()
+            st.success("Database initialized successfully!")
+        except Exception as e:
+            st.error(f"Error initializing database: {str(e)}")
+    
+    # Add a button to reset database
+    if st.button("Reset Database", type="secondary"):
+        if st.checkbox("I understand this will delete all data"):
+            try:
+                from scripts.init_db import reset_database
+                reset_database()
+                st.success("Database reset successfully!")
+            except Exception as e:
+                st.error(f"Error resetting database: {str(e)}")
 
 
 def render_file_format_settings():

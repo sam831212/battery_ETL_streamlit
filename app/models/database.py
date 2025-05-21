@@ -4,13 +4,13 @@ Database models for the Battery ETL Dashboard
 This module defines SQLModel classes for the battery test data schema,
 including experiments, test steps, and measurement details.
 """
-from typing import List, Optional, Dict, Any, TYPE_CHECKING
+from typing import List, Optional, Dict, Any, TYPE_CHECKING, ForwardRef
 from datetime import datetime
 from enum import Enum
 from sqlmodel import Field, SQLModel, Relationship, Column, JSON
 
 if TYPE_CHECKING:
-    from .database import Experiment, Step, Measurement
+    from app.models.database import Experiment, Step, Measurement
 
 
 class BaseModel(SQLModel):
@@ -171,3 +171,13 @@ class SavedView(BaseModel, table=True):
     name: str = Field(nullable=False, index=True)
     description: Optional[str] = Field(default=None)
     view_config: dict = Field(default={}, sa_column=Column(JSON))  # Dashboard configuration stored as JSON
+
+
+# Update forward references
+Experiment.model_rebuild()
+Step.model_rebuild()
+Measurement.model_rebuild()
+Cell.model_rebuild()
+Machine.model_rebuild()
+ProcessedFile.model_rebuild()
+SavedView.model_rebuild()

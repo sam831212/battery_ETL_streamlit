@@ -19,7 +19,7 @@ from app.etl.extraction import STEP_REQUIRED_HEADERS, DETAIL_REQUIRED_HEADERS
 from app.etl.validation import generate_validation_report
 from app.models import Experiment, Step, Measurement, ProcessedFile, Cell, Machine
 from app.models.database import CellChemistry, CellFormFactor
-from app.utils.database import get_session as get_db_session, reset_engine_connection
+from app.utils.database import get_session as get_db_session
 from app.utils.temp_files import temp_file_from_upload, calculate_file_hash_from_memory, calculate_file_hash, create_session_temp_file
 from sqlmodel import select, desc, delete, func
 import hashlib
@@ -206,7 +206,6 @@ def check_file_already_processed(file_hash: str) -> bool:
     except Exception as e:
         # If database connection fails, reset connection and try again
         try:
-            reset_engine_connection()
             with get_db_session() as session:
                 existing_file = session.query(ProcessedFile).filter(
                     ProcessedFile.file_hash == file_hash
@@ -713,6 +712,39 @@ def handle_file_processing_pipeline(file_data: Dict[str, Any]) -> bool:
             nominal_capacity=st.session_state["nominal_capacity"]
         )
         
+        # 添加調試信息
+        print(f"===== DEBUG: handle_file_processing_pipeline =====")
+        print(f"Step DataFrame shape: {step_df.shape}")
+        print(f"Detail DataFrame shape: {detail_df.shape}")
+        print(f"Step DataFrame columns: {step_df.columns.tolist()}")
+        print(f"Detail DataFrame columns: {detail_df.columns.tolist()}")
+        
+        # 檢查detail_df是否包含必要的列
+        required_columns = ["step_number", "execution_time", "voltage", "current"]
+        missing_columns = [col for col in required_columns if col not in detail_df.columns]
+        if missing_columns:
+            print(f"WARNING: Detail DataFrame is missing required columns: {missing_columns}")
+            # 嘗試將工步列映射為step_number
+            if "工步" in detail_df.columns and "step_number" not in detail_df.columns:
+                print("Mapping '工步' column to 'step_number'")
+                detail_df["step_number"] = detail_df["工步"]
+            # 嘗試將工步執行時間列映射為execution_time
+            if "工步執行時間(秒)" in detail_df.columns and "execution_time" not in detail_df.columns:
+                print("Mapping '工步執行時間(秒)' column to 'execution_time'")
+                detail_df["execution_time"] = detail_df["工步執行時間(秒)"]
+            # 嘗試將電壓列映射為voltage
+            if "電壓(V)" in detail_df.columns and "voltage" not in detail_df.columns:
+                print("Mapping '電壓(V)' column to 'voltage'")
+                detail_df["voltage"] = detail_df["電壓(V)"]
+            # 嘗試將電流列映射為current
+            if "電流(A)" in detail_df.columns and "current" not in detail_df.columns:
+                print("Mapping '電流(A)' column to 'current'")
+                detail_df["current"] = detail_df["電流(A)"]
+        
+        # 檢查detail_df的前幾行
+        if not detail_df.empty:
+            print(f"First row of detail_df: {detail_df.iloc[0].to_dict()}")
+        
         # Generate validation reports
         validation_status, step_validation_report, detail_validation_report = generate_validation_results(
             step_df, detail_df
@@ -775,6 +807,95 @@ def handle_file_processing_pipeline(file_data: Dict[str, Any]) -> bool:
             
             # Create a mapping from step number to step ID
             step_mapping = {step.step_number: step.id for step in steps}
+            
+            # 檢查detail_df是否包含必要的列
+            required_columns = ["step_number", "execution_time", "voltage", "current"]
+            missing_columns = [col for col in required_columns if col not in detail_df.columns]
+            
+            # 如果缺少必要的列，嘗試進行映射
+            if missing_columns:
+                print(f"WARNING: Missing required columns before saving measurements: {missing_columns}")
+                
+                # 嘗試從中文列名映射
+                chinese_to_english = {
+                    "工步": "step_number",
+                    "工步執行時間(秒)": "execution_time",
+                    "電壓(V)": "voltage",
+                    "電流(A)": "current",
+                    "Aux T1": "temperature",
+                    "電量(Ah)": "capacity",
+                    "能量(Wh)": "energy"
+                }
+                
+                for chinese, english in chinese_to_english.items():
+                    if english in missing_columns and chinese in detail_df.columns:
+                        print(f"Mapping '{chinese}' to '{english}'")
+                        detail_df[english] = detail_df[chinese]
+            
+            # 確保step_number列是整數類型
+            if "step_number" in detail_df.columns:
+                try:
+                    detail_df["step_number"] = detail_df["step_number"].astype(int)
+                except Exception as e:
+                    print(f"Error converting step_number to int: {str(e)}")
+                    # 嘗試清理數據
+                    try:
+                        detail_df["step_number"] = pd.to_numeric(detail_df["step_number"], errors="coerce")
+                        detail_df["step_number"] = detail_df["step_number"].fillna(1).astype(int)
+                    except Exception as e2:
+                        print(f"Failed to clean step_number: {str(e2)}")
+            
+            # 檢查detail_df中的step_number是否在step_mapping中
+            if "step_number" in detail_df.columns:
+                step_numbers_in_details = set(detail_df["step_number"].unique())
+                step_numbers_in_mapping = set(step_mapping.keys())
+                missing_step_numbers = step_numbers_in_details - step_numbers_in_mapping
+                
+                if missing_step_numbers:
+                    print(f"Warning: Some step numbers in detail data are not in step mapping: {missing_step_numbers}")
+            
+            # 檢查detail_df中的step_number是否與step_mapping中的鍵匹配
+            if 'step_number' in detail_df.columns:
+                # 檢查detail_df中的step_number類型
+                if detail_df['step_number'].dtype != int:
+                    # 嘗試轉換為整數
+                    try:
+                        detail_df['step_number'] = detail_df['step_number'].astype(int)
+                        print("步驟編號已轉換為整數類型")
+                    except Exception as e:
+                        print(f"無法將步驟編號轉換為整數: {str(e)}")
+                
+                # 檢查是否有匹配的步驟編號
+                unique_step_numbers = set(detail_df['step_number'].unique())
+                matching_steps = unique_step_numbers.intersection(set(step_mapping.keys()))
+                
+                if len(matching_steps) == 0:
+                    print(f"警告: 詳細數據中的步驟編號 {unique_step_numbers} 與步驟映射 {set(step_mapping.keys())} 不匹配")
+                    
+                    # 嘗試找到最接近的映射
+                    step_numbers_list = sorted(list(step_mapping.keys()))
+                    if len(step_numbers_list) > 0 and len(unique_step_numbers) > 0:
+                        print("嘗試創建新的步驟映射...")
+                        
+                        # 創建一個新的映射，將detail_df中的步驟編號映射到最接近的step_mapping中的步驟編號
+                        new_mapping = {}
+                        sorted_unique_steps = sorted(list(unique_step_numbers))
+                        
+                        if len(sorted_unique_steps) <= len(step_numbers_list):
+                            # 如果detail_df中的步驟數量小於或等於step_mapping中的步驟數量，直接按順序映射
+                            for i, step_num in enumerate(sorted_unique_steps):
+                                if i < len(step_numbers_list):
+                                    new_mapping[step_num] = step_mapping[step_numbers_list[i]]
+                                    print(f"映射步驟 {step_num} 到 {step_numbers_list[i]} (ID: {step_mapping[step_numbers_list[i]]})")
+                        else:
+                            # 如果detail_df中的步驟數量大於step_mapping中的步驟數量，則循環使用step_mapping中的步驟
+                            for i, step_num in enumerate(sorted_unique_steps):
+                                idx = i % len(step_numbers_list)
+                                new_mapping[step_num] = step_mapping[step_numbers_list[idx]]
+                                print(f"映射步驟 {step_num} 到 {step_numbers_list[idx]} (ID: {step_mapping[step_numbers_list[idx]]})")
+                        
+                        # 使用新的映射
+                        step_mapping = new_mapping
             
             # Save measurements to database
             save_measurements_to_db(
@@ -871,6 +992,33 @@ def save_experiment_to_db(
     return experiment
 
 
+def convert_datetime_to_python(value):
+    """
+    將各種日期時間格式轉換為 Python datetime 物件
+    
+    Args:
+        value: 輸入的日期時間值（可以是字串、pd.Timestamp 或 datetime）
+        
+    Returns:
+        Python datetime 物件或 None
+    """
+    if value is None:
+        return None
+        
+    if isinstance(value, datetime):
+        return value
+        
+    if isinstance(value, pd.Timestamp):
+        return value.to_pydatetime()
+        
+    if isinstance(value, str):
+        try:
+            return pd.to_datetime(value).to_pydatetime()
+        except (ValueError, TypeError):
+            return None
+            
+    return None
+
 def save_steps_to_db(
     experiment_id: int,
     steps_df: pd.DataFrame,
@@ -893,35 +1041,26 @@ def save_steps_to_db(
         for _, row in steps_df.iterrows():
             row_dict = convert_numpy_types(row.to_dict())
             
-            # 確保使用原始數據中的值
-            current = row_dict.get("current")
-            if current is None or pd.isna(current):
-                current = 0.0
-                
-            capacity = row_dict.get("capacity")
-            if capacity is None or pd.isna(capacity):
-                capacity = 0.0
-                
-            energy = row_dict.get("energy")
-            if energy is None or pd.isna(energy):
-                energy = 0.0
+            # 轉換日期時間
+            start_time = convert_datetime_to_python(row_dict.get("start_time"))
+            end_time = convert_datetime_to_python(row_dict.get("end_time"))
             
             step = Step(
                 experiment_id=experiment_id,
                 step_number=row_dict["step_number"],
                 step_type=row_dict["step_type"],
-                start_time=row_dict["start_time"],
-                end_time=row_dict["end_time"],
-                duration=row_dict["duration"],
+                start_time=start_time,
+                end_time=end_time,
+                duration=row_dict.get("duration", 0.0),
                 voltage_start=row_dict.get("voltage_start", 0.0),
                 voltage_end=row_dict.get("voltage_end", 0.0),
-                current=current,
-                capacity=capacity,
-                energy=energy,
+                current=row_dict.get("current", 0.0),
+                capacity=row_dict.get("capacity", 0.0),
+                energy=row_dict.get("energy", 0.0),
                 temperature_avg=row_dict.get("temperature_avg", 25.0),
                 temperature_min=row_dict.get("temperature_min", 25.0),
                 temperature_max=row_dict.get("temperature_max", 25.0),
-                c_rate=abs(current) / nominal_capacity if nominal_capacity > 0 else 0.0,
+                c_rate=abs(row_dict.get("current", 0.0)) / nominal_capacity,
                 soc_start=row_dict.get("soc_start"),
                 soc_end=row_dict.get("soc_end"),
                 ocv=row_dict.get("ocv"),
@@ -943,49 +1082,80 @@ def save_measurements_to_db(
     nominal_capacity: float,
     batch_size: int = 1000
 ):
-    """
-    Save measurement data to the database in batches.
+    """保存測量數據到資料庫"""
+    print("===== DEBUG: save_measurements_to_db =====")
+    print(f"Experiment ID: {experiment_id}")
+    print(f"Details DataFrame length: {len(details_df)}")
+    print(f"Step mapping: {step_mapping}")
     
-    Args:
-        experiment_id: ID of the experiment
-        details_df: Detail data DataFrame
-        step_mapping: Mapping of step numbers to step IDs
-        nominal_capacity: Nominal capacity of the battery
-        batch_size: Size of batches for database inserts
-    """
-    detail_df_len = len(details_df)
+    if details_df.empty:
+        print("警告：沒有測量數據需要保存")
+        return
+    
+    required_columns = ['step_number', 'execution_time', 'voltage', 'current']
+    missing_columns = [col for col in required_columns if col not in details_df.columns]
+    if missing_columns:
+        print(f"警告：缺少必要的列：{missing_columns}")
+        return
+    
+    if not step_mapping:
+        print("警告：步驟映射為空")
+        return
     
     with get_db_session() as session:
-        for i in range(0, detail_df_len, batch_size):
-            batch = details_df.iloc[i:min(i+batch_size, detail_df_len)]
+        total_saved = 0
+        total_errors = 0
+        
+        # 將 DataFrame 分成批次處理
+        for i in range(0, len(details_df), batch_size):
+            batch_df = details_df.iloc[i:i + batch_size]
             measurements = []
             
-            for _, row in batch.iterrows():
-                row_dict = convert_numpy_types(row.to_dict())
-                step_number = row_dict.get("step_number")
-                step_id = step_mapping.get(step_number)
-                
-                if step_id is not None:
-                    # 確保 execution_time 有值
-                    execution_time = row_dict.get("execution_time")
-                    if execution_time is None:
-                        execution_time = 0.0
+            for _, row in batch_df.iterrows():
+                try:
+                    # 轉換數據類型並四捨五入到適當的小數位數
+                    step_number = int(row['step_number'])
+                    if step_number not in step_mapping:
+                        continue
+                        
+                    step_id = step_mapping[step_number]
+                    execution_time = float(row['execution_time'])
+                    voltage = round(float(row['voltage']), 3)  # 保留3位小數
+                    current = round(float(row['current']), 3)  # 保留3位小數
+                    temperature = round(float(row.get('temperature', 25.0)), 1)  # 保留1位小數
+                    capacity = round(float(row.get('capacity', 0.0)), 3)  # 保留3位小數
+                    energy = round(float(row.get('energy', 0.0)), 3)  # 保留3位小數
+                    soc = round(float(row.get('soc', 0.0)), 1) if pd.notna(row.get('soc')) else None  # 保留1位小數
                     
                     measurement = Measurement(
                         step_id=step_id,
-                        execution_time=float(execution_time),  # 確保是 float 類型
-                        voltage=float(row_dict.get("voltage", 0.0)),
-                        current=float(row_dict.get("current", 0.0)),
-                        temperature=float(row_dict.get("temperature", 25.0)),
-                        capacity=float(row_dict.get("capacity", 0.0)),
-                        energy=float(row_dict.get("energy", 0.0)),
-                        soc=row_dict.get("soc")
+                        execution_time=execution_time,
+                        voltage=voltage,
+                        current=current,
+                        temperature=temperature,
+                        capacity=capacity,
+                        energy=energy,
+                        soc=soc
                     )
                     measurements.append(measurement)
+                    
+                except (ValueError, TypeError) as e:
+                    print(f"警告：數據轉換錯誤 - {str(e)}")
+                    total_errors += 1
+                    continue
             
-            # Add batch of measurements
-            session.add_all(measurements)
-            session.commit()
+            if measurements:
+                try:
+                    session.add_all(measurements)
+                    session.commit()
+                    total_saved += len(measurements)
+                    print(f"已保存 {len(measurements)} 個測量數據")
+                except Exception as e:
+                    print(f"錯誤：保存測量數據時發生錯誤 - {str(e)}")
+                    session.rollback()
+                    total_errors += len(measurements)
+        
+        print(f"總共保存了 {total_saved} 個測量數據，{total_errors} 個錯誤")
 
 
 def save_processed_files_to_db(
@@ -1398,17 +1568,12 @@ def handle_selected_steps_save():
                     selected_step_numbers = [step["step_number"] for step in st.session_state["selected_steps"]]
                     
                     # Map step numbers to indices in the transformed dataframe
-                    # This handles the case where the indices in the transformed dataframe 
-                    # might not match the step numbers
                     transformed_df = st.session_state["steps_df_transformed"]
                     if "step_number" in transformed_df.columns:
-                        # Find rows where step_number is in our selected list
                         steps_df_to_use = transformed_df[transformed_df["step_number"].isin(selected_step_numbers)]
                     else:
-                        # If step_number column doesn't exist, just use the original selected steps
                         steps_df_to_use = pd.DataFrame(st.session_state["selected_steps"])
                 else:
-                    # No transformed data available, convert list of dicts to DataFrame
                     steps_df_to_use = pd.DataFrame(st.session_state["selected_steps"])
                 
                 # Calculate average temperature from transformed data
@@ -1438,14 +1603,18 @@ def handle_selected_steps_save():
                 for _, row in steps_df_to_use.iterrows():
                     row_dict = convert_numpy_types(row.to_dict())
                     
+                    # 轉換日期時間
+                    start_time = convert_datetime_to_python(row_dict.get("start_time"))
+                    end_time = convert_datetime_to_python(row_dict.get("end_time"))
+                    
                     # Create Step with all the available data including SOC and temperature metrics
                     step = Step(
                         experiment_id=experiment.id,
                         step_number=row_dict["step_number"],
                         step_type=row_dict["step_type"],
-                        start_time=row_dict.get("start_time"),
-                        end_time=row_dict.get("end_time"),
-                        duration=row_dict.get("duration", 0),
+                        start_time=start_time,
+                        end_time=end_time,
+                        duration=row_dict.get("duration", 0.0),
                         voltage_start=row_dict.get("voltage_start", 0.0),
                         voltage_end=row_dict.get("voltage_end", 0.0),
                         current=row_dict.get("current", 0.0),
@@ -1455,9 +1624,9 @@ def handle_selected_steps_save():
                         temperature_min=row_dict.get("temperature_min", 25.0),
                         temperature_max=row_dict.get("temperature_max", 25.0),
                         c_rate=row_dict.get("c_rate", 0.0),
-                        soc_start=row_dict.get("soc_start"),  # Include SOC start value
-                        soc_end=row_dict.get("soc_end"),      # Include SOC end value
-                        ocv=row_dict.get("ocv")               # Include OCV value
+                        soc_start=row_dict.get("soc_start"),
+                        soc_end=row_dict.get("soc_end"),
+                        ocv=row_dict.get("ocv")
                     )
                     session.add(step)
                     steps.append(step)
@@ -1494,40 +1663,80 @@ def handle_selected_steps_save():
                                 if step_id is not None:
                                     # 確保 execution_time 有值
                                     execution_time = row_dict.get("execution_time")
-                                    if execution_time is None:
-                                        execution_time = 0.0
+                                    if execution_time is None or pd.isna(execution_time):
+                                        # 嘗試使用替代列
+                                        execution_time = row_dict.get("execution_time_alt")
+                                        if execution_time is None or pd.isna(execution_time):
+                                            execution_time = 0.0
                                     
-                                    measurement = Measurement(
-                                        step_id=step_id,
-                                        execution_time=float(execution_time),  # 確保是 float 類型
-                                        voltage=float(row_dict.get("voltage", 0.0)),
-                                        current=float(row_dict.get("current", 0.0)),
-                                        temperature=float(row_dict.get("temperature", 25.0)),
-                                        capacity=float(row_dict.get("capacity", 0.0)),
-                                        energy=float(row_dict.get("energy", 0.0)),
-                                        soc=row_dict.get("soc")
-                                    )
-                                    measurements.append(measurement)
+                                    # 確保所有數值欄位都是有效的浮點數
+                                    voltage = row_dict.get("voltage", 0.0)
+                                    if pd.isna(voltage):
+                                        voltage = 0.0
+                                        
+                                    current = row_dict.get("current", 0.0)
+                                    if pd.isna(current):
+                                        current = 0.0
+                                        
+                                    temperature = row_dict.get("temperature", 25.0)
+                                    if pd.isna(temperature):
+                                        temperature = 25.0
+                                        
+                                    capacity = row_dict.get("capacity", 0.0)
+                                    if pd.isna(capacity):
+                                        capacity = 0.0
+                                        
+                                    energy = row_dict.get("energy", 0.0)
+                                    if pd.isna(energy):
+                                        energy = 0.0
+                                        
+                                    soc = row_dict.get("soc")
+                                    if pd.isna(soc):
+                                        soc = None
+                                    
+                                    try:
+                                        measurement = Measurement(
+                                            step_id=step_id,
+                                            execution_time=float(execution_time),
+                                            voltage=float(voltage),
+                                            current=float(current),
+                                            temperature=float(temperature),
+                                            capacity=float(capacity),
+                                            energy=float(energy),
+                                            soc=soc
+                                        )
+                                        measurements.append(measurement)
+                                    except Exception as e:
+                                        print(f"Error creating measurement: {str(e)}")
                             
                             # Add batch of measurements
-                            session.add_all(measurements)
-                            session.flush()
-                    
-                    # Generate unique file hashes with timestamp to avoid duplicates
-                    timestamp_str = datetime.now().strftime("%Y%m%d%H%M%S%f")
-                    step_file_hash = f"selected_steps_{timestamp_str}"
-                    detail_file_hash = f"selected_details_{timestamp_str}"
-                    
-                    # Save processed file records with unique hashes
-                    session.add(ProcessedFile(
-                        experiment_id=experiment.id,
-                        filename="Selected steps from session",
-                        file_type="step",
-                        file_hash=step_file_hash,
-                        row_count=len(steps),
-                        data_meta={"source": "selected_steps", "timestamp": timestamp_str}
-                    ))
-                    
+                            if measurements:
+                                try:
+                                    session.add_all(measurements)
+                                    session.flush()
+                                    print(f"Saved batch of {len(measurements)} measurements")
+                                except Exception as e:
+                                    session.rollback()
+                                    print(f"Error saving batch of measurements: {str(e)}")
+                                    st.error(f"Error saving measurements: {str(e)}")
+                
+                # Generate unique file hashes with timestamp to avoid duplicates
+                timestamp_str = datetime.now().strftime("%Y%m%d%H%M%S%f")
+                step_file_hash = f"selected_steps_{timestamp_str}"
+                detail_file_hash = f"selected_details_{timestamp_str}"
+                
+                # Save processed file records with unique hashes
+                session.add(ProcessedFile(
+                    experiment_id=experiment.id,
+                    filename="Selected steps from session",
+                    file_type="step",
+                    file_hash=step_file_hash,
+                    row_count=len(steps),
+                    data_meta={"source": "selected_steps", "timestamp": timestamp_str}
+                ))
+                
+                if "selected_steps_details_df" in st.session_state and st.session_state["selected_steps_details_df"] is not None:
+                    detail_df_len = len(st.session_state["selected_steps_details_df"])
                     session.add(ProcessedFile(
                         experiment_id=experiment.id,
                         filename="Selected details from session",
@@ -1536,25 +1745,25 @@ def handle_selected_steps_save():
                         row_count=detail_df_len,
                         data_meta={"source": "selected_details", "timestamp": timestamp_str}
                     ))
-                    
-                    # Update experiment end time based on the last measurement
-                    if len(steps) > 0:
-                        last_step = session.query(Step).filter(
-                            Step.experiment_id == experiment.id
-                        ).order_by(desc(Step.end_time)).first()
-                        
-                        if last_step and last_step.end_time:
-                            experiment.end_date = last_step.end_time
-                    
-                    # Update experiment temperature_avg based on all measurements
-                    avg_temp = session.query(func.avg(Measurement.temperature)).join(
-                        Step, Measurement.step_id == Step.id
-                    ).filter(
+                
+                # Update experiment end time based on the last measurement
+                if len(steps) > 0:
+                    last_step = session.query(Step).filter(
                         Step.experiment_id == experiment.id
-                    ).scalar()
+                    ).order_by(desc(Step.end_time)).first()
                     
-                    if avg_temp:
-                        experiment.temperature_avg = float(avg_temp)
+                    if last_step and last_step.end_time:
+                        experiment.end_date = last_step.end_time
+                
+                # Update experiment temperature_avg based on all measurements
+                avg_temp = session.query(func.avg(Measurement.temperature)).join(
+                    Step, Measurement.step_id == Step.id
+                ).filter(
+                    Step.experiment_id == experiment.id
+                ).scalar()
+                
+                if avg_temp:
+                    experiment.temperature_avg = float(avg_temp)
                 
                 # Commit the changes
                 session.commit()
@@ -1752,7 +1961,6 @@ def render_upload_page():
     except Exception as e:
         # If first attempt fails, try resetting the connection pool
         st.warning("Database connection issue detected. Attempting to reconnect...")
-        reset_engine_connection()
         try:
             with get_db_session() as session:
                 cells = session.query(Cell).order_by(Cell.name).all()
