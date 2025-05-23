@@ -7,9 +7,9 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# Database configuration
+# SQLite database configuration - single file database by default
 DB_PATH = os.getenv("DB_PATH", "battery.db")
-DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DB_PATH}")
+DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 # Application settings
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")

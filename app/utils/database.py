@@ -1,83 +1,72 @@
 """
 Database utility functions for the Battery ETL Dashboard
 
-This module provides database connection and management utilities.
+This module provides database connection and management utilities for SQLite.
 """
 from typing import Optional
 from sqlmodel import SQLModel, Session, create_engine
+from sqlalchemy import text
 from app.utils.config import DATABASE_URL, DEBUG
 
-# Create database engine
+# Create SQLite database engine with appropriate settings
 engine = create_engine(
-    DATABASE_URL, 
+    DATABASE_URL,
     echo=DEBUG,
-    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+    connect_args={"check_same_thread": False}  # SQLite-specific setting for multi-threading
 )
 
 
 def create_db_and_tables():
     """Create all tables defined in the models if they don't exist"""
     try:
-        # Set extend_existing=True to update existing tables
-        for table in SQLModel.metadata.tables.values():
-            table.schema = None  # Ensure no schema is set
-            table.extend_existing = True  # Allow extending existing tables
-            
+        # Since we're using SQLite, no schema management is needed
         SQLModel.metadata.create_all(engine)
     except Exception as e:
-        # Check if the error is about existing tables
         if "Table is already defined" in str(e):
-            # This is expected when tables already exist
+            # Table already exists in SQLite
             pass
         else:
-            # This is an unexpected error
             raise e
 
 
 def get_session() -> Session:
     """Get a new database session
-    
+
     Returns:
-        Session: A new SQLModel database session
+        Session: A new SQLite database session
     """
     return Session(engine)
 
 
-def init_db(recreate_tables=False):
-    """Initialize the database and create tables
-    
-    This function should be called once at application startup.
-    
+def init_db(recreate_tables: bool = False) -> bool:
+    """Initialize the SQLite database
+
     Args:
-        recreate_tables (bool): If True, drop existing tables and recreate them
+        recreate_tables: If True, will drop and recreate all tables
+
+    Returns:
+        bool: True if initialization was successful
     """
     try:
         if recreate_tables:
-            # Drop all tables and recreate them
             SQLModel.metadata.drop_all(engine)
-            print("Database tables dropped successfully.")
-        
-        # Create tables
         create_db_and_tables()
-        print("Database tables created successfully.")
         return True
     except Exception as e:
-        print(f"Error creating database tables: {e}")
+        print(f"Error initializing database: {e}")
         return False
 
 
 def test_db_connection() -> tuple[bool, Optional[str]]:
-    """Test the database connection
+    """Test the SQLite database connection
 
     Returns:
-        tuple[bool, Optional[str]]: Success status and error message (if any)
+        tuple[bool, Optional[str]]: (success, error_message)
     """
     try:
-        from sqlalchemy import text
+        # For SQLite, we just need to check if we can create a session and execute a query
         with get_session() as session:
-            # Execute a simple query
             session.execute(text("SELECT 1"))
         return True, None
     except Exception as e:
-        error_message = f"Database connection error: {str(e)}"
-        return False, error_message
+        return False, str(e)

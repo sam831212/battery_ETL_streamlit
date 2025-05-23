@@ -1,0 +1,217 @@
+"""
+Documentation Generator Script
+
+This script extracts function signatures, dependencies, and documentation from Python files
+while ignoring implementation details.
+"""
+import ast
+import sys
+from pathlib import Path
+from typing import Dict, List, Optional, Set, Tuple
+
+class FunctionDoc:
+    def __init__(self):
+        self.name: str = ""
+        self.docstring: str = ""
+        self.args: List[str] = []
+        self.returns: Optional[str] = None
+        self.decorators: List[str] = []
+        self.used_imports: Set[str] = set()
+
+    def __str__(self) -> str:
+        output = []
+        if self.decorators:
+            output.extend(f"@{dec}" for dec in self.decorators)
+        
+        signature = f"def {self.name}({', '.join(self.args)})"
+        if self.returns:
+            signature += f" -> {self.returns}"
+        output.append(signature)
+        
+        if self.docstring:
+            output.append(self.docstring)
+        
+        if self.used_imports:
+            output.append("\nDirect Dependencies:")
+            output.extend(f"- {imp}" for imp in sorted(self.used_imports))
+        
+        return "\n".join(output)
+
+class DocExtractor(ast.NodeVisitor):
+    def __init__(self):
+        self.functions: List[FunctionDoc] = []
+        self.import_map: Dict[str, str] = {}
+        
+    def visit_Import(self, node: ast.Import):
+        for name in node.names:
+            alias = name.asname or name.name
+            self.import_map[alias] = name.name
+        self.generic_visit(node)
+        
+    def visit_ImportFrom(self, node: ast.ImportFrom):
+        if node.module:
+            for name in node.names:
+                alias = name.asname or name.name
+                self.import_map[alias] = f"{node.module}.{name.name}"
+        self.generic_visit(node)
+        
+    def visit_FunctionDef(self, node: ast.FunctionDef):
+        # Create function documentation object
+        func_doc = FunctionDoc()
+        func_doc.name = node.name
+        
+        # Get decorators
+        func_doc.decorators = [ast.unparse(dec) for dec in node.decorator_list]
+        
+        # Get arguments
+        args = []
+        for arg in node.args.args:
+            arg_str = arg.arg
+            if arg.annotation:
+                arg_str += f": {ast.unparse(arg.annotation)}"
+            args.append(arg_str)
+            
+        if node.args.vararg:
+            args.append(f"*{node.args.vararg.arg}")
+        if node.args.kwarg:
+            args.append(f"**{node.args.kwarg.arg}")
+        
+        func_doc.args = args
+        
+        # Get return annotation
+        if node.returns:
+            func_doc.returns = ast.unparse(node.returns)
+            
+        # Get docstring
+        if (docstring := ast.get_docstring(node)):
+            func_doc.docstring = f'"""\n{docstring}\n"""'
+            
+        # Collect used names in function body
+        name_collector = NameCollector()
+        name_collector.visit(node)
+        
+        # Map collected names to their full import paths
+        for name in name_collector.names:
+            if name in self.import_map:
+                func_doc.used_imports.add(self.import_map[name])
+                
+        self.functions.append(func_doc)
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        if node.module:
+            for name in node.names:
+                alias = name.asname or name.name
+                self.import_map[alias] = f"{node.module}.{name.name}"
+        self.generic_visit(node)
+    
+    def visit_Name(self, node: ast.Name) -> None:
+        if isinstance(node.ctx, ast.Load) and self.current_function:
+            self.used_names.add(node.id)
+        self.generic_visit(node)
+
+    def visit_Attribute(self, node: ast.Attribute) -> None:
+        if isinstance(node.ctx, ast.Load) and self.current_function:
+            # Get the full attribute chain
+            attrs = []
+            current = node
+            while isinstance(current, ast.Attribute):
+                attrs.append(current.attr)
+                current = current.value
+            if isinstance(current, ast.Name):
+                attrs.append(current.id)
+                # The root name might be an imported module
+                root = attrs[-1]
+                if root in self.import_map:
+                    self.used_names.add(root)
+        self.generic_visit(node)    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        func_doc = FunctionDoc()
+        func_doc.name = node.name
+        
+        # Get decorators
+        func_doc.decorators = [ast.unparse(dec).strip() for dec in node.decorator_list]
+        
+        # Get arguments
+        args = []
+        for arg in node.args.args:
+            arg_str = arg.arg
+            if arg.annotation:
+                arg_str += f": {ast.unparse(arg.annotation)}"
+            args.append(arg_str)
+        
+        if node.args.vararg:
+            args.append(f"*{node.args.vararg.arg}")
+        if node.args.kwarg:
+            args.append(f"**{node.args.kwarg.arg}")
+            
+        func_doc.args = args
+        
+        # Get return annotation
+        if node.returns:
+            func_doc.returns = ast.unparse(node.returns)
+        
+        # Get docstring
+        if (docstring := ast.get_docstring(node)):
+            func_doc.docstring = f'"""\n{docstring}\n"""'
+        
+        # Track used imports within this function
+        self.current_function = func_doc
+        self.used_names = set()
+        self.generic_visit(node)
+        
+        # Map used names to their full import paths
+        for name in self.used_names:
+            if name in self.import_map:
+                func_doc.used_imports.add(self.import_map[name])
+        
+        self.functions.append(func_doc)
+        self.current_function = None
+
+def process_file(file_path: str) -> str:
+    with open(file_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    tree = ast.parse(content)
+    extractor = DocExtractor()
+    extractor.visit(tree)
+    
+    output = []
+    output.append(f"# Function Documentation for {Path(file_path).name}\n")
+    
+    if extractor.imports:
+        output.append("## Module Dependencies")
+        output.extend(f"- {imp}" for imp in sorted(extractor.imports))
+        output.append("")
+    
+    output.append("## Functions\n")
+    for func in extractor.functions:
+        output.append("### " + func.name)
+        output.append("```python")
+        output.append(str(func))
+        output.append("```")
+        output.append("")
+    
+    return "\n".join(output)
+
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: python doc_generator.py <python_file>")
+        sys.exit(1)
+    
+    file_path = sys.argv[1]
+    try:
+        documentation = process_file(file_path)
+        # Create docs directory if it doesn't exist
+        docs_dir = Path('docs')
+        docs_dir.mkdir(exist_ok=True)
+        
+        # Save in docs directory with original filename
+        output_path = docs_dir / Path(file_path).with_suffix('.md').name
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(documentation)
+        print(f"Documentation generated: {output_path}")
+    except Exception as e:
+        print(f"Error processing file: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

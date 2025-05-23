@@ -115,12 +115,12 @@ st.title(f"{menu_items[st.session_state['current_page']]} {st.session_state['cur
 
 # Display different content based on the selected page
 if st.session_state['current_page'] == "Data Preview":
-    from app.ui.preview import render_preview_page
+    from app.ui.preview_page import render_preview_page
     render_preview_page()
     
 elif st.session_state['current_page'] == "Step Selection":
     # Import step selection page
-    from app.ui.step_selection import render_step_selection_page
+    from app.ui.step_selection_page import render_step_selection_page
     
     # Check if we have data in session state
     if 'steps_df' not in st.session_state or 'details_df' not in st.session_state:
@@ -138,7 +138,7 @@ elif st.session_state['current_page'] == "Step Selection":
         )
 
 elif st.session_state['current_page'] == "Experiment Info":
-    from app.ui.refactored_upload import render_upload_page  # Use the refactored upload module
+    from app.ui.exp_meta_data_page import render_upload_page  # Use the refactored upload module
     
     # Always render the tabbed interface for experiment info
     render_upload_page()
@@ -156,9 +156,9 @@ elif st.session_state['current_page'] == "Experiment Info":
         st.success(f"You've selected {len(st.session_state.selected_steps_for_db)} steps for processing.")
     
 elif st.session_state['current_page'] == "Dashboard":
-    from app.ui.dashboard import render_dashboard_page
+    from app.ui.dashboard_page import render_dashboard_page
     render_dashboard_page()
     
 elif st.session_state['current_page'] == "Settings":
-    from app.ui.settings import render_settings_page
+    from app.ui.settings_page import render_settings_page
     render_settings_page()
