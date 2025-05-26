@@ -200,10 +200,11 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         'step_number', 
         'original_step_type', 
         'step_type', 
+        'duration',  # 使用原始資料中的工步執行時間(秒)
         'c_rate_range', 
         'soc_range', 
-        'temperature_range'
-    ]
+        'temperature_range',
+        ]
     
     # Add full_discharge_reference column for selection
     filtered_df['full_discharge_reference'] = False
@@ -236,13 +237,18 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
     # Only show discharge steps for reference selection
     if not discharge_only.empty:
         # Create a radio button for selecting the reference discharge step
+        # 只取前 5 個放電工步
         discharge_options = {
             f"Step {row['step_number']} ({row['original_step_type']})": idx 
-            for idx, row in discharge_only.iterrows()
+            for idx, row in discharge_only.head(5).iterrows()
         }
         
         # Add a "None" option
         discharge_options["None (Auto-detect)"] = None
+        
+        # 如果放電工步超過 5 個，顯示提示訊息
+        if len(discharge_only) > 5:
+            st.info(f"顯示前 5 個放電工步（共 {len(discharge_only)} 個）。")
         
         # Determine the current index in options based on session state
         current_idx = st.session_state.full_discharge_step_idx
@@ -291,13 +297,14 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         edited_df = st.data_editor(
             filtered_df[display_cols + ['db_selection']],
             column_config={
-                "step_number": st.column_config.NumberColumn("Step #"),
-                "original_step_type": st.column_config.TextColumn("Original Type"),
-                "step_type": st.column_config.TextColumn("Action"),
-                "c_rate_range": st.column_config.TextColumn("C-rate"),
-                "soc_range": st.column_config.TextColumn("SOC Range"),
-                "temperature_range": st.column_config.TextColumn("Temp Range"),
-                "db_selection": st.column_config.CheckboxColumn("Select for DB"),
+                "step_number": st.column_config.NumberColumn("工步編號"),
+                "original_step_type": st.column_config.TextColumn("原始工步類型"),
+                "step_type": st.column_config.TextColumn("工步動作"),
+                "c_rate_range": st.column_config.TextColumn("充放電倍率"),
+                "soc_range": st.column_config.TextColumn("SOC範圍"),
+                "temperature_range": st.column_config.TextColumn("溫度範圍"),
+                "duration": st.column_config.NumberColumn("工步執行時間(秒)", format="%.1f"),
+                "db_selection": st.column_config.CheckboxColumn("選擇載入資料庫"),
             },
             hide_index=True,
             use_container_width=True,
@@ -421,14 +428,15 @@ def display_selected_steps_overview(filtered_df: pd.DataFrame, selected_indices:
         st.plotly_chart(fig, use_container_width=True)
     
     # Show the selected steps table
-    st.write("Selected Steps:")
+    st.write("已選擇的工步：")
     display_cols = [
         'step_number', 
         'original_step_type', 
         'step_type', 
         'c_rate_range', 
         'soc_range', 
-        'temperature_range'
+        'temperature_range',
+        'duration'
     ]
     st.dataframe(selected_df[display_cols], hide_index=True, use_container_width=True)
 

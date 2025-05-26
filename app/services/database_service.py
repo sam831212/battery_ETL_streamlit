@@ -246,14 +246,6 @@ def save_steps_to_db(
 ) -> List[Step]:
     """
     Save step data to the database.
-
-    Args:
-        experiment_id: ID of the experiment
-        steps_df: Step data DataFrame
-        nominal_capacity: Nominal capacity of the battery
-
-    Returns:
-        List of created Step objects
     """
     steps = []
 
@@ -261,14 +253,26 @@ def save_steps_to_db(
         for _, row in steps_df.iterrows():
             row_dict = convert_numpy_types(row.to_dict())
 
-            # 轉換日期時間
+            try:
+                step_number = int(row_dict.get("step_number"))
+                step_type = row_dict.get("step_type")
+            except Exception as e:
+                print(f"步驟資料缺少必要欄位: {e}")
+                continue
+
             start_time = convert_datetime_to_python(row_dict.get("start_time"))
             end_time = convert_datetime_to_python(row_dict.get("end_time"))
 
+            try:
+                c_rate = abs(row_dict.get("current", 0.0)) / nominal_capacity if nominal_capacity else 0.0
+            except Exception as e:
+                print(f"c_rate 計算錯誤: {e}")
+                c_rate = 0.0
+
             step = Step(
                 experiment_id=experiment_id,
-                step_number=row_dict["step_number"],
-                step_type=row_dict["step_type"],
+                step_number=step_number,
+                step_type=step_type,
                 start_time=start_time,
                 end_time=end_time,
                 duration=row_dict.get("duration", 0.0),
@@ -280,7 +284,7 @@ def save_steps_to_db(
                 temperature_avg=row_dict.get("temperature_avg", 25.0),
                 temperature_min=row_dict.get("temperature_min", 25.0),
                 temperature_max=row_dict.get("temperature_max", 25.0),
-                c_rate=abs(row_dict.get("current", 0.0)) / nominal_capacity,
+                c_rate=c_rate,
                 soc_start=row_dict.get("soc_start"),
                 soc_end=row_dict.get("soc_end"),
                 ocv=row_dict.get("ocv"),

@@ -69,28 +69,6 @@ def display_data_statistics(step_df: pd.DataFrame, detail_df: pd.DataFrame):
         step_types = step_df['step_type'].value_counts()
         common_step = step_types.index[0] if not step_types.empty else "N/A"
         st.metric("Primary Step Type", common_step)
-    
-    # Display step type distribution
-    step_type_counts = step_df['step_type'].value_counts().reset_index()
-    step_type_counts.columns = ['Step Type', 'Count']
-    
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        st.write("Step Types")
-        st.dataframe(step_type_counts, use_container_width=True)
-    
-    with col2:
-        fig = px.pie(
-            step_type_counts, 
-            values='Count', 
-            names='Step Type', 
-            title='Distribution of Step Types',
-            color='Step Type',
-            color_discrete_sequence=px.colors.qualitative.Bold
-        )
-        fig.update_traces(textposition='inside', textinfo='percent+label')
-        st.plotly_chart(fig, use_container_width=True)
 
 
 def display_data_tables(step_df: pd.DataFrame, detail_df: pd.DataFrame):
@@ -106,106 +84,72 @@ def display_data_tables(step_df: pd.DataFrame, detail_df: pd.DataFrame):
     # Create tabs for different data tables
     table_tabs = st.tabs([
         "Step Data", 
-        "Detail Data", 
-        "Statistics"
+        "Detail Data"
     ])
     
     # Tab 1: Step Data
     with table_tabs[0]:
         st.write("### Step Data Preview")
         
-        # Add column filter
-        all_step_columns = step_df.columns.tolist()
-        default_step_columns = ['step_number', 'step_type', 'original_step_type', 
-                               'capacity', 'current', 'voltage_start', 'voltage_end']
+        # 定義欄位顯示順序
+        column_order = [
+            'step_number',        # 工步
+            'original_step_type', # 原始工步種類
+            'start_time',        # 日期時間
+            'duration',          # 工步執行時間(秒)
+            'voltage_start',     # 開始電壓
+            'voltage_end',       # 截止電壓(V)
+            'current',           # 截止電流(A)
+            'capacity',          # 截止電量(Ah)
+            'total_capacity',    # 總電量(Ah)
+            'energy',           # 能量(Wh)
+            'power',            # 功率(W)
+            'temperature'        # Aux T1
+        ]
         
-        # Ensure default columns exist in the data
-        default_step_columns = [col for col in default_step_columns if col in all_step_columns]
+        # 建立中英文欄位對照表
+        column_mapping = {
+            'step_number': '工步',
+            'step_type': '工步種類',
+            'start_time': '日期時間',
+            'capacity': '截止電量(Ah)',
+            'current': '截止電流(A)',
+            'voltage_end': '截止電壓(V)',
+            'voltage_start': '開始電壓',  # 改為中文顯示
+            'original_step_type': '原始工步種類',
+            'energy': '能量(Wh)',
+            'total_capacity': '總電量(Ah)',
+            'power': '功率(W)',
+            'temperature': 'Aux T1',
+            'duration': '工步執行時間(秒)'
+        }
         
-        selected_step_columns = st.multiselect(
-            "Select columns to display:",
-            options=all_step_columns,
-            default=default_step_columns
+        # 確保所有要顯示的欄位都存在於資料中
+        display_columns = [col for col in column_order if col in step_df.columns]
+        
+        # 按照指定順序顯示欄位，使用中文名稱
+        st.dataframe(
+            step_df[display_columns].rename(columns=column_mapping),
+            use_container_width=True,
+            height=300
         )
-        
-        if selected_step_columns:
-            st.dataframe(
-                step_df[selected_step_columns],
-                use_container_width=True,
-                height=300
-            )
-        else:
-            st.info("Please select at least one column to display.")
     
     # Tab 2: Detail Data
     with table_tabs[1]:
         st.write("### Detail Data Preview")
         
-        # Add column filter
-        all_detail_columns = detail_df.columns.tolist()
-        default_detail_columns = ['step_number', 'current', 'voltage', 
-                                 'capacity', 'temperature', 'timestamp']
-        
-        # Ensure default columns exist in the data
-        default_detail_columns = [col for col in default_detail_columns if col in all_detail_columns]
-        
-        selected_detail_columns = st.multiselect(
-            "Select columns to display:",
-            options=all_detail_columns,
-            default=default_detail_columns
-        )
-        
-        if selected_detail_columns:
-            # For large datasets, show only a sample
-            if len(detail_df) > 10000:
-                st.info(f"Showing a sample of {10000} records out of {len(detail_df)} total records.")
-                display_df = detail_df.sample(10000) if len(detail_df) > 10000 else detail_df
-            else:
-                display_df = detail_df
-                
-            st.dataframe(
-                display_df[selected_detail_columns],
-                use_container_width=True,
-                height=300
-            )
+        # For large datasets, show only a sample
+        if len(detail_df) > 10000:
+            st.info(f"Showing a sample of {10000} records out of {len(detail_df)} total records.")
+            display_df = detail_df.sample(10000) if len(detail_df) > 10000 else detail_df
         else:
-            st.info("Please select at least one column to display.")
-    
-    # Tab 3: Statistics
-    with table_tabs[2]:
-        st.write("### Data Statistics")
-        
-        stats_tabs = st.tabs([
-            "Step Statistics", 
-            "Detail Statistics"
-        ])
-        
-        with stats_tabs[0]:
-            st.write("#### Step Data Statistics")
+            display_df = detail_df
             
-            # For numeric columns only
-            numeric_cols = step_df.select_dtypes(include=['number']).columns.tolist()
-            if numeric_cols:
-                stats_df = step_df[numeric_cols].describe().T
-                st.dataframe(stats_df, use_container_width=True)
-            else:
-                st.info("No numeric columns found in step data.")
-        
-        with stats_tabs[1]:
-            st.write("#### Detail Data Statistics")
-            
-            # For numeric columns only
-            numeric_cols = detail_df.select_dtypes(include=['number']).columns.tolist()
-            if numeric_cols:
-                # For large datasets, calculate stats on a sample
-                if len(detail_df) > 50000:
-                    st.info(f"Calculating statistics on a sample of 50,000 records due to large dataset size.")
-                    stats_df = detail_df[numeric_cols].sample(50000).describe().T
-                else:
-                    stats_df = detail_df[numeric_cols].describe().T
-                st.dataframe(stats_df, use_container_width=True)
-            else:
-                st.info("No numeric columns found in detail data.")
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            height=300
+        )
 
 
 def display_visualizations(step_df: pd.DataFrame, detail_df: pd.DataFrame):
@@ -467,11 +411,11 @@ def apply_transformations(step_df: pd.DataFrame, detail_df: pd.DataFrame, nomina
                         if len(discharge_steps) >= 2:
                             reference_step_idx = discharge_steps_sorted.index[1]  # 2nd discharge step
                             reference_step = discharge_steps.loc[reference_step_idx]
-                            st.write(f"Using the 2nd discharge step (step {reference_step['step_number']}) as reference. Voltage: {reference_step['voltage_end']}V")
+                            default_reference = f"Step {reference_step['step_number']} ({reference_step['original_step_type']})"
                         else:
                             reference_step_idx = discharge_steps_sorted.index[0]  # 1st discharge step if only one exists
                             reference_step = discharge_steps.loc[reference_step_idx]
-                            st.write(f"Using the only discharge step (step {reference_step['step_number']}) as reference. Voltage: {reference_step['voltage_end']}V")
+                            default_reference = f"Step {reference_step['step_number']} ({reference_step['original_step_type']})"
                         
                         # Create a reference step selector
                         discharge_steps_dict = {
@@ -479,11 +423,21 @@ def apply_transformations(step_df: pd.DataFrame, detail_df: pd.DataFrame, nomina
                             for idx, row in discharge_steps.iterrows()
                         }
                         
+                        # Initialize session state for reference step if not exists
+                        if 'selected_reference_step' not in st.session_state:
+                            st.session_state.selected_reference_step = default_reference
+                        
+                        # Define callback function for selectbox
+                        def on_reference_step_change():
+                            st.session_state.selected_reference_step = st.session_state.reference_step_selector
+                        
+                        # Create selectbox with callback
                         selected_reference = st.selectbox(
                             "Select reference discharge step for 0% SOC:",
                             options=list(discharge_steps_dict.keys()),
-                            index=list(discharge_steps_dict.keys()).index(f"Step {reference_step['step_number']} ({reference_step['original_step_type']})") 
-                                if f"Step {reference_step['step_number']} ({reference_step['original_step_type']})" in discharge_steps_dict.keys() else 0
+                            index=list(discharge_steps_dict.keys()).index(st.session_state.selected_reference_step),
+                            key="reference_step_selector",
+                            on_change=on_reference_step_change
                         )
                         
                         selected_reference_idx = discharge_steps_dict[selected_reference]
@@ -511,32 +465,16 @@ def apply_transformations(step_df: pd.DataFrame, detail_df: pd.DataFrame, nomina
                         steps_with_soc_values = steps_with_soc.dropna(subset=['soc_end'])
                         
                         if not steps_with_soc_values.empty:
-                            col1, col2 = st.columns(2)
-                            
-                            with col1:
-                                fig = px.scatter(
-                                    steps_with_soc_values, 
-                                    x='voltage_end', 
-                                    y='soc_end',
-                                    title='SOC vs Voltage',
-                                    labels={'voltage_end': 'Voltage (V)', 'soc_end': 'SOC (%)'},
-                                    hover_data=['step_number', 'original_step_type', 'total_capacity'],
-                                    color='step_type'
-                                )
-                                st.plotly_chart(fig, use_container_width=True)
-                            
-                            with col2:
-                                if 'total_capacity' in steps_with_soc_values.columns:
-                                    fig = px.scatter(
-                                        steps_with_soc_values, 
-                                        x='total_capacity', 
-                                        y='soc_end', 
-                                        title='SOC vs Total Capacity',
-                                        labels={'total_capacity': 'Total Capacity (Ah)', 'soc_end': 'SOC (%)'},
-                                        hover_data=['step_number', 'original_step_type'],
-                                        color='step_type'
-                                    )
-                                    st.plotly_chart(fig, use_container_width=True)
+                            fig = px.scatter(
+                                steps_with_soc_values, 
+                                x='voltage_end', 
+                                y='soc_end',
+                                title='SOC vs Voltage',
+                                labels={'voltage_end': 'Voltage (V)', 'soc_end': 'SOC (%)'},
+                                hover_data=['step_number', 'original_step_type', 'total_capacity'],
+                                color='step_type'
+                            )
+                            st.plotly_chart(fig, use_container_width=True)
                             
                             # Success message
                             st.success("Successfully calculated SOC for this dataset!")
