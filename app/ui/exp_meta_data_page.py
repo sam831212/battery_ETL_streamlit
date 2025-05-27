@@ -4,10 +4,10 @@ Upload UI components for the Battery ETL Dashboard
 This module provides UI components for uploading and processing battery test data files.
 """
 import streamlit as st
-from app.ui.componenets.entity_management_ui import render_cell_management
-from app.ui.componenets.entity_management_ui import render_machine_management
-from app.ui.componenets.experiment_info_ui import render_experiment_metadata
-from app.ui.componenets.selected_data_processing_ui import render_preview_data_section
+from app.ui.components.meta_data_page.entity_management_ui import render_cell_management
+from app.ui.components.meta_data_page.entity_management_ui import render_machine_management
+from app.ui.components.meta_data_page.experiment_info_ui import render_experiment_metadata
+from app.ui.components.meta_data_page.selected_data_processing_ui import render_preview_data_section
 from app.utils.config import UPLOAD_FOLDER
 from app.etl import (
     validate_csv_format, 

@@ -139,7 +139,12 @@ def calculate_soc(steps_df: pd.DataFrame, details_df: pd.DataFrame, full_dischar
         previous_idx = step_indices[reference_step_pos - 1]
         if 'total_capacity' in steps.loc[previous_idx] and pd.notna(steps.loc[previous_idx, 'total_capacity']):
             previous_total_capacity = steps.loc[previous_idx, 'total_capacity']
-            steps.at[reference_step_idx, 'soc_start'] = 100 * (previous_total_capacity - reference_total_capacity) / abs(reference_capacity)
+            # Ensure both are scalars
+            if isinstance(previous_total_capacity, pd.Series):
+                previous_total_capacity = previous_total_capacity.iloc[0]
+            if isinstance(reference_total_capacity, pd.Series):
+                reference_total_capacity = reference_total_capacity.iloc[0]
+            steps.at[reference_step_idx, 'soc_start'] = 100 * (float(previous_total_capacity) - float(reference_total_capacity)) / abs(float(reference_capacity))
     
     # Return updated steps and unchanged details
     return steps, details_df
@@ -201,12 +206,12 @@ def calculate_temperature_metrics(df: pd.DataFrame, temp_column: str = 'temperat
     result_df = df.copy()
     
     # Calculate temperature metrics for each step
-    metrics = df.groupby('step_number')[temp_column].agg([
-        ('temperature_avg', 'mean'),
-        ('temperature_min', 'min'),
-        ('temperature_max', 'max'),
-        ('temperature_std', 'std')
-    ]).reset_index()
+    metrics = df.groupby('step_number')[temp_column].agg(
+        temperature_avg='mean',
+        temperature_min='min',
+        temperature_max='max',
+        temperature_std='std'
+    ).reset_index()
     
     # Replace NaN values in standard deviation with 0
     metrics['temperature_std'] = metrics['temperature_std'].fillna(0)

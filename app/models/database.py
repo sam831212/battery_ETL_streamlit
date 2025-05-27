@@ -5,7 +5,7 @@ This module defines SQLModel classes for the battery test data schema,
 including experiments, test steps, and measurement details.
 """
 from typing import List, Optional, Dict, Any, TYPE_CHECKING, ForwardRef
-from datetime import datetime
+from datetime import datetime, UTC  # Import UTC
 from enum import Enum
 from sqlmodel import Field, SQLModel, Relationship, Column, JSON
 
@@ -15,8 +15,8 @@ if TYPE_CHECKING:
 
 class BaseModel(SQLModel):
     """Base model with common fields and methods"""
-    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
-    updated_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)  # Changed to datetime.now(UTC)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)  # Changed to datetime.now(UTC)
 
 
 class CellChemistry(str, Enum):
@@ -155,7 +155,7 @@ class ProcessedFile(BaseModel, table=True):
     filename: str = Field(nullable=False)
     file_type: str = Field(nullable=False)  # step, detail
     file_hash: str = Field(nullable=False, unique=True)
-    processed_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    processed_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)  # Changed to datetime.now(UTC)
     row_count: int = Field(nullable=False)
     data_meta: dict = Field(default={}, sa_column=Column(JSON))
     

@@ -242,14 +242,30 @@ def update_experiment_end_date(experiment_id: int, end_time: datetime):
 def save_steps_to_db(
     experiment_id: int,
     steps_df: pd.DataFrame,
-    nominal_capacity: float
+    nominal_capacity: float,
+    session=None
 ) -> List[Step]:
     """
     Save step data to the database.
+    
+    Args:
+        experiment_id: ID of the experiment
+        steps_df: DataFrame containing step data
+        nominal_capacity: Nominal capacity value for c_rate calculation
+        session: Optional SQLAlchemy session object. If provided, this session will be used
+                 instead of creating a new one. This helps maintain object attachment to session.
+    
+    Returns:
+        List of Step objects that were added to the database
     """
     steps = []
-
-    with get_db_session() as session:
+    
+    # 決定是否使用提供的 session 或創建新的 session
+    own_session = session is None
+    if own_session:
+        session = next(get_db_session())
+    
+    try:
         for _, row in steps_df.iterrows():
             row_dict = convert_numpy_types(row.to_dict())
 
@@ -295,5 +311,23 @@ def save_steps_to_db(
             steps.append(step)
 
         session.commit()
-
+        
+        # 如果是我們創建的會話，需要做清理工作
+        # 如果是外部傳入的會話，不要修改其狀態（不要 expunge 對象）
+        if own_session:
+            # 如果使用自己的會話，則需要分離對象以避免 DetachedInstanceError
+            for step in steps:
+                session.expunge(step)
+                
+    except Exception as e:
+        print(f"保存步驟數據時發生錯誤: {e}")
+        # 只有在使用自己的會話時才做回滾，外部會話的控制權應留給調用者
+        if own_session:
+            session.rollback()
+        raise
+    finally:
+        # 只有在使用自己的會話時才關閉它，外部會話應由調用者負責關閉
+        if own_session:
+            session.close()
+            
     return steps

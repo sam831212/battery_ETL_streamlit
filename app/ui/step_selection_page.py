@@ -624,12 +624,11 @@ def render_step_selection_page(steps_df: pd.DataFrame, details_df: pd.DataFrame)
             selected_steps = []
             steps_df_with_soc = st.session_state.steps_df_with_soc
             details_df_with_soc = st.session_state.details_df_with_soc
-            
-            # Create list of step data dictionaries
+              # Create list of step data dictionaries
             for step_idx in st.session_state.selected_steps_for_db:
                 step_row = steps_df_with_soc.loc[step_idx].to_dict()
-                # Add the step_number explicitly to make it easier to reference
-                step_row['step_number'] = int(step_idx)
+                # 確保使用真正的工步編號，而不是DataFrame的索引
+                # 工步編號應該已經在step_row中，因為它是來自DataFrame的列
                 selected_steps.append(step_row)
             
             # Store the selected steps and related data in session state for the experiment info page

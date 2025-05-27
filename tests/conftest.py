@@ -1,7 +1,7 @@
 import pytest
 from sqlmodel import Session, SQLModel, create_engine
 from sqlalchemy.pool import StaticPool
-from app.models.database import BaseModel
+from app.models.database import BaseModel, Cell, Machine, Experiment, Step, Measurement, ProcessedFile
 
 @pytest.fixture(name="db_session")
 def db_session_fixture():
@@ -11,6 +11,7 @@ def db_session_fixture():
         "sqlite://",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
+        echo=False
     )
     
     # 創建所有表格
@@ -21,4 +22,4 @@ def db_session_fixture():
         yield session
         
     # 清理資料庫
-    SQLModel.metadata.drop_all(engine) 
+    SQLModel.metadata.drop_all(engine)
