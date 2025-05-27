@@ -17,9 +17,7 @@ def check_file_already_processed(file_hash: str) -> bool:
     Check if a file with the given hash has already been processed.
 
     Args:
-        file_hash: Hash value of the file
-
-    Returns:
+        file_hash: Hash value of the file    Returns:
         True if already processed, False otherwise
     """
     if not file_hash:
@@ -28,8 +26,9 @@ def check_file_already_processed(file_hash: str) -> bool:
     try:
         with get_db_session() as session:
             # Check if any ProcessedFile with this hash exists
-            existing_file = session.query(ProcessedFile).filter(
-                ProcessedFile.file_hash.__eq__(file_hash)
+            from sqlmodel import select
+            existing_file = session.exec(
+                select(ProcessedFile).where(ProcessedFile.file_hash == file_hash)
             ).first()
 
             return existing_file is not None
@@ -37,8 +36,9 @@ def check_file_already_processed(file_hash: str) -> bool:
         # If database connection fails, reset connection and try again
         try:
             with get_db_session() as session:
-                existing_file = session.query(ProcessedFile).filter(
-                    ProcessedFile.file_hash == file_hash
+                from sqlmodel import select
+                existing_file = session.exec(
+                    select(ProcessedFile).where(ProcessedFile.file_hash == file_hash)
                 ).first()
 
                 return existing_file is not None
@@ -214,8 +214,7 @@ def save_measurements_to_db(
             print(f"  批次準備保存: {len(measurements)} 個測量")
 
             if measurements:
-                try:
-                    # 記錄最後一個測量的詳細信息
+                try:                    # 記錄最後一個測量的詳細信息
                     last_measurement = measurements[-1]
                     print(f"  最後一個測量: step_id={last_measurement.step_id}, execution_time={last_measurement.execution_time}")
                     
@@ -225,9 +224,12 @@ def save_measurements_to_db(
                     print(f"  ✓ 成功保存 {len(measurements)} 個測量數據到資料庫")
                     
                     # 驗證保存是否成功
-                    saved_count = session.query(Measurement).filter(
-                        Measurement.step_id.in_([m.step_id for m in measurements])
-                    ).count()
+                    from sqlmodel import select, func
+                    saved_count = session.exec(
+                        select(func.count(Measurement.id)).where(
+                            Measurement.step_id.in_([m.step_id for m in measurements])
+                        )
+                    ).one()
                     print(f"  驗證: 資料庫中實際有 {saved_count} 個相關測量記錄")
                     
                 except Exception as e:
@@ -246,12 +248,14 @@ def save_measurements_to_db(
         print(f"跳過行數: {skipped_count} (step_number不匹配)")
         print(f"錯誤行數: {total_errors}")
         print(f"成功率: {(total_saved / row_count * 100):.1f}%" if row_count > 0 else "N/A")
-        
-        # 最終驗證
+          # 最終驗證
         if total_saved > 0:
-            final_count = session.query(Measurement).join(Step).filter(
-                Step.experiment_id == experiment_id
-            ).count()
+            from sqlmodel import select, func
+            final_count = session.exec(
+                select(func.count(Measurement.id))
+                .join(Step)
+                .where(Step.experiment_id == experiment_id)
+            ).one()
             print(f"實驗 {experiment_id} 的最終測量記錄總數: {final_count}")
         print("=======================================")
 

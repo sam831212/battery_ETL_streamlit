@@ -120,9 +120,7 @@ def handle_selected_steps_save():
                     steps.append(step)
 
                 # Create step ID mapping
-                step_mapping = {step.step_number: step.id for step in steps}
-
-                # Process measurement data if available
+                step_mapping = {step.step_number: step.id for step in steps}                # Process measurement data if available
                 if "selected_steps_details_df" in st.session_state and st.session_state["selected_steps_details_df"] is not None:
                     details_df = st.session_state["selected_steps_details_df"]
 
@@ -134,79 +132,29 @@ def handle_selected_steps_save():
                             st.session_state["details_df_transformed"]["step_number"].isin(selected_step_numbers)
                         ]
 
-                    # Save measurements to database
-                    batch_size = 1000  # Use a batch size to avoid memory issues
-                    detail_df_len = len(details_df)
-
-                    with st.spinner(f"Processing {detail_df_len} measurements..."):
-                        for i in range(0, detail_df_len, batch_size):
-                            batch = details_df.iloc[i:min(i+batch_size, detail_df_len)]
-                            measurements = []
-
-                            for _, row in batch.iterrows():
-                                row_dict = convert_numpy_types(row.to_dict())
-                                step_number = row_dict.get("step_number")
-                                step_id = step_mapping.get(step_number)
-
-                                if step_id is not None:
-                                    # 確保 execution_time 有值
-                                    execution_time = row_dict.get("execution_time")
-                                    if execution_time is None or pd.isna(execution_time):
-                                        # 嘗試使用替代列
-                                        execution_time = row_dict.get("execution_time_alt")
-                                        if execution_time is None or pd.isna(execution_time):
-                                            execution_time = 0.0
-
-                                    # 確保所有數值欄位都是有效的浮點數
-                                    voltage = row_dict.get("voltage", 0.0)
-                                    if pd.isna(voltage):
-                                        voltage = 0.0
-
-                                    current = row_dict.get("current", 0.0)
-                                    if pd.isna(current):
-                                        current = 0.0
-
-                                    temperature = row_dict.get("temperature", 25.0)
-                                    if pd.isna(temperature):
-                                        temperature = 25.0
-
-                                    capacity = row_dict.get("capacity", 0.0)
-                                    if pd.isna(capacity):
-                                        capacity = 0.0
-
-                                    energy = row_dict.get("energy", 0.0)
-                                    if pd.isna(energy):
-                                        energy = 0.0
-
-                                    soc = row_dict.get("soc")
-                                    if pd.isna(soc):
-                                        soc = None
-
-                                    try:
-                                        measurement = Measurement(
-                                            step_id=step_id,
-                                            execution_time=float(execution_time),
-                                            voltage=float(voltage),
-                                            current=float(current),
-                                            temperature=float(temperature),
-                                            capacity=float(capacity),
-                                            energy=float(energy),
-                                            soc=soc
-                                        )
-                                        measurements.append(measurement)
-                                    except Exception as e:
-                                        print(f"Error creating measurement: {str(e)}")
-
-                            # Add batch of measurements
-                            if measurements:
-                                try:
-                                    session.add_all(measurements)
-                                    session.flush()
-                                    print(f"Saved batch of {len(measurements)} measurements")
-                                except Exception as e:
-                                    session.rollback()
-                                    print(f"Error saving batch of measurements: {str(e)}")
-                                    st.error(f"Error saving measurements: {str(e)}")
+                    # Use the improved save_measurements_to_db function instead of inline processing
+                    print(f"DEBUG: About to save {len(details_df)} measurements using save_measurements_to_db")
+                    print(f"DEBUG: Step mapping: {step_mapping}")
+                    print(f"DEBUG: Available step numbers in details: {sorted(details_df['step_number'].unique()) if 'step_number' in details_df.columns else 'No step_number column'}")
+                    
+                    # Import and use the proven save_measurements_to_db function
+                    from app.services.database_service import save_measurements_to_db
+                    
+                    try:
+                        with st.spinner(f"Processing {len(details_df)} measurements..."):
+                            save_measurements_to_db(
+                                experiment_id=experiment.id,
+                                details_df=details_df,
+                                step_mapping=step_mapping,
+                                nominal_capacity=nominal_capacity
+                            )
+                            print(f"Successfully processed measurements using save_measurements_to_db")
+                            st.success(f"Successfully saved {len(details_df)} measurements")
+                    except Exception as e:
+                        print(f"Error in save_measurements_to_db: {str(e)}")
+                        st.error(f"Error saving measurements: {str(e)}")
+                        import traceback
+                        traceback.print_exc()
 
                 # Generate unique file hashes with timestamp to avoid duplicates
                 timestamp_str = datetime.now().strftime("%Y%m%d%H%M%S%f")

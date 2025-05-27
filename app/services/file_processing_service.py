@@ -11,7 +11,7 @@ from app.etl import convert_numpy_types, load_and_preprocess_files
 from app.models import Cell
 from app.services.database_service import check_file_already_processed, save_experiment_to_db, save_measurements_to_db, save_processed_files_to_db, update_experiment_end_date
 from app.services.validation_service import generate_validation_results
-from app.ui.components.data_display_ui import display_validation_summary
+from app.ui.components.meta_data_page.data_display_ui import display_validation_summary
 from app.services.database_service import save_steps_to_db
 from app.utils.database import get_session as get_db_session
 from app.utils.temp_files import calculate_file_hash, calculate_file_hash_from_memory, create_session_temp_file
@@ -329,10 +329,9 @@ def handle_file_processing_pipeline(file_data: Dict[str, Any]) -> bool:
                         detail_df["step_number"] = detail_df["step_number"].fillna(1).astype(int)
                         print("使用數據清理方式成功轉換 step_number")
                     except Exception as e2:
-                        print(f"數據清理也失敗: {str(e2)}")
-                        # 嘗試將所有數據轉換為字符串，然後再轉換為整數
+                        print(f"數據清理也失敗: {str(e2)}")                        # 嘗試將所有數據轉換為字符串，然後再轉換為整數
                         try:
-                            detail_df["step_number"] = detail_df["step_number"].astype(str).str.extract('(\d+)').astype(int)
+                            detail_df["step_number"] = detail_df["step_number"].astype(str).str.extract(r'(\d+)').astype(int)
                             print("使用正則表達式提取數字並轉換為整數")
                         except Exception as e3:
                             print(f"數據清理失敗: {str(e3)}")
