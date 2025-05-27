@@ -138,10 +138,10 @@ elif st.session_state['current_page'] == "Step Selection":
         )
 
 elif st.session_state['current_page'] == "Experiment Info":
-    from app.ui.exp_meta_data_page import render_upload_page  # Use the refactored upload module
+    from app.ui.meta_data_page import render_meta_data_page  # Use the refactored upload module
     
     # Always render the tabbed interface for experiment info
-    render_upload_page()
+    render_meta_data_page()
     
     # Check if steps have been selected in session state and show appropriate message
     if 'selected_steps_for_db' not in st.session_state or not st.session_state.selected_steps_for_db:

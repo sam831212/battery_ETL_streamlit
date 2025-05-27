@@ -24,8 +24,8 @@ from app.utils.temp_files import temp_file_from_upload
 EXAMPLE_FOLDER = "./example_csv_chromaLex"
 
 
-def render_upload_page():
-    """Render the upload page UI
+def render_meta_data_page():
+    """Render the meta_data page UI
     
     This function displays the experiment information components.
     """

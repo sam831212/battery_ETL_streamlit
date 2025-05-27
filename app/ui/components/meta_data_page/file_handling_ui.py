@@ -9,7 +9,7 @@ import streamlit as st
 from app.services.file_processing_service import get_file_data_and_metadata, handle_file_processing_pipeline
 from app.services.validation_service import validate_files
 from app.ui.componenets.data_display_ui import display_file_statistics, display_validation_results
-from app.ui.exp_meta_data_page import EXAMPLE_FOLDER
+from app.ui.meta_data_page import EXAMPLE_FOLDER
 
 
 def process_uploaded_files(step_file, detail_file):

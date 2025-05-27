@@ -158,9 +158,16 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
     # Initialize session state if needed
     init_step_selection_state()
     
-    # Calculate ranges for display
-    display_df = calculate_step_ranges(steps_df)
-    
+    # --- 決定顯示用的 DataFrame ---
+    # 若已經 pre-process 過，則顯示最新的 steps_df_with_soc
+    # 若剛按下 Update Selections，則顯示最新的 steps_df_with_soc
+    if st.session_state.steps_df_with_soc is not None:
+        display_df = calculate_step_ranges(st.session_state.steps_df_with_soc)
+    else:
+        display_df = calculate_step_ranges(steps_df)
+    # 讓 filtered_df 也指向最新的 display_df，確保後續顯示與選擇都用最新資料
+    filtered_df = display_df.copy()
+
     # Filter step types
     st.subheader("Filter Steps")
     
@@ -454,17 +461,8 @@ def create_processing_controls():
     
     col1, col2 = st.columns(2)
     
-    with col1:
-        preprocess_clicked = st.button(
-            "Pre-process Selected Steps",
-            type="primary",
-            use_container_width=True,
-            disabled=(st.session_state.full_discharge_step_idx is None)
-        )
-        
-        if st.session_state.full_discharge_step_idx is None:
-            st.info("Select a reference discharge step to enable pre-processing.")
-    
+    # 只保留 Load to Database 按鈕
+    preprocess_clicked = False
     with col2:
         load_db_clicked = st.button(
             "Load to Database",
@@ -472,12 +470,10 @@ def create_processing_controls():
             use_container_width=True,
             disabled=(len(st.session_state.selected_steps_for_db) == 0 or st.session_state.steps_df_with_soc is None)
         )
-        
         if len(st.session_state.selected_steps_for_db) == 0:
             st.info("Select steps for database loading.")
         elif st.session_state.steps_df_with_soc is None:
             st.info("Pre-process steps before loading to database.")
-    
     return preprocess_clicked, load_db_clicked
 
 
@@ -601,21 +597,6 @@ def render_step_selection_page(steps_df: pd.DataFrame, details_df: pd.DataFrame)
     
     # Create processing controls
     preprocess_clicked, load_db_clicked = create_processing_controls()
-    
-    # Handle pre-processing button click
-    if preprocess_clicked:
-        if st.session_state.full_discharge_step_idx is not None or not st.session_state.filtered_step_types:
-            steps_with_soc, details_with_soc = handle_reference_step_selection(
-                steps_df, 
-                details_df,
-                full_discharge_step_idx=st.session_state.full_discharge_step_idx
-            )
-            
-            # Update the steps_df with SOC values
-            steps_df = steps_with_soc
-            
-            # Force a rerun to update the UI with new values
-            st.rerun()
     
     # Handle load to DB button click
     if load_db_clicked:
