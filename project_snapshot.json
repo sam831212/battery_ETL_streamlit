@@ -40,48 +40,104 @@
     },
     "database.py:Cell": {
       "docstring": "Model representing a battery cell",
-      "attributes": [],
+      "attributes": [
+        "__table_args__"
+      ],
       "methods": [],
-      "relationships": []
+      "relationships": [
+        "__table_args__"
+      ]
     },
     "database.py:Machine": {
       "docstring": "Model representing a testing machine",
-      "attributes": [],
+      "attributes": [
+        "__table_args__"
+      ],
       "methods": [],
-      "relationships": []
+      "relationships": [
+        "__table_args__"
+      ]
     },
     "database.py:Experiment": {
       "docstring": "Model representing a battery test experiment",
-      "attributes": [],
+      "attributes": [
+        "__table_args__"
+      ],
       "methods": [],
-      "relationships": []
+      "relationships": [
+        "__table_args__"
+      ]
     },
     "database.py:Step": {
       "docstring": "Model representing a test step within an experiment",
-      "attributes": [],
+      "attributes": [
+        "__table_args__"
+      ],
       "methods": [],
-      "relationships": []
+      "relationships": [
+        "__table_args__"
+      ]
     },
     "database.py:Measurement": {
       "docstring": "Model representing detailed measurements within a step",
-      "attributes": [],
+      "attributes": [
+        "__table_args__"
+      ],
       "methods": [],
-      "relationships": []
+      "relationships": [
+        "__table_args__"
+      ]
     },
     "database.py:ProcessedFile": {
       "docstring": "Model to track processed files to prevent duplicates",
-      "attributes": [],
+      "attributes": [
+        "__table_args__"
+      ],
       "methods": [],
-      "relationships": []
+      "relationships": [
+        "__table_args__"
+      ]
     },
     "database.py:SavedView": {
       "docstring": "Model representing a saved dashboard configuration",
-      "attributes": [],
+      "attributes": [
+        "__table_args__"
+      ],
       "methods": [],
-      "relationships": []
+      "relationships": [
+        "__table_args__"
+      ]
     }
   },
   "etl_functions": {
+    "extraction.py:convert_numpy_types": {
+      "signature": "convert_numpy_types(obj)",
+      "docstring": "Convert numpy data types to Python native types for compatibility with database storage.\n    \n    Ar..."
+    },
+    "extraction.py:validate_csv_format": {
+      "signature": "validate_csv_format(file_path, expected_headers)",
+      "docstring": "Validate that a CSV file has the required headers.\n\n    Args:\n        file_path: Path to the CSV fil..."
+    },
+    "extraction.py:map_step_types": {
+      "signature": "map_step_types(df, step_type_col)",
+      "docstring": "Map step types to standardized categories (charge, discharge, rest).\n    Preserves original step typ..."
+    },
+    "extraction.py:calculate_file_hash": {
+      "signature": "calculate_file_hash(file_path)",
+      "docstring": "Calculate MD5 hash of a file for tracking processed files.\n\n    Args:\n        file_path: Path to the..."
+    },
+    "extraction.py:parse_step_csv": {
+      "signature": "parse_step_csv(file_path)",
+      "docstring": "Parse Step.csv file from ChromaLex format.\n\n    Args:\n        file_path: Path to the Step.csv file\n\n..."
+    },
+    "extraction.py:parse_detail_csv": {
+      "signature": "parse_detail_csv(file_path)",
+      "docstring": "Parse Detail.csv file from ChromaLex format.\n\n    Args:\n        file_path: Path to the Detail.csv fi..."
+    },
+    "extraction.py:load_and_preprocess_files": {
+      "signature": "load_and_preprocess_files(step_file_path, detail_file_path, nominal_capacity, apply_transformations)",
+      "docstring": "Load and preprocess both Step.csv and Detail.csv files.\n\n    Args:\n        step_file_path: Path to t..."
+    },
     "transformation.py:calculate_c_rate": {
       "signature": "calculate_c_rate(current, nominal_capacity)",
       "docstring": "Calculate C-rate based on current and nominal capacity.\n\n    C-rate = |Current (A)| / Nominal Capaci..."
@@ -137,34 +193,6 @@
     "validation.py:generate_summary_table": {
       "signature": "generate_summary_table(selected_steps, include_stats, include_validation)",
       "docstring": "Generate a summary table with key statistics for selected steps.\n    \n    Args:\n        selected_ste..."
-    },
-    "extraction.py:convert_numpy_types": {
-      "signature": "convert_numpy_types(obj)",
-      "docstring": "Convert numpy data types to Python native types for compatibility with database storage.\n    \n    Ar..."
-    },
-    "extraction.py:validate_csv_format": {
-      "signature": "validate_csv_format(file_path, expected_headers)",
-      "docstring": "Validate that a CSV file has the required headers.\n\n    Args:\n        file_path: Path to the CSV fil..."
-    },
-    "extraction.py:map_step_types": {
-      "signature": "map_step_types(df, step_type_col)",
-      "docstring": "Map step types to standardized categories (charge, discharge, rest).\n    Preserves original step typ..."
-    },
-    "extraction.py:calculate_file_hash": {
-      "signature": "calculate_file_hash(file_path)",
-      "docstring": "Calculate MD5 hash of a file for tracking processed files.\n\n    Args:\n        file_path: Path to the..."
-    },
-    "extraction.py:parse_step_csv": {
-      "signature": "parse_step_csv(file_path)",
-      "docstring": "Parse Step.csv file from ChromaLex format.\n\n    Args:\n        file_path: Path to the Step.csv file\n\n..."
-    },
-    "extraction.py:parse_detail_csv": {
-      "signature": "parse_detail_csv(file_path)",
-      "docstring": "Parse Detail.csv file from ChromaLex format.\n\n    Args:\n        file_path: Path to the Detail.csv fi..."
-    },
-    "extraction.py:load_and_preprocess_files": {
-      "signature": "load_and_preprocess_files(step_file_path, detail_file_path, nominal_capacity, apply_transformations)",
-      "docstring": "Load and preprocess both Step.csv and Detail.csv files.\n\n    Args:\n        step_file_path: Path to t..."
     }
   },
   "db_utils": {
@@ -174,15 +202,15 @@
     },
     "database.py:get_session": {
       "signature": "get_session()",
-      "docstring": "Get a new database session\n\n    Returns:\n        Session: A new SQLModel database session..."
+      "docstring": "Get a new database session\n\n    Returns:\n        Session: A new SQLite database session..."
     },
     "database.py:init_db": {
-      "signature": "init_db()",
-      "docstring": "Initialize the database and create tables\n    \n    This function should be called once at applicatio..."
+      "signature": "init_db(recreate_tables)",
+      "docstring": "Initialize the SQLite database\n\n    Args:\n        recreate_tables: If True, will drop and recreate a..."
     },
     "database.py:test_db_connection": {
       "signature": "test_db_connection()",
-      "docstring": "Test the database connection\n\n    Returns:\n        tuple[bool, Optional[str]]: Success status and er..."
+      "docstring": "Test the SQLite database connection\n\n    Returns:\n        tuple[bool, Optional[str]]: (success, erro..."
     }
   },
   "migration_functions": {
@@ -194,40 +222,40 @@
       "signature": "run_migrations_online()",
       "docstring": "Run migrations in 'online' mode.\n\n    In this scenario we need to create an Engine\n    and associate..."
     },
-    "versions/dae7f2a38ed8_initial_migration.py:upgrade": {
+    "versions\\de227a3297e5_init_all_tables.py:upgrade": {
       "signature": "upgrade()",
       "docstring": "Upgrade schema...."
     },
-    "versions/dae7f2a38ed8_initial_migration.py:downgrade": {
-      "signature": "downgrade()",
-      "docstring": "Downgrade schema...."
-    },
-    "versions/82b95d02febb_add_name_to_cell.py:upgrade": {
-      "signature": "upgrade()",
-      "docstring": "Upgrade schema...."
-    },
-    "versions/82b95d02febb_add_name_to_cell.py:downgrade": {
+    "versions\\de227a3297e5_init_all_tables.py:downgrade": {
       "signature": "downgrade()",
       "docstring": "Downgrade schema...."
     }
   },
   "ui_components": [
+    "dashboard_page.py",
+    "exp_meta_data_page.py",
+    "preview_page.py",
+    "settings_page.py",
+    "step_selection_page.py",
     "__init__.py",
-    "dashboard.py",
-    "step_selection.py",
-    "settings.py",
-    "preview.py",
-    "upload.py"
+    "components\\meta_data_page\\data_display_ui.py",
+    "components\\meta_data_page\\entity_management_ui.py",
+    "components\\meta_data_page\\experiment_info_ui.py",
+    "components\\meta_data_page\\file_handling_ui.py",
+    "components\\meta_data_page\\selected_data_processing_ui.py",
+    "components\\preview_page\\data_display_ui.py"
   ],
   "utils": [
-    "__init__.py",
     "config.py",
     "database.py",
-    "migration.py"
+    "data_helpers.py",
+    "migration.py",
+    "temp_files.py",
+    "__init__.py"
   ],
   "visualization": [
+    "battery_plots.py",
     "utils.py",
-    "__init__.py",
-    "battery_plots.py"
+    "__init__.py"
   ]
 }

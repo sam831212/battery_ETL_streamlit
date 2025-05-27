@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 import pandas as pd
+from sqlmodel import select
 from app.etl import convert_numpy_types
 from app.models import Experiment, Measurement, ProcessedFile, Step
 from app.utils.data_helpers import convert_datetime_to_python
@@ -104,7 +105,27 @@ def save_measurements_to_db(
     print("===== DEBUG: save_measurements_to_db =====")
     print(f"Experiment ID: {experiment_id}")
     print(f"Details DataFrame length: {len(details_df)}")
+    print(f"Details DataFrame columns: {list(details_df.columns)}")
     print(f"Step mapping: {step_mapping}")
+    print(f"Step mapping keys: {list(step_mapping.keys()) if step_mapping else 'None'}")
+    
+    # 顯示 DataFrame 的前幾行作為樣本
+    if not details_df.empty:
+        print(f"DataFrame 頭5行樣本:")
+        print(details_df.head())
+        print(f"DataFrame 資料類型:")
+        print(details_df.dtypes)
+        
+        # 檢查 step_number 的唯一值
+        unique_step_numbers = details_df['step_number'].unique() if 'step_number' in details_df.columns else []
+        print(f"DataFrame 中的唯一 step_number: {unique_step_numbers}")
+        
+        # 檢查哪些 step_number 在 step_mapping 中存在
+        if step_mapping:
+            matched_steps = [step for step in unique_step_numbers if step in step_mapping]
+            unmatched_steps = [step for step in unique_step_numbers if step not in step_mapping]
+            print(f"匹配的 step_number: {matched_steps}")
+            print(f"不匹配的 step_number: {unmatched_steps}")
 
     if details_df.empty:
         print("警告：沒有測量數據需要保存")
@@ -114,6 +135,7 @@ def save_measurements_to_db(
     missing_columns = [col for col in required_columns if col not in details_df.columns]
     if missing_columns:
         print(f"警告：缺少必要的列：{missing_columns}")
+        print(f"可用的列: {list(details_df.columns)}")
         return
 
     if not step_mapping:
@@ -123,17 +145,30 @@ def save_measurements_to_db(
     with get_db_session() as session:
         total_saved = 0
         total_errors = 0
+        skipped_count = 0
+        row_count = 0
+
+        print(f"開始處理 {len(details_df)} 行數據，批次大小: {batch_size}")
 
         # 將 DataFrame 分成批次處理
-        for i in range(0, len(details_df), batch_size):
+        for batch_num, i in enumerate(range(0, len(details_df), batch_size)):
             batch_df = details_df.iloc[i:i + batch_size]
             measurements = []
+            batch_errors = 0
+            batch_skipped = 0
+            
+            print(f"處理批次 {batch_num + 1}: 行 {i} 到 {min(i + batch_size, len(details_df))}")
 
-            for _, row in batch_df.iterrows():
+            for row_idx, row in batch_df.iterrows():
+                row_count += 1
                 try:
                     # 轉換數據類型並四捨五入到適當的小數位數
                     step_number = int(row['step_number'])
+                    
                     if step_number not in step_mapping:
+                        batch_skipped += 1
+                        if batch_skipped <= 5:  # 只顯示前5個跳過的記錄
+                            print(f"  跳過行 {row_idx}: step_number {step_number} 不在 step_mapping 中")
                         continue
 
                     step_id = step_mapping[step_number]
@@ -156,24 +191,69 @@ def save_measurements_to_db(
                         soc=soc
                     )
                     measurements.append(measurement)
+                    
+                    # 記錄第一個和最後一個測量的詳細信息
+                    if len(measurements) == 1:
+                        print(f"  第一個測量: step_id={step_id}, execution_time={execution_time}, voltage={voltage}, current={current}")
 
                 except (ValueError, TypeError) as e:
-                    print(f"警告：數據轉換錯誤 - {str(e)}")
+                    batch_errors += 1
                     total_errors += 1
+                    if batch_errors <= 3:  # 只顯示前3個錯誤
+                        print(f"  錯誤處理行 {row_idx}: {str(e)}")
+                        print(f"    原始數據: {dict(row)}")
                     continue
+
+            # 批次統計
+            skipped_count += batch_skipped
+            if batch_skipped > 5:
+                print(f"  批次跳過總計: {batch_skipped} 行")
+            if batch_errors > 3:
+                print(f"  批次錯誤總計: {batch_errors} 行")
+            
+            print(f"  批次準備保存: {len(measurements)} 個測量")
 
             if measurements:
                 try:
+                    # 記錄最後一個測量的詳細信息
+                    last_measurement = measurements[-1]
+                    print(f"  最後一個測量: step_id={last_measurement.step_id}, execution_time={last_measurement.execution_time}")
+                    
                     session.add_all(measurements)
                     session.commit()
                     total_saved += len(measurements)
-                    print(f"已保存 {len(measurements)} 個測量數據")
+                    print(f"  ✓ 成功保存 {len(measurements)} 個測量數據到資料庫")
+                    
+                    # 驗證保存是否成功
+                    saved_count = session.query(Measurement).filter(
+                        Measurement.step_id.in_([m.step_id for m in measurements])
+                    ).count()
+                    print(f"  驗證: 資料庫中實際有 {saved_count} 個相關測量記錄")
+                    
                 except Exception as e:
-                    print(f"錯誤：保存測量數據時發生錯誤 - {str(e)}")
+                    print(f"  ✗ 錯誤：保存測量數據時發生錯誤 - {str(e)}")
+                    print(f"    錯誤類型: {type(e).__name__}")
+                    import traceback
+                    traceback.print_exc()
                     session.rollback()
                     total_errors += len(measurements)
+            else:
+                print(f"  批次沒有有效的測量數據需要保存")
 
-        print(f"總共保存了 {total_saved} 個測量數據，{total_errors} 個錯誤")
+        print(f"===== 保存完成統計 =====")
+        print(f"總處理行數: {row_count}")
+        print(f"成功保存: {total_saved} 個測量數據")
+        print(f"跳過行數: {skipped_count} (step_number不匹配)")
+        print(f"錯誤行數: {total_errors}")
+        print(f"成功率: {(total_saved / row_count * 100):.1f}%" if row_count > 0 else "N/A")
+        
+        # 最終驗證
+        if total_saved > 0:
+            final_count = session.query(Measurement).join(Step).filter(
+                Step.experiment_id == experiment_id
+            ).count()
+            print(f"實驗 {experiment_id} 的最終測量記錄總數: {final_count}")
+        print("=======================================")
 
 
 def save_processed_files_to_db(

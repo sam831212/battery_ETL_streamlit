@@ -1,3 +1,4 @@
+
 """
 Handles UI for managing database entities like Cells and Machines
 """

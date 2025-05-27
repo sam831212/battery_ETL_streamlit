@@ -284,7 +284,7 @@ def render_preview_page():
     st.subheader("Upload and analyze your data before processing")
     reload_col, continue_col = st.columns([1, 3])
     with reload_col:
-        if st.button("🔄 重新載入/重設預覽頁", key="reload_preview_page_btn"):
+        if st.button("🔄 重載預覽頁", key="reload_preview_page_btn"):
             # 清除 session_state 中相關資料
             for k in [
                 'steps_df', 'details_df',
