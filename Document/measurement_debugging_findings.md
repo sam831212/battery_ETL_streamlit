@@ -1,4 +1,30 @@
 # Measurement Debugging Findings - May 28, 2025
+解決
+總結一下我們進行的更改和原因（中文）：
+
+問題描述： 您在 Streamlit 應用程式中將實驗數據（特別是測量數據 Measurement）保存到 SQLite 資料庫時，遇到了 "database is locked"（資料庫已鎖定）的錯誤。這個問題主要發生在 selected_data_processing_ui.py 文件中的 handle_selected_steps_save 函數，該函數會調用 database_service.py 中的 save_measurements_to_db 函數。
+
+根本原因是在 handle_selected_steps_save 函數中，創建 Experiment（實驗）、多個 Step（步驟）以及隨後保存所有相關的 Measurement（測量數據）的整個過程都包含在一個單一的、長時間運行的資料庫事務中。儘管 save_measurements_to_db 函數本身被重構為對每個批次的測量數據使用獨立的事務，但這些內部的“子事務”與來自 UI 處理函數的外部“父事務”產生了衝突。
+
+解決方案： 我們主要通過以下兩個步驟進行了重構：
+
+在 database_service.py 的 save_measurements_to_db 函數中：
+
+修改了 save_measurements_to_db 函數，使其分批處理和保存測量數據。
+每個批次的數據都在其自己的 safe_session（安全會話）上下文中處理，這意味著每個批次都有自己獨立的資料庫事務（提交/回滾）。
+retry_database_operation（資料庫操作重試）邏輯被應用於處理單個批次的操作，從而能在更細的粒度上重試因暫時性“資料庫鎖定”導致的錯誤。
+在 selected_data_processing_ui.py 的 handle_selected_steps_save 函數中：
+
+將原來那個單一的、龐大的資料庫事務進行了拆分。
+首先，創建 Experiment 和 Step 對象，然後立即提交 (commit) 到資料庫。這樣做可以確保這些初始記錄被成功寫入，並釋放與這部分操作相關的任何資料庫鎖。
+然後，再調用 save_measurements_to_db 函數。由於此時實驗和步驟數據已經被提交，save_measurements_to_db（及其內部的批次事務）在執行時就不會與 UI 處理函數中針對這些父實體數據的、長時間未關閉的事務發生衝突。
+最後，ProcessedFile（已處理文件）記錄以及對 Experiment 的任何更新（例如 end_date 結束日期）會在一個新的事務中提交。
+帶來的好處：
+
+減少鎖競爭： 縮短了單個資料庫事務的持續時間，顯著降低了發生 "database is locked" 錯誤的機率。
+提高穩健性： save_measurements_to_db 中的批次重試機制使得測量數據的保存過程對暫時性的資料庫鎖定更具彈性。
+更清晰的事務邊界： 代碼邏輯更清晰，更容易理解每個原子性的資料庫操作包含哪些數據。
+改進的錯誤恢復（部分）： 即使保存測量數據失敗，核心的 Experiment 和 Step 數據也已經成功持久化到資料庫中。
 
 ## Issue Summary
 

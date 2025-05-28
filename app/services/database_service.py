@@ -89,32 +89,31 @@ def retry_on_failure(max_attempts: int = 3, delay: float = 1.0):
 
 @contextmanager
 def safe_session():
-    """安全的資料庫會話管理，包含重試機制"""
+    """安全的資料庫會話管理"""
     session = SessionLocal()
-    retry_count = 0
-    max_retries = 3
-    
     try:
-        while retry_count < max_retries:
-            try:
-                yield session
-                session.commit()
-                break
-            except Exception as e:
-                session.rollback()
-                retry_count += 1
-
-                # 如果是資料庫鎖定錯誤，等待後重試
-                if "database is locked" in str(e) and retry_count < max_retries:
-                    print(f"資料庫被鎖定，等待重試 ({retry_count}/{max_retries})")
-                    time.sleep(0.5 * retry_count)  # 遞增等待時間
-                    continue
-
-                raise DatabaseError(f"資料庫會話錯誤: {str(e)}")
-        else:
-            raise DatabaseError("資料庫操作超過最大重試次數")
+        yield session
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        raise
     finally:
         session.close()
+
+def retry_database_operation(operation_func, max_retries=3, retry_delay=0.5):
+    """重試資料庫操作的裝飾器函數"""
+    for attempt in range(max_retries):
+        try:
+            return operation_func()
+        except Exception as e:
+            if "database is locked" in str(e) and attempt < max_retries - 1:
+                logger.warning(f"資料庫被鎖定，等待重試 ({attempt + 1}/{max_retries})，錯誤: {str(e)}")
+                time.sleep(retry_delay * (attempt + 1))  # 遞增等待時間
+                continue
+            else:
+                raise e
+    
+    raise DatabaseError("資料庫操作超過最大重試次數")
 
 def validate_required_columns(df: pd.DataFrame, required_columns: List[str]) -> None:
     """驗證必要欄位"""
@@ -222,17 +221,20 @@ def create_measurement_from_row(
         row: 數據行
         step_mapping: 步驟映射
         config: 處理配置
-        
-    Returns:
+          Returns:
         測量對象或 None（如果無法創建）
     """
     try:
         step_number = int(row['step_number'])
-        
         if step_number not in step_mapping:
             return None
 
         step_id = step_mapping[step_number]
+        
+        # Critical validation: Ensure step_id is not None
+        if step_id is None:
+            logger.error(f"step_id 為 None: step_number={step_number}, step_mapping={step_mapping}")
+            return None
         execution_time = float(row['execution_time'])
         voltage = round_numeric_value(row['voltage'], config.voltage_precision)
         current = round_numeric_value(row['current'], config.current_precision)
@@ -312,7 +314,7 @@ def save_measurements_batch(
     if not measurements:
         logger.info(f"批次 {batch_num}: 沒有數據需要保存")
         return
-        
+    
     try:
         # 分小批次處理，避免一次性插入太多數據
         small_batch_size = 50
@@ -325,58 +327,11 @@ def save_measurements_batch(
             if i + small_batch_size < len(measurements):
                 time.sleep(0.01)
         
-            for batch_num, i in enumerate(range(0, len(details_df), batch_size), 1):
-                batch_df = details_df.iloc[i:i + batch_size]
-                
-                if progress_callback:
-                    progress_callback(f"處理批次 {batch_num}/{(len(details_df) - 1) // batch_size + 1}")
-                
-                measurements, skipped, errors = process_measurements_batch(
-                    batch_df, step_mapping, config, progress_callback
-                )
-                
-                total_skipped += skipped
-                total_errors += errors
-                
-                if measurements:
-                    save_measurements_batch(session, measurements, batch_num)
-                    total_saved += len(measurements)
-            
-            session.commit()
-            
-            # 最終統計
-            logger.info(f"保存完成統計:")
-            logger.info(f"成功保存: {total_saved} 個測量數據")
-            logger.info(f"跳過行數: {total_skipped} (step_number不匹配)")
-            logger.info(f"錯誤行數: {total_errors}")
-            logger.info(f"成功率: {(total_saved / len(details_df) * 100):.1f}%")
-            
-    except Exception as e:
-        raise DatabaseError(f"保存測量數據失敗: {str(e)}")
-def save_measurements_batch(
-    session: Session,
-    measurements: List[Measurement],
-    batch_num: int
-) -> None:
-    """
-    保存測量數據批次到資料庫
-    
-    Args:
-        session: 資料庫會話
-        measurements: 測量列表
-        batch_num: 批次編號
-    """
-    if not measurements:
-        logger.info(f"批次 {batch_num}: 沒有數據需要保存")
-        return
-        
-    try:
-        session.add_all(measurements)
-        session.flush()
         logger.info(f"批次 {batch_num}: 成功準備保存 {len(measurements)} 個測量數據")
     except Exception as e:
         session.rollback()
         raise ProcessingError(f"批次 {batch_num} 保存失敗: {str(e)}")
+
 
 def save_measurements_to_db(
     experiment_id: int,
@@ -411,42 +366,60 @@ def save_measurements_to_db(
         raise ValidationError("步驟映射為空")
 
     logger.info(f"開始處理 {len(details_df)} 行數據，批次大小: {batch_size}")
-    
-    total_saved = 0
-    total_errors = 0
-    total_skipped = 0
+    total_saved_measurements = 0
+    total_error_rows = 0
+    total_skipped_rows = 0
 
-    try:
-        with safe_session() as session:
-            for batch_num, i in enumerate(range(0, len(details_df), batch_size), 1):
-                batch_df = details_df.iloc[i:i + batch_size]
-                
-                if progress_callback:
-                    progress_callback(f"處理批次 {batch_num}/{(len(details_df) - 1) // batch_size + 1}")
-                
-                measurements, skipped, errors = process_measurements_batch(
-                    batch_df, step_mapping, config, progress_callback
-                )
-                
-                total_skipped += skipped
-                total_errors += errors
-                
-                if measurements:
-                    save_measurements_batch(session, measurements, batch_num)
-                    total_saved += len(measurements)
+    for batch_num, i in enumerate(range(0, len(details_df), batch_size), 1):
+        batch_df = details_df.iloc[i:i + batch_size]
+        
+        if progress_callback:
+            progress_callback(f"處理批次 {batch_num}/{(len(details_df) - 1) // batch_size + 1}")
+        
+        # Define the operation for a single batch, to be wrapped by retry logic
+        def process_and_save_one_batch():
+            # This function processes one batch_df and saves it in a new session.
+            # It returns (num_saved, num_skipped, num_errors) for this batch.
             
-            session.commit()
+            _measurements, _skipped, _errors = process_measurements_batch(
+                batch_df, step_mapping, config, progress_callback
+            )
             
-            # 最終統計
-            logger.info(f"保存完成統計:")
-            logger.info(f"成功保存: {total_saved} 個測量數據")
-            logger.info(f"跳過行數: {total_skipped} (step_number不匹配)")
-            logger.info(f"錯誤行數: {total_errors}")
-            logger.info(f"成功率: {(total_saved / len(details_df) * 100):.1f}%")
+            _saved_this_batch = 0
+            if _measurements:
+                # Each batch gets its own session and transaction
+                with safe_session() as session: # Correctly use safe_session for commit/rollback
+                    save_measurements_batch(session, _measurements, batch_num)
+                    # commit is handled by safe_session
+                _saved_this_batch = len(_measurements)
             
-    except Exception as e:
-        raise DatabaseError(f"保存測量數據失敗: {str(e)}")
-    
+            return _saved_this_batch, _skipped, _errors
+
+        try:
+            # Apply retry logic to the processing and saving of this single batch
+            saved_count, skipped_count, error_count = retry_database_operation(process_and_save_one_batch)
+            
+            total_saved_measurements += saved_count
+            total_skipped_rows += skipped_count
+            total_error_rows += error_count
+            
+        except Exception as e:
+            # If a batch fails even after retries, log it and re-raise to stop further processing.
+            logger.error(f"批次 {batch_num} 永久失敗，即使重試後: {str(e)}")
+            # Wrap the original exception to preserve its details
+            raise DatabaseError(f"保存測量數據時，批次 {batch_num} 永久失敗: {str(e)}") from e
+
+    # 最終統計
+    logger.info("保存完成統計:")
+    logger.info(f"成功保存: {total_saved_measurements} 個測量數據")
+    logger.info(f"跳過行數: {total_skipped_rows} (原因: step_number不匹配或創建測量對象時內部錯誤)")
+    logger.info(f"錯誤行數: {total_error_rows} (原因: 創建測量對象時數據驗證/轉換失敗)")
+    if not details_df.empty: # Check if details_df was empty to avoid division by zero
+        success_rate = (total_saved_measurements / len(details_df) * 100) if len(details_df) > 0 else 0.0
+        logger.info(f"成功率: {success_rate:.1f}%")
+    else:
+        logger.info("沒有數據進行處理，成功率不適用。")
+
 def save_steps_to_db(
     experiment_id: int,
     steps_df: pd.DataFrame,

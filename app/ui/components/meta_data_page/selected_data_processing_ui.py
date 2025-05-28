@@ -1,17 +1,15 @@
 """UI related to processing data that might have been selected or prepared in a previous step/preview."""
-
-
-
-
+import streamlit as st
 import pandas as pd
 from sqlmodel import desc, func, select
 from datetime import datetime
-import streamlit as st
+import traceback
 
 from app.etl import convert_numpy_types
 from app.models import Cell, Experiment, Machine, Measurement, ProcessedFile, Step
 from app.utils.data_helpers import convert_datetime_to_python
 from app.utils.database import get_session as get_db_session
+from app.services.database_service import save_measurements_to_db
 
 
 def handle_selected_steps_save():
@@ -87,6 +85,7 @@ def handle_selected_steps_save():
                 # Verify experiment got a valid ID
                 if experiment.id is None:
                     st.error("Error: Failed to create experiment in database")
+                    session.rollback() # Rollback before returning
                     return
 
                 # Process steps using transformed data
@@ -131,8 +130,19 @@ def handle_selected_steps_save():
                 invalid_steps = [step.step_number for step in steps if step.id is None]
                 if invalid_steps:
                     st.error(f"Error: Steps {invalid_steps} did not receive valid database IDs")
+                    session.rollback() # Rollback before returning
                     return
                 
+                # Commit Experiment and Steps before processing measurements
+                try:
+                    session.commit() 
+                    st.info(f"Experiment '{experiment.name}' and {len(steps)} steps initially saved with ID {experiment.id}.")
+                except Exception as e:
+                    st.error(f"Error committing experiment and steps: {str(e)}")
+                    session.rollback()
+                    st.exception(e)
+                    return
+
                 print(f"DEBUG: Created step mapping: {step_mapping}")
                 
                 # Process measurement data if available
@@ -151,25 +161,59 @@ def handle_selected_steps_save():
                     print(f"DEBUG: About to save {len(details_df)} measurements using save_measurements_to_db")
                     print(f"DEBUG: Step mapping: {step_mapping}")
                     print(f"DEBUG: Available step numbers in details: {sorted(details_df['step_number'].unique()) if 'step_number' in details_df.columns else 'No step_number column'}")
-                    
-                    # Import and use the proven save_measurements_to_db function
-                    from app.services.database_service import save_measurements_to_db
+                      # Import and use the proven save_measurements_to_db function
+                    # from app.services.database_service import save_measurements_to_db # Moved to top
+                    # from sqlmodel import select, func # Moved to top
                     
                     try:
                         with st.spinner(f"Processing {len(details_df)} measurements..."):
+                            # Count existing measurements before (using the current session, which is now in a new transaction)
+                            existing_count = 0
+                            for step_id in step_mapping.values():
+                                count = session.exec(
+                                    select(func.count(Measurement.id)).where(Measurement.step_id == step_id)
+                                ).one()
+                                existing_count += count
+                            
                             save_measurements_to_db(
-                                experiment_id=experiment.id,
+                                experiment_id=experiment.id, # experiment.id is available after the commit
                                 details_df=details_df,
                                 step_mapping=step_mapping,
                                 nominal_capacity=nominal_capacity
                             )
-                            print(f"Successfully processed measurements using save_measurements_to_db")
-                            st.success(f"Successfully saved {len(details_df)} measurements")
+                            
+                            # Post-processing verification: Count actual measurements saved
+                            actual_count = 0
+                            for step_id in step_mapping.values():
+                                count = session.exec(
+                                    select(func.count(Measurement.id)).where(Measurement.step_id == step_id)
+                                ).one()
+                                actual_count += count
+                            
+                            new_measurements = actual_count - existing_count
+                            
+                            if new_measurements > 0:
+                                print(f"Successfully processed measurements using save_measurements_to_db")
+                                st.success(f"Successfully saved {new_measurements} new measurements to database (Total: {actual_count})")
+                            else:
+                                st.warning(f"⚠️ No new measurements were saved to database. Expected: {len(details_df)}, Actual: 0")
+                                print(f"WARNING: Expected {len(details_df)} measurements but 0 were saved")
+                                
                     except Exception as e:
-                        print(f"Error in save_measurements_to_db: {str(e)}")
-                        st.error(f"Error saving measurements: {str(e)}")
+                        error_msg = str(e)
+                        print(f"Error in save_measurements_to_db: {error_msg}")
+                        
+                        # Show specific error messages based on error type
+                        if "database is locked" in error_msg:
+                            st.error("❌ Database is locked. This might be due to concurrent operations. The system attempted retries. Please try again later if the issue persists.")
+                        elif "step_id" in error_msg and "None" in error_msg: # This condition might need review based on database_service changes
+                            st.error("❌ Data validation failed: Invalid step mapping detected during measurement processing. Please check your data.")
+                        else:
+                            st.error(f"❌ Error saving measurements: {error_msg}")
+                            
                         import traceback
                         traceback.print_exc()
+                        return  # Don't proceed with saving file records if measurement saving failed
 
                 # Generate unique file hashes with timestamp to avoid duplicates
                 timestamp_str = datetime.now().strftime("%Y%m%d%H%M%S%f")
@@ -177,6 +221,7 @@ def handle_selected_steps_save():
                 detail_file_hash = f"selected_details_{timestamp_str}"
 
                 # Save processed file records with unique hashes
+                # These will be part of a new transaction in the outer session
                 session.add(ProcessedFile(
                     experiment_id=experiment.id,
                     filename="Selected steps from session",
@@ -211,7 +256,7 @@ def handle_selected_steps_save():
                     if step_temps:
                         experiment.temperature_avg = sum(step_temps) / len(step_temps)
 
-                # Commit the changes
+                # Commit the changes (ProcessedFiles, Experiment end_date/temp_avg updates)
                 session.commit()
 
                 st.success(f"""
@@ -230,6 +275,7 @@ def handle_selected_steps_save():
 
         except Exception as e:
             st.error(f"Error saving data to database: {str(e)}")
+            # Avoid explicit rollback here if session context manager handles it
             st.exception(e)
 
 
