@@ -1,52 +1,167 @@
-"""Helper functions for direct database interactions."""
+"""Helper functions for direct database interactions - Refactored Version."""
 
-
+import logging
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Callable
+from dataclasses import dataclass
+from contextlib import contextmanager
+import time
+import os
 
 import pandas as pd
-from sqlmodel import select
+from sqlmodel import select, func, Session
 from app.etl import convert_numpy_types
 from app.models import Experiment, Measurement, ProcessedFile, Step
 from app.utils.data_helpers import convert_datetime_to_python
 from app.utils.database import get_session as get_db_session
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
+# 配置
+@dataclass
+class ProcessingConfig:
+    """處理配置類"""
+    default_batch_size: int = 1000
+    max_retry_attempts: int = 3
+    voltage_precision: int = 3
+    current_precision: int = 3
+    temperature_precision: int = 1
+    capacity_precision: int = 3
+    energy_precision: int = 3
+    soc_precision: int = 1
+    default_temperature: float = 25.0
 
+# 全域配置實例
+config = ProcessingConfig()
+
+# 設置日誌
+logger = logging.getLogger(__name__)
+
+# 自定義異常類別
+class DatabaseError(Exception):
+    """數據庫操作異常"""
+    pass
+
+class ValidationError(Exception):
+    """數據驗證異常"""
+    pass
+
+class ProcessingError(Exception):
+    """數據處理異常"""
+    pass
+
+# 修改引擎配置，添加連線池設定  
+from app.utils.config import DATABASE_URL
+
+engine = create_engine(
+    DATABASE_URL,
+    poolclass=StaticPool,
+    pool_pre_ping=True,
+    pool_recycle=300,
+    connect_args={
+        "check_same_thread": False,
+        "timeout": 30,  # 增加超時時間
+        "isolation_level": None  # 自動提交模式
+    },
+    echo=False
+)
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# 輔助函數
+def retry_on_failure(max_attempts: int = 3, delay: float = 1.0):
+    """重試裝飾器"""
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if attempt == max_attempts - 1:
+                        raise DatabaseError(f"操作失敗，已重試 {max_attempts} 次: {str(e)}")
+                    logger.warning(f"嘗試 {attempt + 1} 失敗，正在重試: {str(e)}")
+                    if delay > 0:
+                        time.sleep(delay)
+            return None
+        return wrapper
+    return decorator
+
+@contextmanager
+def safe_session():
+    """安全的資料庫會話管理，包含重試機制"""
+    session = SessionLocal()
+    retry_count = 0
+    max_retries = 3
+    
+    try:
+        while retry_count < max_retries:
+            try:
+                yield session
+                session.commit()
+                break
+            except Exception as e:
+                session.rollback()
+                retry_count += 1
+
+                # 如果是資料庫鎖定錯誤，等待後重試
+                if "database is locked" in str(e) and retry_count < max_retries:
+                    print(f"資料庫被鎖定，等待重試 ({retry_count}/{max_retries})")
+                    time.sleep(0.5 * retry_count)  # 遞增等待時間
+                    continue
+
+                raise DatabaseError(f"資料庫會話錯誤: {str(e)}")
+        else:
+            raise DatabaseError("資料庫操作超過最大重試次數")
+    finally:
+        session.close()
+
+def validate_required_columns(df: pd.DataFrame, required_columns: List[str]) -> None:
+    """驗證必要欄位"""
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        raise ValidationError(f"缺少必要的列: {missing_columns}")
+
+def round_numeric_value(value: Any, precision: int, default: float = 0.0) -> float:
+    """安全地四捨五入數值"""
+    try:
+        if pd.isna(value):
+            return default
+        return round(float(value), precision)
+    except (ValueError, TypeError):
+        return default
+
+def calculate_c_rate(current: float, nominal_capacity: float) -> float:
+    """計算 C-rate"""
+    try:
+        return abs(current) / nominal_capacity if nominal_capacity else 0.0
+    except (ValueError, TypeError, ZeroDivisionError):
+        return 0.0
+
+# 主要功能函數
+@retry_on_failure(max_attempts=config.max_retry_attempts)
 def check_file_already_processed(file_hash: str) -> bool:
     """
-    Check if a file with the given hash has already been processed.
-
+    檢查文件是否已經處理過
+    
     Args:
-        file_hash: Hash value of the file    Returns:
-        True if already processed, False otherwise
+        file_hash: 文件的雜湊值
+        
+    Returns:
+        True 如果已處理，False 否則
     """
     if not file_hash:
         return False
 
     try:
-        with get_db_session() as session:
-            # Check if any ProcessedFile with this hash exists
-            from sqlmodel import select
+        with safe_session() as session:
             existing_file = session.exec(
                 select(ProcessedFile).where(ProcessedFile.file_hash == file_hash)
             ).first()
-
             return existing_file is not None
     except Exception as e:
-        # If database connection fails, reset connection and try again
-        try:
-            with get_db_session() as session:
-                from sqlmodel import select
-                existing_file = session.exec(
-                    select(ProcessedFile).where(ProcessedFile.file_hash == file_hash)
-                ).first()
-
-                return existing_file is not None
-        except Exception as retry_error:
-            # Log the error and assume file has not been processed
-            print(f"Database error in check_file_already_processed: {str(retry_error)}")
-            return False
-
+        logger.error(f"檢查文件處理狀態時發生錯誤: {str(e)}")
+        return False
 
 def save_experiment_to_db(
     experiment_metadata: Dict[str, Any],
@@ -57,28 +172,28 @@ def save_experiment_to_db(
     temperature_avg: float
 ) -> Experiment:
     """
-    Create and save a new experiment record in the database.
-
+    創建並保存新的實驗記錄
+    
     Args:
-        experiment_metadata: Metadata about the experiment
-        validation_report: Validation report
-        cell_id: ID of the cell used in the experiment
-        machine_id: ID of the machine used in the experiment
-        battery_type: Type of battery used
-        temperature_avg: Average temperature
-
+        experiment_metadata: 實驗元數據
+        validation_report: 驗證報告
+        cell_id: 電池單元ID
+        machine_id: 機器ID
+        battery_type: 電池類型
+        temperature_avg: 平均溫度
+        
     Returns:
-        Created Experiment object
+        創建的實驗對象
     """
     experiment = Experiment(
         name=experiment_metadata['name'],
         description=experiment_metadata.get('description', ''),
         battery_type=battery_type,
         nominal_capacity=experiment_metadata['nominal_capacity'],
-        temperature_avg=temperature_avg,  # Convert numpy.float64 to Python float
+        temperature_avg=temperature_avg,
         operator=experiment_metadata.get('operator', ''),
         start_date=experiment_metadata['start_date'],
-        end_date=None,  # Will be updated after processing
+        end_date=None,
         data_meta=experiment_metadata,
         validation_status=validation_report['valid'],
         validation_report=validation_report,
@@ -86,288 +201,295 @@ def save_experiment_to_db(
         machine_id=machine_id
     )
 
-    with get_db_session() as session:
-        session.add(experiment)
-        session.commit()
-        session.refresh(experiment)
+    try:
+        with safe_session() as session:
+            session.add(experiment)
+            session.commit()
+            session.refresh(experiment)
+            return experiment
+    except Exception as e:
+        raise DatabaseError(f"保存實驗記錄失敗: {str(e)}")
 
-    return experiment
+def create_measurement_from_row(
+    row: pd.Series, 
+    step_mapping: Dict[int, int],
+    config: ProcessingConfig
+) -> Optional[Measurement]:
+    """
+    從數據行創建測量對象
+    
+    Args:
+        row: 數據行
+        step_mapping: 步驟映射
+        config: 處理配置
+        
+    Returns:
+        測量對象或 None（如果無法創建）
+    """
+    try:
+        step_number = int(row['step_number'])
+        
+        if step_number not in step_mapping:
+            return None
 
+        step_id = step_mapping[step_number]
+        execution_time = float(row['execution_time'])
+        voltage = round_numeric_value(row['voltage'], config.voltage_precision)
+        current = round_numeric_value(row['current'], config.current_precision)
+        temperature = round_numeric_value(
+            row.get('temperature', config.default_temperature), 
+            config.temperature_precision, 
+            config.default_temperature
+        )
+        capacity = round_numeric_value(row.get('capacity', 0.0), config.capacity_precision)
+        energy = round_numeric_value(row.get('energy', 0.0), config.energy_precision)
+        return Measurement(
+            step_id=step_id,
+            execution_time=execution_time,
+            voltage=voltage,
+            current=current,
+            temperature=temperature,
+            capacity=capacity,
+            energy=energy
+            # 注意：根據業務需求，SOC 數據不存儲到測量表中
+        )
+    except (ValueError, TypeError) as e:
+        logger.warning(f"創建測量對象失敗: {str(e)}")
+        return None
+
+def process_measurements_batch(
+    batch_df: pd.DataFrame,
+    step_mapping: Dict[int, int],
+    config: ProcessingConfig,
+    progress_callback: Optional[Callable[[str], None]] = None
+) -> tuple[List[Measurement], int, int]:
+    """
+    處理測量數據批次
+    
+    Args:
+        batch_df: 批次數據框
+        step_mapping: 步驟映射
+        config: 處理配置
+        progress_callback: 進度回調函數
+        
+    Returns:
+        (測量列表, 跳過數量, 錯誤數量)
+    """
+    measurements = []
+    skipped_count = 0
+    error_count = 0
+    
+    for row_idx, row in batch_df.iterrows():
+        if progress_callback:
+            progress_callback(f"處理行 {row_idx}")
+            
+        measurement = create_measurement_from_row(row, step_mapping, config)
+        
+        if measurement is None:
+            step_number = int(row.get('step_number', -1))
+            if step_number not in step_mapping:
+                skipped_count += 1
+            else:
+                error_count += 1
+        else:
+            measurements.append(measurement)
+    
+    return measurements, skipped_count, error_count
+
+def save_measurements_batch(
+    session: Session,
+    measurements: List[Measurement],
+    batch_num: int
+) -> None:
+    """
+    保存測量數據批次到資料庫
+    
+    Args:
+        session: 資料庫會話
+        measurements: 測量列表
+        batch_num: 批次編號
+    """
+    if not measurements:
+        logger.info(f"批次 {batch_num}: 沒有數據需要保存")
+        return
+        
+    try:
+        # 分小批次處理，避免一次性插入太多數據
+        small_batch_size = 50
+        for i in range(0, len(measurements), small_batch_size):
+            small_batch = measurements[i:i + small_batch_size]
+            session.add_all(small_batch)
+            session.flush()  # 立即寫入這個小批次
+            
+            # 每個小批次後短暫等待
+            if i + small_batch_size < len(measurements):
+                time.sleep(0.01)
+        
+            for batch_num, i in enumerate(range(0, len(details_df), batch_size), 1):
+                batch_df = details_df.iloc[i:i + batch_size]
+                
+                if progress_callback:
+                    progress_callback(f"處理批次 {batch_num}/{(len(details_df) - 1) // batch_size + 1}")
+                
+                measurements, skipped, errors = process_measurements_batch(
+                    batch_df, step_mapping, config, progress_callback
+                )
+                
+                total_skipped += skipped
+                total_errors += errors
+                
+                if measurements:
+                    save_measurements_batch(session, measurements, batch_num)
+                    total_saved += len(measurements)
+            
+            session.commit()
+            
+            # 最終統計
+            logger.info(f"保存完成統計:")
+            logger.info(f"成功保存: {total_saved} 個測量數據")
+            logger.info(f"跳過行數: {total_skipped} (step_number不匹配)")
+            logger.info(f"錯誤行數: {total_errors}")
+            logger.info(f"成功率: {(total_saved / len(details_df) * 100):.1f}%")
+            
+    except Exception as e:
+        raise DatabaseError(f"保存測量數據失敗: {str(e)}")
+def save_measurements_batch(
+    session: Session,
+    measurements: List[Measurement],
+    batch_num: int
+) -> None:
+    """
+    保存測量數據批次到資料庫
+    
+    Args:
+        session: 資料庫會話
+        measurements: 測量列表
+        batch_num: 批次編號
+    """
+    if not measurements:
+        logger.info(f"批次 {batch_num}: 沒有數據需要保存")
+        return
+        
+    try:
+        session.add_all(measurements)
+        session.flush()
+        logger.info(f"批次 {batch_num}: 成功準備保存 {len(measurements)} 個測量數據")
+    except Exception as e:
+        session.rollback()
+        raise ProcessingError(f"批次 {batch_num} 保存失敗: {str(e)}")
 
 def save_measurements_to_db(
     experiment_id: int,
     details_df: pd.DataFrame,
     step_mapping: Dict[int, int],
     nominal_capacity: float,
-    batch_size: int = 1000
-):
-    """保存測量數據到資料庫"""
-    print("===== DEBUG: save_measurements_to_db =====")
-    print(f"Experiment ID: {experiment_id}")
-    print(f"Details DataFrame length: {len(details_df)}")
-    print(f"Details DataFrame columns: {list(details_df.columns)}")
-    print(f"Step mapping: {step_mapping}")
-    print(f"Step mapping keys: {list(step_mapping.keys()) if step_mapping else 'None'}")
+    batch_size: Optional[int] = None,
+    progress_callback: Optional[Callable[[str], None]] = None
+) -> None:
+    """
+    保存測量數據到資料庫
     
-    # 顯示 DataFrame 的前幾行作為樣本
-    if not details_df.empty:
-        print(f"DataFrame 頭5行樣本:")
-        print(details_df.head())
-        print(f"DataFrame 資料類型:")
-        print(details_df.dtypes)
-        
-        # 檢查 step_number 的唯一值
-        unique_step_numbers = details_df['step_number'].unique() if 'step_number' in details_df.columns else []
-        print(f"DataFrame 中的唯一 step_number: {unique_step_numbers}")
-        
-        # 檢查哪些 step_number 在 step_mapping 中存在
-        if step_mapping:
-            matched_steps = [step for step in unique_step_numbers if step in step_mapping]
-            unmatched_steps = [step for step in unique_step_numbers if step not in step_mapping]
-            print(f"匹配的 step_number: {matched_steps}")
-            print(f"不匹配的 step_number: {unmatched_steps}")
-
+    Args:
+        experiment_id: 實驗ID
+        details_df: 詳細數據框
+        step_mapping: 步驟映射
+        nominal_capacity: 標稱容量
+        batch_size: 批次大小
+        progress_callback: 進度回調函數
+    """
     if details_df.empty:
-        print("警告：沒有測量數據需要保存")
+        logger.warning("沒有測量數據需要保存")
         return
 
+    batch_size = batch_size or config.default_batch_size
+    
+    # 驗證必要欄位
     required_columns = ['step_number', 'execution_time', 'voltage', 'current']
-    missing_columns = [col for col in required_columns if col not in details_df.columns]
-    if missing_columns:
-        print(f"警告：缺少必要的列：{missing_columns}")
-        print(f"可用的列: {list(details_df.columns)}")
-        return
-
+    validate_required_columns(details_df, required_columns)
+    
     if not step_mapping:
-        print("警告：步驟映射為空")
-        return
+        raise ValidationError("步驟映射為空")
 
-    with get_db_session() as session:
-        total_saved = 0
-        total_errors = 0
-        skipped_count = 0
-        row_count = 0
+    logger.info(f"開始處理 {len(details_df)} 行數據，批次大小: {batch_size}")
+    
+    total_saved = 0
+    total_errors = 0
+    total_skipped = 0
 
-        print(f"開始處理 {len(details_df)} 行數據，批次大小: {batch_size}")
-
-        # 將 DataFrame 分成批次處理
-        for batch_num, i in enumerate(range(0, len(details_df), batch_size)):
-            batch_df = details_df.iloc[i:i + batch_size]
-            measurements = []
-            batch_errors = 0
-            batch_skipped = 0
-            
-            print(f"處理批次 {batch_num + 1}: 行 {i} 到 {min(i + batch_size, len(details_df))}")
-
-            for row_idx, row in batch_df.iterrows():
-                row_count += 1
-                try:
-                    # 轉換數據類型並四捨五入到適當的小數位數
-                    step_number = int(row['step_number'])
-                    
-                    if step_number not in step_mapping:
-                        batch_skipped += 1
-                        if batch_skipped <= 5:  # 只顯示前5個跳過的記錄
-                            print(f"  跳過行 {row_idx}: step_number {step_number} 不在 step_mapping 中")
-                        continue
-
-                    step_id = step_mapping[step_number]
-                    execution_time = float(row['execution_time'])
-                    voltage = round(float(row['voltage']), 3)  # 保留3位小數
-                    current = round(float(row['current']), 3)  # 保留3位小數
-                    temperature = round(float(row.get('temperature', 25.0)), 1)  # 保留1位小數
-                    capacity = round(float(row.get('capacity', 0.0)), 3)  # 保留3位小數
-                    energy = round(float(row.get('energy', 0.0)), 3)  # 保留3位小數
-                    soc = round(float(row.get('soc', 0.0)), 1) if pd.notna(row.get('soc')) else None  # 保留1位小數
-
-                    measurement = Measurement(
-                        step_id=step_id,
-                        execution_time=execution_time,
-                        voltage=voltage,
-                        current=current,
-                        temperature=temperature,
-                        capacity=capacity,
-                        energy=energy,
-                        soc=soc
-                    )
-                    measurements.append(measurement)
-                    
-                    # 記錄第一個和最後一個測量的詳細信息
-                    if len(measurements) == 1:
-                        print(f"  第一個測量: step_id={step_id}, execution_time={execution_time}, voltage={voltage}, current={current}")
-
-                except (ValueError, TypeError) as e:
-                    batch_errors += 1
-                    total_errors += 1
-                    if batch_errors <= 3:  # 只顯示前3個錯誤
-                        print(f"  錯誤處理行 {row_idx}: {str(e)}")
-                        print(f"    原始數據: {dict(row)}")
-                    continue
-
-            # 批次統計
-            skipped_count += batch_skipped
-            if batch_skipped > 5:
-                print(f"  批次跳過總計: {batch_skipped} 行")
-            if batch_errors > 3:
-                print(f"  批次錯誤總計: {batch_errors} 行")
-            
-            print(f"  批次準備保存: {len(measurements)} 個測量")
-
-            if measurements:
-                try:                    # 記錄最後一個測量的詳細信息
-                    last_measurement = measurements[-1]
-                    print(f"  最後一個測量: step_id={last_measurement.step_id}, execution_time={last_measurement.execution_time}")
-                    
-                    session.add_all(measurements)
-                    session.commit()
+    try:
+        with safe_session() as session:
+            for batch_num, i in enumerate(range(0, len(details_df), batch_size), 1):
+                batch_df = details_df.iloc[i:i + batch_size]
+                
+                if progress_callback:
+                    progress_callback(f"處理批次 {batch_num}/{(len(details_df) - 1) // batch_size + 1}")
+                
+                measurements, skipped, errors = process_measurements_batch(
+                    batch_df, step_mapping, config, progress_callback
+                )
+                
+                total_skipped += skipped
+                total_errors += errors
+                
+                if measurements:
+                    save_measurements_batch(session, measurements, batch_num)
                     total_saved += len(measurements)
-                    print(f"  ✓ 成功保存 {len(measurements)} 個測量數據到資料庫")
-                    
-                    # 驗證保存是否成功
-                    from sqlmodel import select, func
-                    saved_count = session.exec(
-                        select(func.count(Measurement.id)).where(
-                            Measurement.step_id.in_([m.step_id for m in measurements])
-                        )
-                    ).one()
-                    print(f"  驗證: 資料庫中實際有 {saved_count} 個相關測量記錄")
-                    
-                except Exception as e:
-                    print(f"  ✗ 錯誤：保存測量數據時發生錯誤 - {str(e)}")
-                    print(f"    錯誤類型: {type(e).__name__}")
-                    import traceback
-                    traceback.print_exc()
-                    session.rollback()
-                    total_errors += len(measurements)
-            else:
-                print(f"  批次沒有有效的測量數據需要保存")
-
-        print(f"===== 保存完成統計 =====")
-        print(f"總處理行數: {row_count}")
-        print(f"成功保存: {total_saved} 個測量數據")
-        print(f"跳過行數: {skipped_count} (step_number不匹配)")
-        print(f"錯誤行數: {total_errors}")
-        print(f"成功率: {(total_saved / row_count * 100):.1f}%" if row_count > 0 else "N/A")
-          # 最終驗證
-        if total_saved > 0:
-            from sqlmodel import select, func
-            final_count = session.exec(
-                select(func.count(Measurement.id))
-                .join(Step)
-                .where(Step.experiment_id == experiment_id)
-            ).one()
-            print(f"實驗 {experiment_id} 的最終測量記錄總數: {final_count}")
-        print("=======================================")
-
-
-def save_processed_files_to_db(
-    experiment_id: int,
-    step_filename: str,
-    detail_filename: str,
-    step_file_hash: str,
-    detail_file_hash: str,
-    step_df_len: int,
-    detail_df_len: int,
-    step_metadata: Dict[str, Any],
-    detail_metadata: Dict[str, Any]
-):
-    """
-    Save processed file records to the database.
-
-    Args:
-        experiment_id: ID of the experiment
-        step_filename: Filename of the step file
-        detail_filename: Filename of the detail file
-        step_file_hash: Hash of the step file
-        detail_file_hash: Hash of the detail file
-        step_df_len: Number of rows in step DataFrame
-        detail_df_len: Number of rows in detail DataFrame
-        step_metadata: Metadata about the step file
-        detail_metadata: Metadata about the detail file
-    """
-    with get_db_session() as session:
-        session.add(ProcessedFile(
-            experiment_id=experiment_id,
-            filename=step_filename,
-            file_type="step",
-            file_hash=step_file_hash,
-            row_count=step_df_len,
-            data_meta=step_metadata
-        ))
-
-        session.add(ProcessedFile(
-            experiment_id=experiment_id,
-            filename=detail_filename,
-            file_type="detail",
-            file_hash=detail_file_hash,
-            row_count=detail_df_len,
-            data_meta=detail_metadata
-        ))
-
-        session.commit()
-
-
-def update_experiment_end_date(experiment_id: int, end_time: datetime):
-    """
-    Update the end date of an experiment.
-
-    Args:
-        experiment_id: ID of the experiment
-        end_time: End time to set
-    """
-    with get_db_session() as session:
-        experiment = session.get(Experiment, experiment_id)
-        if experiment:
-            experiment.end_date = end_time
-            session.add(experiment)
+            
             session.commit()
-
-
+            
+            # 最終統計
+            logger.info(f"保存完成統計:")
+            logger.info(f"成功保存: {total_saved} 個測量數據")
+            logger.info(f"跳過行數: {total_skipped} (step_number不匹配)")
+            logger.info(f"錯誤行數: {total_errors}")
+            logger.info(f"成功率: {(total_saved / len(details_df) * 100):.1f}%")
+            
+    except Exception as e:
+        raise DatabaseError(f"保存測量數據失敗: {str(e)}")
+    
 def save_steps_to_db(
     experiment_id: int,
     steps_df: pd.DataFrame,
     nominal_capacity: float,
-    session=None
+    session: Optional[Session] = None
 ) -> List[Step]:
     """
-    Save step data to the database.
+    保存步驟數據到資料庫
     
     Args:
-        experiment_id: ID of the experiment
-        steps_df: DataFrame containing step data
-        nominal_capacity: Nominal capacity value for c_rate calculation
-        session: Optional SQLAlchemy session object. If provided, this session will be used
-                 instead of creating a new one. This helps maintain object attachment to session.
-    
+        experiment_id: 實驗ID
+        steps_df: 步驟數據框
+        nominal_capacity: 標稱容量
+        session: 可選的資料庫會話
+        
     Returns:
-        List of Step objects that were added to the database
+        保存的步驟對象列表
     """
-    steps = []
+    if experiment_id is None:
+        raise ValueError("experiment_id 不能為 None")
     
-    # 決定是否使用提供的 session 或創建新的 session
+    steps = []
     own_session = session is None
+    
     if own_session:
-        session = next(get_db_session())
+        session_context = safe_session()
+        session = session_context.__enter__()
     
     try:
         for _, row in steps_df.iterrows():
             row_dict = convert_numpy_types(row.to_dict())
 
+            # 驗證必要欄位
             try:
                 step_number = int(row_dict.get("step_number"))
                 step_type = row_dict.get("step_type")
-            except Exception as e:
-                print(f"步驟資料缺少必要欄位: {e}")
+            except (ValueError, TypeError) as e:
+                logger.warning(f"步驟資料缺少必要欄位: {e}")
                 continue
 
             start_time = convert_datetime_to_python(row_dict.get("start_time"))
             end_time = convert_datetime_to_python(row_dict.get("end_time"))
-
-            try:
-                c_rate = abs(row_dict.get("current", 0.0)) / nominal_capacity if nominal_capacity else 0.0
-            except Exception as e:
-                print(f"c_rate 計算錯誤: {e}")
-                c_rate = 0.0
+            c_rate = calculate_c_rate(row_dict.get("current", 0.0), nominal_capacity)
 
             step = Step(
                 experiment_id=experiment_id,
@@ -381,9 +503,9 @@ def save_steps_to_db(
                 current=row_dict.get("current", 0.0),
                 capacity=row_dict.get("capacity", 0.0),
                 energy=row_dict.get("energy", 0.0),
-                temperature_avg=row_dict.get("temperature_avg", 25.0),
-                temperature_min=row_dict.get("temperature_min", 25.0),
-                temperature_max=row_dict.get("temperature_max", 25.0),
+                temperature_avg=row_dict.get("temperature_avg", config.default_temperature),
+                temperature_min=row_dict.get("temperature_min", config.default_temperature),
+                temperature_max=row_dict.get("temperature_max", config.default_temperature),
                 c_rate=c_rate,
                 soc_start=row_dict.get("soc_start"),
                 soc_end=row_dict.get("soc_end"),
@@ -394,24 +516,148 @@ def save_steps_to_db(
             session.add(step)
             steps.append(step)
 
-        session.commit()
+        # 獲取自動生成的 ID
+        session.flush()
         
-        # 如果是我們創建的會話，需要做清理工作
-        # 如果是外部傳入的會話，不要修改其狀態（不要 expunge 對象）
+        for step in steps:
+            session.refresh(step)
+        
+        # 驗證所有步驟都有有效的 ID
+        invalid_steps = [step for step in steps if step.id is None]
+        if invalid_steps:
+            raise DatabaseError(f"無法獲取 {len(invalid_steps)} 個步驟的有效 ID")
+        
         if own_session:
-            # 如果使用自己的會話，則需要分離對象以避免 DetachedInstanceError
+            session.commit()
             for step in steps:
                 session.expunge(step)
                 
     except Exception as e:
-        print(f"保存步驟數據時發生錯誤: {e}")
-        # 只有在使用自己的會話時才做回滾，外部會話的控制權應留給調用者
+        logger.error(f"保存步驟數據時發生錯誤: {e}")
         if own_session:
             session.rollback()
-        raise
+        raise DatabaseError(f"保存步驟數據失敗: {str(e)}")
     finally:
-        # 只有在使用自己的會話時才關閉它，外部會話應由調用者負責關閉
         if own_session:
-            session.close()
+            session_context.__exit__(None, None, None)
             
     return steps
+
+def save_processed_files_to_db(
+    experiment_id: int,
+    step_filename: str,
+    detail_filename: str,
+    step_file_hash: str,
+    detail_file_hash: str,
+    step_df_len: int,
+    detail_df_len: int,
+    step_metadata: Dict[str, Any],
+    detail_metadata: Dict[str, Any]
+) -> None:
+    """
+    保存已處理文件記錄到資料庫
+    
+    Args:
+        experiment_id: 實驗ID
+        step_filename: 步驟文件名
+        detail_filename: 詳細文件名
+        step_file_hash: 步驟文件雜湊
+        detail_file_hash: 詳細文件雜湊
+        step_df_len: 步驟數據框行數
+        detail_df_len: 詳細數據框行數
+        step_metadata: 步驟文件元數據
+        detail_metadata: 詳細文件元數據
+    """
+    try:
+        with safe_session() as session:
+            session.add(ProcessedFile(
+                experiment_id=experiment_id,
+                filename=step_filename,
+                file_type="step",
+                file_hash=step_file_hash,
+                row_count=step_df_len,
+                data_meta=step_metadata
+            ))
+
+            session.add(ProcessedFile(
+                experiment_id=experiment_id,
+                filename=detail_filename,
+                file_type="detail",
+                file_hash=detail_file_hash,
+                row_count=detail_df_len,
+                data_meta=detail_metadata
+            ))
+
+            session.commit()
+    except Exception as e:
+        raise DatabaseError(f"保存已處理文件記錄失敗: {str(e)}")
+
+def update_experiment_end_date(experiment_id: int, end_time: datetime) -> None:
+    """
+    更新實驗的結束日期
+    
+    Args:
+        experiment_id: 實驗ID
+        end_time: 結束時間
+    """
+    try:
+        with safe_session() as session:
+            experiment = session.get(Experiment, experiment_id)
+            if experiment:
+                experiment.end_date = end_time
+                session.add(experiment)
+                session.commit()
+            else:
+                raise ValidationError(f"找不到 ID 為 {experiment_id} 的實驗")
+    except Exception as e:
+        raise DatabaseError(f"更新實驗結束日期失敗: {str(e)}")
+
+# 向後兼容的函數
+def save_measurements_to_db_with_session(
+    session: Session,
+    experiment_id: int,
+    details_df: pd.DataFrame,
+    step_mapping: Dict[int, int],
+    nominal_capacity: float,
+    batch_size: int = 1000
+) -> None:
+    """
+    使用提供的會話保存測量數據到資料庫（向後兼容）
+    
+    此函數保持與原始 API 的兼容性，但內部使用重構後的邏輯
+    """
+    logger.warning("建議使用 save_measurements_to_db 函數，此函數將在未來版本中移除")
+    
+    if details_df.empty:
+        logger.warning("沒有測量數據需要保存")
+        return
+
+    # 驗證必要欄位
+    required_columns = ['step_number', 'execution_time', 'voltage', 'current']
+    validate_required_columns(details_df, required_columns)
+    
+    if not step_mapping:
+        raise ValidationError("步驟映射為空")
+
+    total_saved = 0
+    total_errors = 0
+    total_skipped = 0
+
+    for batch_num, i in enumerate(range(0, len(details_df), batch_size), 1):
+        batch_df = details_df.iloc[i:i + batch_size]
+        
+        measurements, skipped, errors = process_measurements_batch(
+            batch_df, step_mapping, config
+        )
+        
+        total_skipped += skipped
+        total_errors += errors
+        
+        if measurements:
+            save_measurements_batch(session, measurements, batch_num)
+            total_saved += len(measurements)
+    
+    logger.info(f"保存完成統計:")
+    logger.info(f"成功保存: {total_saved} 個測量數據")
+    logger.info(f"跳過行數: {total_skipped}")
+    logger.info(f"錯誤行數: {total_errors}")

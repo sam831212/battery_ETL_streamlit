@@ -77,7 +77,6 @@ This document tracks the progress of the Battery ETL Dashboard implementation ac
   - `calculate_c_rate()`: Calculate C-rate based on current and nominal capacity
   - `calculate_soc()`: Calculate State of Charge using Coulomb counting method
   - `extract_ocv_values()`: Extract Open Circuit Voltage values from rest steps
-  - `calculate_temperature_metrics()`: Calculate temperature statistics per step
   - `transform_data()`: Apply all transformation functions to the step and detail data
 
 - Implemented the SOC calculation algorithm using Coulomb counting:

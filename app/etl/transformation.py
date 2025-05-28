@@ -2,7 +2,7 @@
 Transformation module for battery test data
 
 This module provides functions for calculating derived metrics from
-battery test data, such as SOC, C-rate, OCV, and temperature statistics.
+battery test data, such as SOC, C-rate, and temperature statistics.
 """
 from typing import List, Dict, Tuple, Optional, Union, Any, cast
 import pandas as pd
@@ -98,13 +98,22 @@ def calculate_soc(steps_df: pd.DataFrame, details_df: pd.DataFrame, full_dischar
     # Ensure the reference step is a discharge step
     if reference_step['step_type'] != 'discharge':
         raise ValueError(f"Reference step must be a discharge step, but step {reference_step.get('step_number', reference_step_idx)} is a {reference_step['step_type']} step")
-    
-    # Get the reference discharge step's total capacity and capacity
+      # Get the reference discharge step's total capacity and capacity
     if 'total_capacity' not in reference_step:
         raise ValueError("Column 'total_capacity' not found. Please ensure the 'total_capacity' column is correctly imported from '總電壓(Ah)'.")
     
+    # Handle capacity column name variations (capacity, capacity_x, etc.)
+    capacity_column = None
+    for col in reference_step.index:
+        if col == 'capacity' or col.startswith('capacity'):
+            capacity_column = col
+            break
+    
+    if capacity_column is None:
+        raise ValueError(f"No capacity column found. Available columns: {list(reference_step.index)}")
+    
     reference_total_capacity = reference_step['total_capacity']
-    reference_capacity = reference_step['capacity']
+    reference_capacity = reference_step[capacity_column]
     reference_step_number = reference_step['step_number']
     
     # Set the reference discharge step's SOC_end to 0%
@@ -150,94 +159,21 @@ def calculate_soc(steps_df: pd.DataFrame, details_df: pd.DataFrame, full_dischar
     return steps, details_df
 
 
-def extract_ocv_values(steps_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Extract Open Circuit Voltage (OCV) values from rest steps.
-    
-    OCV is extracted from the voltage at the end of rest steps, which typically
-    follows charge or discharge steps.
-    
-    Args:
-        steps_df: DataFrame containing step data with 'step_type' column
-        
-    Returns:
-        Updated DataFrame with OCV values
-    """
-    steps = steps_df.copy()
-    
-    # Initialize OCV column
-    steps['ocv'] = None
-    
-    # First pass: extract OCV from rest steps
-    rest_steps = steps[steps['step_type'] == 'rest']
-    
-    for idx, rest_step in rest_steps.iterrows():
-        # Use the end voltage of the rest step as the OCV
-        steps.at[idx, 'ocv'] = rest_step['voltage_end']
-    
-    # Second pass: propagate OCV values to charge/discharge steps
-    for idx, step in steps.iterrows():
-        if step['step_type'] != 'rest':
-            # Find the next rest step (if any)
-            next_steps = steps[(steps['start_time'] > step['end_time']) & (steps['step_type'] == 'rest')]
-            
-            if len(next_steps) > 0:
-                # Use the OCV from the nearest following rest step
-                next_rest = next_steps.iloc[0]
-                steps.at[idx, 'ocv'] = next_rest['ocv']
-    
-    return steps
-
-
-def calculate_temperature_metrics(df: pd.DataFrame, temp_column: str = 'temperature') -> pd.DataFrame:
-    """
-    Calculate temperature statistics per step.
-    
-    Args:
-        df: DataFrame containing temperature data
-        temp_column: Name of the column containing temperature values
-        
-    Returns:
-        Updated DataFrame with temperature metrics columns
-    """
-    if temp_column not in df.columns:
-        raise ValueError(f"Temperature column '{temp_column}' not found in DataFrame")
-    
-    result_df = df.copy()
-    
-    # Calculate temperature metrics for each step
-    metrics = df.groupby('step_number')[temp_column].agg(
-        temperature_avg='mean',
-        temperature_min='min',
-        temperature_max='max',
-        temperature_std='std'
-    ).reset_index()
-    
-    # Replace NaN values in standard deviation with 0
-    metrics['temperature_std'] = metrics['temperature_std'].fillna(0)
-    
-    # Merge metrics with original DataFrame if needed
-    # (Only needed if we're computing temp metrics for detail data)
-    if len(metrics) < len(df):
-        return pd.merge(result_df, metrics, on='step_number', how='left')
-    else:
-        return metrics
-
 
 def transform_data(steps_df: pd.DataFrame, details_df: pd.DataFrame, 
                    nominal_capacity: float) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Apply all transformation functions to the step and detail data.
-    
-    Args:
-        steps_df: DataFrame containing step data
-        details_df: DataFrame containing detailed measurement data
-        nominal_capacity: Nominal capacity of the battery in Ampere-hours (Ah)
-        
-    Returns:
-        Tuple containing:
-        - Transformed steps DataFrame
-        - Transformed details DataFrame
+將所有轉換函數應用於步驟和詳細資訊資料。
+
+參數：
+steps_df：包含步驟資料的資料幀
+details_df：包含詳細測量資料的資料幀
+nominal_capacity：電池的標稱容量，單位為安培小時 (Ah)
+
+返回：
+包含以下內容的元組：
+- 轉換後的步驟資料DF
+- 轉換後的詳細資訊資料DF
     """
     # Make copies of the input DataFrames
     steps = steps_df.copy()
@@ -255,14 +191,9 @@ def transform_data(steps_df: pd.DataFrame, details_df: pd.DataFrame,
         steps['c_rate'] = 0.0
         details['c_rate'] = 0.0
     
-    # 2. Calculate temperature metrics for steps
-    temp_metrics = calculate_temperature_metrics(details)
-    steps = pd.merge(steps, temp_metrics, on='step_number', how='left')
-    
-    # 3. Calculate SOC
+
+    # 2. Calculate SOC
     steps, details = calculate_soc(steps, details)
     
-    # 4. Extract OCV values
-    steps = extract_ocv_values(steps)
     
     return steps, details

@@ -151,3 +151,56 @@ Experiment 18: "test"
 ---
 
 **Summary**: The measurement saving functionality works correctly at the core level, but there are now critical issues: (1) database locked 導致所有寫入失敗，(2) step_id=None 資料異常，(3) UI 未正確顯示錯誤。需優先修正 DB locked 與資料驗證，並加強 UI 錯誤顯示與 post-processing 驗證。
+
+## Measurement Data Processing - Issue Analysis & Solutions (2025/05/28)
+
+### 問題摘要
+- UI 顯示成功訊息，但資料庫實際未寫入 measurement 資料。
+- step_id=None，導致所有 detail/measurement 資料寫入失敗。
+- database locked 錯誤，批次寫入時發生。
+- UI 未正確顯示錯誤，誤導使用者。
+
+### 問題根因
+1. **step_number mapping 問題**：
+   - detail/measurement 資料依賴 step_id，若 step 尚未建立或 mapping 有誤，step_id 會是 None。
+   - 目前流程為「先存 step，再存 detail」，但 mapping 或 commit 時機不當會導致查不到 step_id。
+2. **資料驗證不足**：
+   - 未在寫入前檢查 step_id 是否為 None。
+   - UI 未顯示 DB 寫入失敗的真實錯誤。
+3. **資料庫鎖定 (database locked)**：
+   - 大量批次寫入時，session/transaction 管理不當，或多重連線導致鎖定。
+
+### 可能解決方案
+
+#### 1. 預先查詢/建立所有 step 並快取 step_id
+- 在處理 detail/measurement 前，先分析所有 step_number，查詢/建立所有 step，取得完整的 step_number:step_id 對應表（dict）。
+- 批次處理 detail 時直接用快取的 step_id，減少查詢與 mapping 問題。
+- 優點：效能提升、避免 step_id=None、資料一致性高。
+
+#### 2. 資料驗證與錯誤顯示
+- 在寫入 measurement 前，檢查 step_id 是否為 None，若為 None 則 raise error 並記錄詳細訊息。
+- UI 應顯示 DB 寫入失敗的真實錯誤，避免 false success。
+
+#### 3. Transaction/Session 管理
+- 用 transaction 包住 step 與 detail 的寫入，確保要嘛全部成功，要嘛全部 rollback。
+- 批次 commit，減少 database locked 機率。
+- 每次批次處理後，正確關閉 session。
+
+#### 4. Post-processing 驗證
+- 寫入後，立即查詢 DB 實際 measurement 筆數，與預期比對。
+- 若不符，UI 顯示警告並記錄 log。
+
+#### 5. 其他建議
+- 增加 debug log，記錄 step_number 與 step_id 的 mapping 過程。
+- 匯入前先比對 CSV 的 step_number 是否都存在於資料庫，若有缺漏則提示用戶。
+- 若資料量大，考慮升級資料庫（如 PostgreSQL）。
+
+### 可詢問的進一步問題
+- 目前 `handle_file_processing_pipeline` 內部的 step/detail 寫入順序與 transaction 實作方式？
+- 是否有多個 thread/process 同時寫入 DB？
+- 目前 UI 如何捕捉與顯示 DB 寫入失敗的 exception？
+- 是否有測試過小量資料能 100% 寫入成功？
+- 是否有需要 sample code 來示範最佳實踐？
+
+---
+如需進一步協助，請提供 pipeline 內部邏輯或相關程式碼片段。

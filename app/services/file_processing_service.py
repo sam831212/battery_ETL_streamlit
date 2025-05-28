@@ -9,7 +9,7 @@ import streamlit as st
 
 from app.etl import convert_numpy_types, load_and_preprocess_files
 from app.models import Cell
-from app.services.database_service import check_file_already_processed, save_experiment_to_db, save_measurements_to_db, save_processed_files_to_db, update_experiment_end_date
+from app.services.database_service import check_file_already_processed, save_experiment_to_db,save_measurements_to_db_with_session, save_processed_files_to_db, update_experiment_end_date
 from app.services.validation_service import generate_validation_results
 from app.ui.components.meta_data_page.data_display_ui import display_validation_summary
 from app.services.database_service import save_steps_to_db
@@ -116,18 +116,24 @@ def get_file_data_and_metadata(
 
 def handle_file_processing_pipeline(file_data: Dict[str, Any]) -> bool:
     """
-    Handle the complete file processing pipeline.
+處理完整的文件處理流程。
 
-    This function handles the entire workflow from validation to ETL to database
-    saving and UI feedback, regardless of file source.
+此函數處理從驗證到 ETL 再到資料庫保存和 UI 回饋的整個工作流程，無論文件來源為何。
+**優化流程**: 只處理用戶在 step selection 中選擇的步驟，預先建立完整的 step_number:step_id 對應表。
 
-    Args:
-        file_data: Dictionary with file data and metadata from get_file_data_and_metadata
+參數：
+file_data：包含來自 get_file_data_and_metadata 的檔案資料和元資料的字典
 
-    Returns:
-        True if processing was successful, False otherwise
+返回：
+如果處理成功，則傳回 True，否則傳回 False
     """
-    print("===== DEBUG: Entering handle_file_processing_pipeline =====")
+    print("===== DEBUG: Entering optimized handle_file_processing_pipeline =====")
+    
+    # Check if we have user-selected steps from step selection UI
+    if "selected_steps" not in st.session_state or not st.session_state["selected_steps"]:
+        st.error("No steps selected. Please use the Step Selection interface to choose steps first.")
+        return False
+    
     try:
         # Extract data from input dictionary
         step_df = file_data['step_df']
@@ -144,14 +150,23 @@ def handle_file_processing_pipeline(file_data: Dict[str, Any]) -> bool:
         # Check if files have already been processed
         if check_file_already_processed(step_file_hash) or check_file_already_processed(detail_file_hash):
             st.warning("One or both files have already been processed. Skipping...")
-            return False        # Apply ETL processing
-        # For all files, we now use the load_and_preprocess_files function for consistent processing
-        print("開始 ETL 處理流程")
-        step_df, detail_df, metadata = load_and_preprocess_files(
-            step_file_path,
-            detail_file_path,
-            nominal_capacity=st.session_state["nominal_capacity"]
-        )
+            return False
+
+        # Get selected step numbers from user selection
+        selected_step_numbers = [step["step_number"] for step in st.session_state["selected_steps"]]
+        print(f"===== 處理用戶選擇的步驟: {selected_step_numbers} =====")
+
+        # 只有在實際檔案上傳或範例檔案時才執行 ETL，否則直接用傳入的 DataFrame（for test）
+        if is_uploaded_file or is_example_file:
+            print("開始 ETL 處理流程")
+            step_df, detail_df, metadata = load_and_preprocess_files(
+                step_file_path,
+                detail_file_path,
+                nominal_capacity=st.session_state["nominal_capacity"]
+            )
+        else:
+            print("跳過 ETL，直接使用傳入的 DataFrame（for test）")
+            metadata = {}
 
         # 清理 step_df 和 detail_df 的欄位名稱，去除前後空格
         if not step_df.empty:
@@ -161,29 +176,45 @@ def handle_file_processing_pipeline(file_data: Dict[str, Any]) -> bool:
             detail_df.columns = detail_df.columns.str.strip()
             print(f"清理後的 Detail DataFrame 欄位: {detail_df.columns.tolist()}")
 
-        # 詳細記錄 DataFrame 信息
-        print("===== ETL 處理完成後的 DataFrame 分析 =====")
+        # **優化重點**: 只保留用戶選擇的步驟數據
+        print(f"===== 過濾用戶選擇的步驟數據 =====")
+        original_step_count = len(step_df)
+        original_detail_count = len(detail_df)
+        
+        # 過濾 step_df 只保留用戶選擇的步驟
+        if 'step_number' in step_df.columns:
+            step_df = step_df[step_df['step_number'].isin(selected_step_numbers)].copy()
+        print(f"Step DataFrame: 原始 {original_step_count} 行 -> 選擇後 {len(step_df)} 行")
+        
+        # 過濾 detail_df 只保留用戶選擇的步驟
+        if 'step_number' in detail_df.columns:
+            detail_df = detail_df[detail_df['step_number'].isin(selected_step_numbers)].copy()
+        elif '工步' in detail_df.columns:
+            # 如果使用中文列名，映射後再過濾
+            detail_df = detail_df[detail_df['工步'].isin(selected_step_numbers)].copy()
+        print(f"Detail DataFrame: 原始 {original_detail_count} 行 -> 選擇後 {len(detail_df)} 行")
+
+        # 檢查是否有數據剩餘
+        if step_df.empty:
+            st.error(f"No step data found for selected steps: {selected_step_numbers}")
+            return False
+        if detail_df.empty:
+            st.error(f"No measurement data found for selected steps: {selected_step_numbers}")
+            return False
+
+        # 詳細記錄過濾後的 DataFrame 信息
+        print("===== 過濾後的 DataFrame 分析 =====")
         print(f"Step DataFrame: shape={step_df.shape}, columns={step_df.columns.tolist()}")
         print(f"Detail DataFrame: shape={detail_df.shape}, columns={detail_df.columns.tolist()}")
         
         if not detail_df.empty:
-            print(f"Detail DataFrame 數據類型: {detail_df.dtypes.to_dict()}")
-            print(f"Detail DataFrame 記憶體使用: {detail_df.memory_usage(deep=True).sum()} bytes")
-            print(f"Detail DataFrame 前3行樣本:\n{detail_df.head(3)}")
-            
             # 檢查 step_number 分布
             if 'step_number' in detail_df.columns:
                 step_counts = detail_df['step_number'].value_counts().sort_index()
-                print(f"Detail DataFrame step_number 分布: {step_counts.to_dict()}")
+                print(f"過濾後 Detail DataFrame step_number 分布: {step_counts.to_dict()}")
             elif '工步' in detail_df.columns:
                 step_counts = detail_df['工步'].value_counts().sort_index()
-                print(f"Detail DataFrame 工步 分布: {step_counts.to_dict()}")
-
-        print(f"===== DEBUG: handle_file_processing_pipeline =====")
-        print(f"Step DataFrame shape: {step_df.shape}")
-        print(f"Detail DataFrame shape: {detail_df.shape}")
-        print(f"Step DataFrame columns: {step_df.columns.tolist()}")
-        print(f"Detail DataFrame columns: {detail_df.columns.tolist()}")
+                print(f"過濾後 Detail DataFrame 工步 分布: {step_counts.to_dict()}")
 
         # 檢查detail_df是否包含必要的列
         required_columns = ["step_number", "execution_time", "voltage", "current"]
@@ -254,9 +285,7 @@ def handle_file_processing_pipeline(file_data: Dict[str, Any]) -> bool:
             temperature_avg = 25.0  # Default temperature
 
         # Convert problematic numpy types to native Python types for JSON serialization
-        converted_step_report = convert_numpy_types(step_validation_report)
-
-        # Store experiment data in the database
+        converted_step_report = convert_numpy_types(step_validation_report)        # Store experiment data in the database
         with get_db_session() as session:
             # Create new experiment
             experiment = save_experiment_to_db(
@@ -271,31 +300,54 @@ def handle_file_processing_pipeline(file_data: Dict[str, Any]) -> bool:
                 validation_report=converted_step_report,
                 cell_id=st.session_state["cell_id"],
                 machine_id=st.session_state["machine_id"],
-                battery_type=battery_type,
-                temperature_avg=temperature_avg
-            )            # Save steps to database
-            print(f"開始保存步驟數據到資料庫，實驗 ID: {experiment.id}")
+                battery_type=battery_type,                temperature_avg=temperature_avg
+            )
+            
+            print(f"===== 優化流程：預先建立 step_number:step_id 對應表 =====")
+            print(f"實驗 ID: {experiment.id}")
+            print(f"需要處理的步驟: {selected_step_numbers}")
+            
+            # 驗證實驗 ID 的有效性
+            if experiment.id is None:
+                st.error("錯誤：實驗保存失敗，未能獲得有效的實驗 ID")
+                return False
+            
+            # **優化重點 1**: 先分析所有需要的 step_number，建立/查詢所有 step，取得完整對應表
+            print(f"開始保存選擇的步驟數據到資料庫")
             steps = save_steps_to_db(
                 experiment_id=experiment.id,
-                steps_df=step_df,
-                nominal_capacity=st.session_state["nominal_capacity"]
+                steps_df=step_df,  # 此時 step_df 已經只包含用戶選擇的步驟
+                nominal_capacity=st.session_state["nominal_capacity"],
+                session=session  # 使用同一個會話
             )
-            print(f"成功保存 {len(steps)} 個步驟到資料庫")
+            print(f"成功保存 {len(steps)} 個用戶選擇的步驟到資料庫")
+            
+            # 立即提交步驟數據以確保獲得有效的 step IDs
+            session.commit()
+            print(f"已提交步驟數據到資料庫，確保 step IDs 有效")            # **優化重點 2**: 預先建立完整的 step_number:step_id 對應表（只針對用戶選擇的步驟）
+            step_mapping = {step.step_number: step.id for step in steps if step.id is not None}
+            print(f"建立用戶選擇步驟的映射表: {step_mapping}")# 驗證映射表完整性：確保所有用戶選擇的 step_number 都有對應的 step_id
+            missing_mappings = set(selected_step_numbers) - set(step_mapping.keys())
+            if missing_mappings:
+                st.error(f"Error: Missing step mappings for step numbers: {missing_mappings}")
+                return False
+            
+            # 驗證沒有 None 值的 step_id
+            invalid_mappings = {k: v for k, v in step_mapping.items() if v is None}
+            if invalid_mappings:
+                st.error(f"Error: Invalid step IDs (None) for step numbers: {list(invalid_mappings.keys())}")
+                return False
+            
+            print(f"✓ 映射表驗證通過：所有用戶選擇的步驟都有對應的 step_id")
 
-            # Create a mapping from step number to step ID
-            step_mapping = {step.step_number: step.id for step in steps}
-            print(f"建立步驟映射: {step_mapping}")
-            print(f"DEBUG: Step mapping created: {step_mapping}")
-
-            # 檢查detail_df是否包含必要的列
+            # 確保 detail_df 包含必要的列並進行數據清理
+            print("===== 準備測量數據 =====")
             required_columns = ["step_number", "execution_time", "voltage", "current"]
             missing_columns = [col for col in required_columns if col not in detail_df.columns]
-            print(f"保存測量數據前檢查必要列: required={required_columns}, missing={missing_columns}")
-
-            # 如果缺少必要的列，嘗試進行映射
+            
             if missing_columns:
-                print(f"缺少必要列，嘗試進行列名映射: {missing_columns}")
-                # 嘗試從中文列名映射
+                print(f"Detail DataFrame 缺少必要列，嘗試進行列名映射: {missing_columns}")
+                # 中文到英文列名映射
                 chinese_to_english = {
                     "工步": "step_number",
                     "工步執行時間(秒)": "execution_time",
@@ -309,13 +361,13 @@ def handle_file_processing_pipeline(file_data: Dict[str, Any]) -> bool:
                 mapped_count = 0
                 for chinese, english in chinese_to_english.items():
                     if english in missing_columns and chinese in detail_df.columns:
-                        print(f"Mapping '{chinese}' to '{english}'")
+                        print(f"映射 '{chinese}' 到 '{english}'")
                         detail_df[english] = detail_df[chinese]
                         mapped_count += 1
                 
                 print(f"成功映射 {mapped_count} 個列名")
 
-            # 確保step_number列是整數類型
+            # 確保 step_number 列是整數類型
             if "step_number" in detail_df.columns:
                 try:
                     original_dtype = detail_df["step_number"].dtype
@@ -323,128 +375,71 @@ def handle_file_processing_pipeline(file_data: Dict[str, Any]) -> bool:
                     print(f"step_number 列類型從 {original_dtype} 轉換為 int")
                 except Exception as e:
                     print(f"step_number 轉換為整數失敗: {str(e)}")
-                    # 嘗試清理數據
-                    try:
-                        detail_df["step_number"] = pd.to_numeric(detail_df["step_number"], errors="coerce")
-                        detail_df["step_number"] = detail_df["step_number"].fillna(1).astype(int)
-                        print("使用數據清理方式成功轉換 step_number")
-                    except Exception as e2:
-                        print(f"數據清理也失敗: {str(e2)}")                        # 嘗試將所有數據轉換為字符串，然後再轉換為整數
-                        try:
-                            detail_df["step_number"] = detail_df["step_number"].astype(str).str.extract(r'(\d+)').astype(int)
-                            print("使用正則表達式提取數字並轉換為整數")
-                        except Exception as e3:
-                            print(f"數據清理失敗: {str(e3)}")
+                    return False
 
-            # 檢查detail_df中的step_number是否在step_mapping中
-            if "step_number" in detail_df.columns:
-                step_numbers_in_details = set(detail_df["step_number"].unique())
-                step_numbers_in_mapping = set(step_mapping.keys())
-                missing_step_numbers = step_numbers_in_details - step_numbers_in_mapping
-                matching_step_numbers = step_numbers_in_details.intersection(step_numbers_in_mapping)
+            # **優化重點 3**: 驗證所有測量數據都有對應的 step_id（因為已經預先過濾，這應該 100% 匹配）
+            detail_step_numbers = set(detail_df["step_number"].unique())
+            mapped_step_numbers = set(step_mapping.keys())
+            unmatched_steps = detail_step_numbers - mapped_step_numbers
+            
+            if unmatched_steps:
+                st.error(f"Error: Detail data contains steps not in mapping: {unmatched_steps}")
+                return False
+            
+            print(f"✓ 測量數據驗證通過：所有測量數據都有對應的 step_id")
+            print(f"測量數據中的步驟: {sorted(detail_step_numbers)}")
+            print(f"映射表中的步驟: {sorted(mapped_step_numbers)}")
 
-                print(f"Detail DataFrame 中的步驟編號: {sorted(step_numbers_in_details)}")
-                print(f"Step mapping 中的步驟編號: {sorted(step_numbers_in_mapping)}")
-                print(f"匹配的步驟編號: {sorted(matching_step_numbers)}")
-                
-                if missing_step_numbers:
-                    print(f"Detail DataFrame 中缺少映射的步驟編號: {sorted(missing_step_numbers)}")
-                    # 嘗試找到最接近的映射
-                    for missing_step in missing_step_numbers:
-                        closest_step = min(step_numbers_in_mapping, key=lambda x: abs(x - missing_step))
-                        print(f"將缺失的步驟編號 {missing_step} 映射到最近的步驟編號 {closest_step}")
-                        detail_df.loc[detail_df["step_number"] == missing_step, "step_number"] = closest_step
-
-            # 檢查detail_df中的step_number是否與step_mapping中的鍵匹配
-            if 'step_number' in detail_df.columns:
-                # 檢查detail_df中的step_number類型
-                if detail_df['step_number'].dtype != int:
-                    # 嘗試轉換為整數
-                    try:
-                        detail_df['step_number'] = detail_df['step_number'].astype(int)
-                        print("步驟編號已轉換為整數類型")
-                    except Exception as e:
-                        print(f"無法將步驟編號轉換為整數: {str(e)}")
-
-                # 檢查是否有匹配的步驟編號
-                unique_step_numbers = set(detail_df['step_number'].unique())
-                matching_steps = unique_step_numbers.intersection(set(step_mapping.keys()))
-
-                if len(matching_steps) == 0:
-                    print(f"詳細數據中的步驟編號 {unique_step_numbers} 與步驟映射 {set(step_mapping.keys())} 不匹配")
-
-                    # 嘗試找到最接近的映射
-                    step_numbers_list = sorted(list(step_mapping.keys()))
-                    if len(step_numbers_list) > 0 and len(unique_step_numbers) > 0:
-                        print("嘗試創建新的步驟映射...")
-
-                        # 創建一個新的映射，將detail_df中的步驟編號映射到最接近的step_mapping中的步驟編號
-                        new_mapping = {}
-                        sorted_unique_steps = sorted(list(unique_step_numbers))
-
-                        if len(sorted_unique_steps) <= len(step_numbers_list):
-                            # 如果detail_df中的步驟數量小於或等於step_mapping中的步驟數量，直接按順序映射
-                            for i, step_num in enumerate(sorted_unique_steps):
-                                if i < len(step_numbers_list):
-                                    new_mapping[step_num] = step_mapping[step_numbers_list[i]]
-                                    print(f"映射步驟 {step_num} 到 {step_numbers_list[i]} (ID: {step_mapping[step_numbers_list[i]]})")
-                        else:
-                            # 如果detail_df中的步驟數量大於step_mapping中的步驟數量，則循環使用step_mapping中的步驟
-                            for i, step_num in enumerate(sorted_unique_steps):
-                                idx = i % len(step_numbers_list)
-                                new_mapping[step_num] = step_mapping[step_numbers_list[idx]]
-                                print(f"映射步驟 {step_num} 到 {step_numbers_list[idx]} (ID: {step_mapping[step_numbers_list[idx]]})")
-
-                        # 使用新的映射
-                        step_mapping = new_mapping
-                        print(f"創建新的步驟映射: {step_mapping}")
-
-            # 記錄保存測量數據前的最終狀態
-            print("===== 準備保存測量數據 =====")
-            print(f"實驗 ID: {experiment.id}")
+            # 記錄最終保存狀態
+            print("===== 準備批量保存測量數據 =====")
             print(f"Detail DataFrame 形狀: {detail_df.shape}")
-            print(f"最終步驟映射: {step_mapping}")
+            print(f"將要使用的步驟映射: {step_mapping}")
             print(f"標稱容量: {st.session_state['nominal_capacity']}")
             
-            if not detail_df.empty and step_mapping:
-                # 統計可以保存的測量數據量
-                valid_step_numbers = detail_df[detail_df['step_number'].isin(step_mapping.keys())]['step_number'].count()
-                print(f"可保存的測量數據行數: {valid_step_numbers} / {len(detail_df)}")
-            
-            print(f"DEBUG: About to save measurements - DataFrame shape: {detail_df.shape}, step_mapping: {step_mapping}")
+            # 統計將要保存的測量數據
+            measurements_per_step = detail_df.groupby('step_number').size().to_dict()
+            print(f"每個步驟的測量數據量: {measurements_per_step}")
+            total_measurements = len(detail_df)
+            print(f"總測量數據量: {total_measurements}")
 
-            # Save measurements to database
-            save_measurements_to_db(
-                experiment_id=experiment.id,
-                details_df=detail_df,
-                step_mapping=step_mapping,
-                nominal_capacity=st.session_state["nominal_capacity"]
-            )
-            
-            print("測量數據保存完成")
+            # **優化重點 4**: 使用 save_measurements_to_db_with_session 在同一會話中保存
+            try:
+                save_measurements_to_db_with_session(
+                    session=session,
+                    experiment_id=experiment.id,
+                    details_df=detail_df,
+                    step_mapping=step_mapping,  # 使用預先建立的完整映射表
+                    nominal_capacity=st.session_state["nominal_capacity"]
+                )
+                print("✓ 優化的測量數據保存完成")
+            except Exception as e:
+                st.error(f"Error saving measurements: {str(e)}")
+                return False            # Save processed file records
+            if experiment.id is not None:
+                save_processed_files_to_db(
+                    experiment_id=experiment.id,
+                    step_filename=step_filename,
+                    detail_filename=detail_filename,
+                    step_file_hash=step_file_hash,
+                    detail_file_hash=detail_file_hash,
+                    step_df_len=len(step_df),
+                    detail_df_len=len(detail_df),
+                    step_metadata=metadata.get('step_file', {}),
+                    detail_metadata=metadata.get('detail_file', {})
+                )
 
-            # Save processed file records
-            save_processed_files_to_db(
-                experiment_id=experiment.id,
-                step_filename=step_filename,
-                detail_filename=detail_filename,
-                step_file_hash=step_file_hash,
-                detail_file_hash=detail_file_hash,
-                step_df_len=len(step_df),
-                detail_df_len=len(detail_df),
-                step_metadata=metadata.get('step_file', {}),
-                detail_metadata=metadata.get('detail_file', {})
-            )
+                # Update experiment end date based on the last measurement
+                if 'DateTime' in detail_df.columns and not detail_df.empty:
+                    try:
+                        last_datetime = pd.to_datetime(detail_df['DateTime'].iloc[-1])
+                        update_experiment_end_date(experiment.id, last_datetime)
+                    except (ValueError, TypeError) as e:
+                        st.warning(f"Could not parse end date: {e}")
 
-            # Update experiment end date based on the last measurement
-            if 'DateTime' in detail_df.columns and not detail_df.empty:
-                try:
-                    last_datetime = pd.to_datetime(detail_df['DateTime'].iloc[-1])
-                    update_experiment_end_date(experiment.id, last_datetime)
-                except (ValueError, TypeError) as e:
-                    st.warning(f"Could not parse end date: {e}")
-
-        st.success(f"Files processed successfully! Experiment ID: {experiment.id}")
+        if experiment.id is not None:
+            st.success(f"Files processed successfully! Experiment ID: {experiment.id}")
+        else:
+            st.error("Failed to get experiment ID")
         return True
 
     except Exception as e:

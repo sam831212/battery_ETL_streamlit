@@ -13,9 +13,6 @@ from datetime import datetime, timedelta
 from app.etl.transformation import (
     calculate_c_rate,
     calculate_soc,
-    _interpolate_soc,
-    extract_ocv_values,
-    calculate_temperature_metrics,
     transform_data
 )
 
@@ -180,103 +177,8 @@ def test_calculate_soc_missing_discharge(sample_steps_df, sample_details_df):
         calculate_soc(charge_only_df, details_subset)
 
 
-def test_interpolate_soc():
-    """Test the _interpolate_soc helper function"""
-    # Test with time-based interpolation
-    row = pd.Series({
-        'timestamp': datetime(2023, 1, 1, 10, 30, 0),
-        'capacity': 1.5
-    })
-    
-    step_soc = {
-        'soc_start': 20.0,
-        'soc_end': 60.0,
-        'start_time': datetime(2023, 1, 1, 10, 0, 0),
-        'end_time': datetime(2023, 1, 1, 11, 0, 0),
-        'capacity_start': 0.0,
-        'capacity_end': 3.0
-    }
-    
-    # Time is halfway through, so SOC should be halfway between start and end
-    # (10:30 is halfway between 10:00 and 11:00)
-    interpolated_soc = _interpolate_soc(row, step_soc, 3.0)
-    assert abs(interpolated_soc - 40.0) < 1e-6  # Should be 40% (halfway between 20% and 60%)
-    
-    # Test with capacity-based interpolation
-    row_no_time = pd.Series({
-        'capacity': 1.5,  # Halfway through capacity change
-        'timestamp': None
-    })
-    
-    step_soc_no_time = {
-        'soc_start': 20.0,
-        'soc_end': 60.0,
-        'capacity_start': 0.0,
-        'capacity_end': 3.0
-    }
-    
-    # Capacity is halfway through, so SOC should be halfway between start and end
-    interpolated_soc = _interpolate_soc(row_no_time, step_soc_no_time, 3.0)
-    assert abs(interpolated_soc - 40.0) < 1e-6  # Should be 40% (halfway between 20% and 60%)
 
 
-# Tests for extract_ocv_values
-def test_extract_ocv_values(sample_steps_df):
-    """Test extraction of OCV values from rest steps"""
-    result_df = extract_ocv_values(sample_steps_df)
-    
-    # Check that OCV column was added
-    assert 'ocv' in result_df.columns
-    
-    # Rest steps should have OCV values equal to their end voltage
-    rest_steps = result_df[result_df['step_type'] == 'rest']
-    for idx, step in rest_steps.iterrows():
-        assert step['ocv'] == step['voltage_end']
-    
-    # Non-rest steps should have OCV from the next rest step
-    charge_step = result_df[result_df['step_type'] == 'charge'].iloc[0]
-    next_rest = rest_steps[rest_steps['start_time'] > charge_step['end_time']].iloc[0]
-    assert charge_step['ocv'] == next_rest['ocv']
-
-
-# Tests for calculate_temperature_metrics
-def test_calculate_temperature_metrics(sample_details_df):
-    """Test calculation of temperature statistics per step"""
-    result_df = calculate_temperature_metrics(sample_details_df)
-    
-    # Check that temperature metrics columns were added
-    assert 'temperature_avg' in result_df.columns
-    assert 'temperature_min' in result_df.columns
-    assert 'temperature_max' in result_df.columns
-    assert 'temperature_std' in result_df.columns
-    
-    # Check results for each step
-    for step_num in sample_details_df['step_number'].unique():
-        step_details = sample_details_df[sample_details_df['step_number'] == step_num]
-        step_metrics = result_df[result_df['step_number'] == step_num].iloc[0]
-        
-        # Check that metrics match actual data
-        assert abs(step_metrics['temperature_avg'] - step_details['temperature'].mean()) < 1e-6
-        assert abs(step_metrics['temperature_min'] - step_details['temperature'].min()) < 1e-6
-        assert abs(step_metrics['temperature_max'] - step_details['temperature'].max()) < 1e-6
-        
-        # If there's only one data point, std should be 0
-        if len(step_details) == 1:
-            assert step_metrics['temperature_std'] == 0
-        else:
-            # Otherwise, check standard deviation
-            assert abs(step_metrics['temperature_std'] - step_details['temperature'].std()) < 1e-6
-
-
-def test_calculate_temperature_metrics_missing_column():
-    """Test temperature metrics calculation with missing temperature column"""
-    df = pd.DataFrame({
-        'step_number': [1, 1, 2, 2],
-        'other_column': [1, 2, 3, 4]
-    })
-    
-    with pytest.raises(ValueError, match="Temperature column 'temperature' not found"):
-        calculate_temperature_metrics(df)
 
 
 # Tests for transform_data

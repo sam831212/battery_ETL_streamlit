@@ -170,12 +170,11 @@ def test_simulate_user_upload_and_save_step_45(db_session: Session, example_step
     # c_rate is calculated, so it should exist if current and nominal_capacity are valid
     assert retrieved_step.c_rate is not None, "c_rate should not be null"
     if retrieved_step.step_type not in ["靜置", "rest", "溫箱控制"] : # C-rate can be 0 for rest steps
-         assert retrieved_step.c_rate != 0, f"c_rate for {retrieved_step.step_type} should not be 0"
-
-    # Check data_meta content if necessary
+         assert retrieved_step.c_rate != 0, f"c_rate for {retrieved_step.step_type} should not be 0"    # Check data_meta content if necessary
     assert retrieved_step.data_meta is not None, "data_meta should not be null"
-    assert "工步" in retrieved_step.data_meta, "data_meta should contain original column names" # Changed from 工步編號 to 工步
-    assert retrieved_step.data_meta["工步"] == 45, "data_meta should have correct step number"
+    # 由於資料已經過 ETL 處理，data_meta 包含轉換後的列名
+    assert "step_number" in retrieved_step.data_meta, "data_meta should contain step_number"
+    assert retrieved_step.data_meta["step_number"] == 45, "data_meta should have correct step number"
 
     # If the issue is with specific columns being zero/null, add direct assertions for them:
     # e.g., assert retrieved_step.some_problematic_column is not None

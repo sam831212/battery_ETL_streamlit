@@ -139,7 +139,6 @@ class Measurement(BaseModel, table=True):
     temperature: float  # Celsius
     capacity: float  # Ah
     energy: float  # Wh
-    soc: Optional[float] = Field(default=None)  # %
     
     # Relationship
     step: "Step" = Relationship(back_populates="measurements", sa_relationship_kwargs={"lazy": "selectin"})
