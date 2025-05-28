@@ -14,7 +14,7 @@ During testing of the battery data processing system, we discovered that measure
 ### Current Problem (Experiment 18)
 - **Symptom**: Step 28 (step_number 21) shows 0 measurements despite UI claiming 1982 measurements saved
 - **Cause**: Disconnect between UI success messages and actual database storage
-- **Status**: 🔍 **UNDER INVESTIGATION**
+- **Status**: 🛑 **CRITICAL - ROOT CAUSE IDENTIFIED**
 
 ## Key Findings
 
@@ -35,6 +35,11 @@ During testing of the battery data processing system, we discovered that measure
 - ✅ Step records are created correctly in the database
 - ❌ Only the measurement records are missing
 
+### 4. Database Locked Error (New)
+- ❌ 發現 `sqlite3.OperationalError: database is locked` 錯誤，導致所有批次寫入失敗
+- ❌ step_id=None，資料異常，應加強前置驗證
+- ❌ UI 未正確顯示錯誤，仍顯示成功訊息
+
 ## Technical Investigation
 
 ### Database State Analysis
@@ -47,13 +52,14 @@ Experiment 18: "test"
 - Step 28 (step_number 21): 0 measurements
 - UI claimed: 1982 measurements saved
 - Actual: No measurement records found
+- Error: (sqlite3.OperationalError) database is locked
 ```
 
 ### Processing Workflow Analysis
 1. **File Upload**: ✅ Working correctly
 2. **Step Creation**: ✅ Working correctly  
 3. **Step Mapping**: ✅ Working correctly
-4. **Measurement Processing**: ❌ Failing silently
+4. **Measurement Processing**: ❌ Failing due to DB lock & data error
 5. **UI Feedback**: ❌ Showing false success
 
 ## Files Modified During Investigation
@@ -63,12 +69,14 @@ Experiment 18: "test"
 - ✅ Enhanced error handling and logging
 - ✅ Improved batch processing with validation
 - ✅ Added comprehensive debug output
+- ❌ 需加強 database locked 處理與 step_id 檢查
 
 ### 2. `app/ui/components/meta_data_page/selected_data_processing_ui.py`
 - ✅ Updated to use the proven `save_measurements_to_db` function
 - ✅ Added proper error handling
 - ✅ Enhanced debugging output
 - ❌ Still has silent failure issues
+- ❌ 需加強錯誤顯示與 post-processing 驗證
 
 ### 3. Debug Scripts Created
 - `debug_experiment_14.py` - Successfully identified and resolved experiment 14
@@ -83,6 +91,11 @@ Experiment 18: "test"
 3. **Database schema**: Working properly
 4. **Step creation**: Working correctly
 
+### 🛑 Critical Issues (May 28, 2025)
+1. **Database locked 導致所有寫入失敗**
+2. **step_id=None 導致資料異常**
+3. **UI 錯誤未顯示，誤導使用者**
+
 ### 🔍 Ongoing Issues
 1. **UI false success messages**: Need to investigate why UI shows success when DB shows failure
 2. **Silent measurement processing failures**: Error handling may be masking issues
@@ -91,10 +104,13 @@ Experiment 18: "test"
 ## Next Steps
 
 ### Immediate Actions Needed
-1. **Add transaction-level debugging** to the selected data processing workflow
-2. **Investigate session state handling** during large dataset processing
-3. **Add measurement count validation** after processing claims success
-4. **Review error handling** in the UI workflow to prevent silent failures
+1. **修正 database locked 問題**：檢查多重連線、分批 commit、確保 session 正確關閉
+2. **step_id 檢查**：所有資料進 DB 前必須有正確 step_id，否則 raise error
+3. **UI 錯誤顯示**：將 DB 寫入失敗訊息顯示給使用者，避免 false success
+4. **Add transaction-level debugging** to the selected data processing workflow
+5. **Investigate session state handling** during large dataset processing
+6. **Add measurement count validation** after processing claims success
+7. **Review error handling** in the UI workflow to prevent silent failures
 
 ### Recommended Fixes
 1. **Add post-processing verification**: Always check actual measurement count after claiming success
@@ -122,6 +138,7 @@ Experiment 18: "test"
 3. **Silent failures are dangerous** - Need better error propagation
 4. **Debugging infrastructure is crucial** - Our debug scripts were essential
 5. **Small test data vs large real data** - Different behavior patterns
+6. **SQLite 適合單用戶小量資料，需考慮升級資料庫**
 
 ## Code Quality Improvements Made
 
@@ -133,4 +150,4 @@ Experiment 18: "test"
 
 ---
 
-**Summary**: The measurement saving functionality works correctly at the core level, but there are issues in the UI processing workflow that cause silent failures while showing false success messages. Investigation continues to identify and resolve these UI-level issues.
+**Summary**: The measurement saving functionality works correctly at the core level, but there are now critical issues: (1) database locked 導致所有寫入失敗，(2) step_id=None 資料異常，(3) UI 未正確顯示錯誤。需優先修正 DB locked 與資料驗證，並加強 UI 錯誤顯示與 post-processing 驗證。

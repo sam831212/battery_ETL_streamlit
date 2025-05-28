@@ -109,7 +109,7 @@ class Step(BaseModel, table=True):
     start_time: datetime = Field(nullable=False)
     end_time: Optional[datetime] = Field(default=None)
     duration: float  # seconds
-    voltage_start: float  # V
+    voltage_start: Optional[float] = Field(default=None, nullable=True)  # V
     voltage_end: float  # V
     current: float  # A
     capacity: float  # Ah
@@ -120,7 +120,6 @@ class Step(BaseModel, table=True):
     c_rate: float  # C
     soc_start: Optional[float] = Field(default=None)  # %
     soc_end: Optional[float] = Field(default=None)  # %
-    ocv: Optional[float] = Field(default=None)  # V
     data_meta: dict = Field(default={}, sa_column=Column(JSON))
     
     # Relationships
