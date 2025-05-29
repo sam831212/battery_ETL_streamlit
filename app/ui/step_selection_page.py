@@ -182,7 +182,8 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         "Select step types to display:",
         options=available_step_types,
         default=filtered_defaults,
-        key="step_type_filter"
+        key="step_type_filter",
+        help="Filter the list of steps shown below by their type (e.g., charge, discharge)."
     )
     
     # Update session state with selected step types
@@ -247,18 +248,18 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         # 只取前 5 個放電工步
         discharge_options = {
             f"Step {row['step_number']} ({row['original_step_type']})": idx 
-            for idx, row in discharge_only.head(5).iterrows()
+            for idx, row in discharge_only.head(5).iterrows() # Display first 5 for selection
         }
         
         # Add a "None" option
-        discharge_options["None (Auto-detect)"] = None
+        discharge_options["None (Auto-detect)"] = None # Default or if user wants auto
         
         # 如果放電工步超過 5 個，顯示提示訊息
         if len(discharge_only) > 5:
-            st.info(f"顯示前 5 個放電工步（共 {len(discharge_only)} 個）。")
+            st.info(f"Showing the first 5 discharge steps for reference selection (out of {len(discharge_only)} total discharge steps in the current view). Filter steps further if needed.")
         
         # Determine the current index in options based on session state
-        current_idx = st.session_state.full_discharge_step_idx
+        current_idx = st.session_state.temp_reference_step_idx # Use temp for immediate UI feedback if needed
         current_option = next(
             (k for k, v in discharge_options.items() if v == current_idx), 
             "None (Auto-detect)"
@@ -268,7 +269,8 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
             "Select a discharge step as 0% SOC reference:",
             options=list(discharge_options.keys()),
             index=list(discharge_options.keys()).index(current_option),
-            key="reference_step_selector"
+            key="reference_step_selector",
+            help="Choose a discharge step that represents a fully discharged state (0% SOC). This selection is critical for accurate SOC calculation across all steps. Only the first 5 discharge steps are shown here for selection; if needed, filter steps first."
         )
         
         selected_reference_idx = discharge_options[selected_reference_option]
@@ -283,22 +285,22 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
     
     # Display section for database loading selection
     st.write("#### Select Steps for Database Loading")
+    st.caption("Review the steps below. Use the checkboxes in the '選擇載入資料庫' (Select for DB Load) column to mark steps for inclusion in the final dataset. Ensure you have selected a 'Full Discharge Reference Step' above for SOC calculation if it's not already correct, then click 'Update Selections'.")
     
     # Add db_selection column to DataFrame if it doesn't exist
     if 'db_selection' not in filtered_df.columns:
         filtered_df['db_selection'] = False
         
     # Set initial values for db_selection based on session state
-    for idx in filtered_df.index:
-        filtered_df.loc[idx, 'db_selection'] = idx in st.session_state.temp_selected_steps_for_db
+    for idx_val in filtered_df.index: # Use idx_val to avoid conflict with outer scope idx
+        filtered_df.loc[idx_val, 'db_selection'] = idx_val in st.session_state.temp_selected_steps_for_db
     
     # Create a form to wrap the data editor
     with st.form(key="step_selection_form"):
-        st.write("Select steps to include in database loading:")
-        
         # Store a copy of the filtered_df in session state to compare changes
-        if 'previous_filtered_df' not in st.session_state:
-            st.session_state.previous_filtered_df = filtered_df.copy()
+        # This might not be necessary if we always derive from session state or inputs
+        # if 'previous_filtered_df' not in st.session_state:
+        #     st.session_state.previous_filtered_df = filtered_df.copy()
         
         # Create a data editor for multi-selection
         edited_df = st.data_editor(
@@ -311,7 +313,7 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
                 "soc_range": st.column_config.TextColumn("SOC範圍"),
                 "temperature_range": st.column_config.TextColumn("溫度範圍"),
                 "duration": st.column_config.NumberColumn("工步執行時間(秒)", format="%.1f"),
-                "db_selection": st.column_config.CheckboxColumn("選擇載入資料庫"),
+                "db_selection": st.column_config.CheckboxColumn("選擇載入資料庫", help="Check to include this step in the data loaded to the database."),
             },
             hide_index=True,
             use_container_width=True,
@@ -319,26 +321,18 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         )
         
         # Add a form submit button
-        submit_form = st.form_submit_button("Apply Selection Changes", type="primary")
+        submit_form = st.form_submit_button("Apply DB Selection Changes", type="secondary", help="Click to confirm the steps selected for database loading via the checkboxes above.")
     
-    # When form is submitted, update the session state
+    # When form is submitted, update the temporary session state for DB selections
     if submit_form:
-        # Update the temporary db selection in session state based on edited values
-        temp_selected_db_indices = []
-        for idx, row in edited_df.iterrows():
-            if row['db_selection']:
-                temp_selected_db_indices.append(idx)
+        temp_selected_db_indices = [filtered_df.index[i] for i, row in edited_df.iterrows() if row['db_selection']]
         
-        # Update temporary session state and set update flag
         if set(temp_selected_db_indices) != set(st.session_state.temp_selected_steps_for_db):
             st.session_state.temp_selected_steps_for_db = temp_selected_db_indices
-            st.session_state.update_needed = True
+            st.session_state.update_needed = True # Indicate that "Update Selections" might be relevant if SOC needs recalc
+            st.rerun() # Rerun to reflect checkbox changes immediately in "Selected Steps Overview"
             
-        # Store the edited dataframe for future comparison
-        st.session_state.previous_filtered_df = edited_df.copy()
-        
-    # Use the actual selections for returning
-    selected_db_indices = st.session_state.selected_steps_for_db
+    selected_db_indices = st.session_state.selected_steps_for_db # This is the final confirmed list after "Update Selections"
     
     return filtered_df, selected_reference_idx, selected_db_indices
 
@@ -361,32 +355,35 @@ def handle_reference_step_selection(
         - Updated steps DataFrame with SOC values
         - Updated details DataFrame with SOC values
     """
-    if full_discharge_step_idx is not None:
-        st.info(f"Recalculating SOC using the selected discharge step as reference.")
-    else:
-        st.info("Recalculating SOC using automatic reference step detection.")
     
-    # Calculate SOC with the selected reference step
-    try:
-        steps_with_soc, details_with_soc = calculate_soc(
-            steps_df.copy(), 
-            details_df.copy(),
-            full_discharge_step_idx=full_discharge_step_idx
-        )
-        
-        # Update session state
-        st.session_state.steps_df_with_soc = steps_with_soc
-        st.session_state.details_df_with_soc = details_with_soc
-        
-        # Success message
-        st.success("Successfully recalculated SOC with the new reference step!")
-        
-        return steps_with_soc, details_with_soc
-        
-    except Exception as e:
-        st.error(f"Error calculating SOC: {str(e)}")
-        st.error("Check if the reference step has valid capacity data.")
-        return steps_df, details_df
+    message = "Recalculating SOC using "
+    if full_discharge_step_idx is not None:
+        message += "the selected discharge step as reference."
+    else:
+        message += "automatic reference step detection."
+    
+    with st.spinner(f"{message}..."):
+        try:
+            steps_with_soc, details_with_soc = calculate_soc(
+                steps_df.copy(), 
+                details_df.copy(),
+                full_discharge_step_idx=full_discharge_step_idx
+            )
+            
+            # Update session state
+            st.session_state.steps_df_with_soc = steps_with_soc
+            st.session_state.details_df_with_soc = details_with_soc
+            
+            # Success message
+            st.success("Successfully recalculated SOC with the new reference step!")
+            
+            return steps_with_soc, details_with_soc
+            
+        except Exception as e:
+            st.error(f"An error occurred during SOC recalculation. Please check the selected reference step. Details: {str(e)}")
+            st.info("Ensure the selected reference step has valid capacity data and is appropriate for defining 0% SOC.")
+            # Return original dfs if error
+            return steps_df, details_df
 
 
 def display_selected_steps_overview(filtered_df: pd.DataFrame, selected_indices: List[int]):
@@ -572,15 +569,20 @@ def render_step_selection_page(steps_df: pd.DataFrame, details_df: pd.DataFrame)
         st.session_state.current_steps_df = steps_df
         
         # Calculate SOC with the updated reference step
-        if st.session_state.full_discharge_step_idx is not None or not st.session_state.filtered_step_types:
+        if st.session_state.full_discharge_step_idx is not None or not st.session_state.filtered_step_types or st.session_state.temp_reference_step_idx != st.session_state.full_discharge_step_idx:
+            # Condition to recalculate: if a reference is set, or if filters changed, or if temp reference changed
+            
+            current_steps_for_soc = st.session_state.current_steps_df if st.session_state.current_steps_df is not None else steps_df
+            
             steps_with_soc, details_with_soc = handle_reference_step_selection(
-                steps_df, 
-                details_df,
-                full_discharge_step_idx=st.session_state.full_discharge_step_idx
+                current_steps_for_soc, # Use the initially loaded or last processed full steps_df
+                details_df, # Assuming details_df is relatively static or also reloaded if files change
+                full_discharge_step_idx=st.session_state.full_discharge_step_idx # Use the confirmed reference index
             )
             
-            # Update the steps_df with SOC values to display in the table
-            steps_df = steps_with_soc
+            # Update the main steps_df in session state that will be used for display and further processing
+            st.session_state.steps_df_with_soc = steps_with_soc # This is the one to use for display
+            st.session_state.details_df_with_soc = details_with_soc
             
             # Reset the update needed flag
             st.session_state.update_needed = False

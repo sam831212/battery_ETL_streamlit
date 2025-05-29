@@ -23,34 +23,37 @@ def render_settings_page():
     st.write(f"Database URL: {DATABASE_URL}")
     
     # Add a button to test database connection
-    if st.button("Test Database Connection"):
-        try:
-            from app.utils.database import test_db_connection
-            if test_db_connection():
-                st.success("Database connection successful!")
-            else:
-                st.error("Database connection failed!")
-        except Exception as e:
-            st.error(f"Error testing database connection: {str(e)}")
+    if st.button("Test Database Connection", help="Verify connectivity to the configured SQLite database."):
+        with st.spinner("Testing connection..."):
+            try:
+                from app.utils.database import test_db_connection # Local import if not already at top
+                if test_db_connection():
+                    st.success("Database connection successful!")
+                else:
+                    st.error("Database connection failed. Check logs for details.")
+            except Exception as e:
+                st.error(f"An error occurred while testing database connection. Details: {str(e)}")
     
     # Add a button to initialize database
-    if st.button("Initialize Database"):
-        try:
-            from scripts.init_db import init_database
-            init_database()
-            st.success("Database initialized successfully!")
-        except Exception as e:
-            st.error(f"Error initializing database: {str(e)}")
+    if st.button("Initialize Database", help="Create database tables if they don't already exist. Safe to run on an existing database."):
+        with st.spinner("Initializing database..."):
+            try:
+                from scripts.init_db import init_database # Local import
+                init_database()
+                st.success("Database initialized successfully!")
+            except Exception as e:
+                st.error(f"An error occurred during database initialization. Details: {str(e)}")
     
     # Add a button to reset database
-    if st.button("Reset Database", type="secondary"):
-        if st.checkbox("I understand this will delete all data"):
-            try:
-                from scripts.init_db import reset_database
-                reset_database()
-                st.success("Database reset successfully!")
-            except Exception as e:
-                st.error(f"Error resetting database: {str(e)}")
+    if st.button("Reset Database", type="secondary", help="Warning: Deletes all existing data and recreates the database schema."):
+        if st.checkbox("I understand this will delete all data", help="This is a destructive operation. Ensure you have backups if needed."):
+            with st.spinner("Resetting database..."):
+                try:
+                    from scripts.init_db import reset_database # Local import
+                    reset_database()
+                    st.success("Database reset successfully!")
+                except Exception as e:
+                    st.error(f"An error occurred while resetting the database. Details: {str(e)}")
 
 
 def render_file_format_settings():
@@ -218,19 +221,20 @@ def render_cell_management():
     
     if submitted:
         # Create new cell in database
-        with get_session() as session:
-            new_cell = Cell(
-                name=cell_name if cell_name else None,
-                chemistry=CellChemistry(chemistry),
-                capacity=capacity,
-                form=CellFormFactor(form_factor)
-            )
-            
-            session.add(new_cell)
-            session.commit()
-            
-            st.success(f"New cell added successfully! ID: {new_cell.id}")
-            st.rerun()
+        with st.spinner("Adding cell to database..."):
+            with get_session() as session:
+                new_cell = Cell(
+                    name=cell_name if cell_name else None,
+                    chemistry=CellChemistry(chemistry),
+                    capacity=capacity,
+                    form=CellFormFactor(form_factor)
+                )
+                
+                session.add(new_cell)
+                session.commit()
+                
+                st.success(f"New cell '{new_cell.name or 'N/A'}' added successfully! ID: {new_cell.id}")
+                st.rerun()
     
     # Delete cell section
     st.subheader("Delete Cell")
@@ -248,34 +252,36 @@ def render_cell_management():
                 selected_cell_index = st.selectbox(
                     "Select Cell to Delete",
                     options=range(len(cell_options)),
-                    format_func=lambda x: cell_options[x]
+                    format_func=lambda x: cell_options[x],
+                    help="Select the specific cell entry you wish to permanently delete."
                 )
             
             with col2:
-                delete_button = st.button("Delete Cell", type="secondary")
+                delete_button = st.button("Delete Cell", type="secondary", help="Permanently remove the selected cell from the database.")
             
             if delete_button:
                 if st.session_state.get("confirm_delete_cell", False):
-                    # Perform deletion
-                    cell_id = cell_ids[selected_cell_index]
-                    
-                    # Check if the cell is referenced by any experiments
-                    experiment_count = session.exec(select(func.count("*")).where(Experiment.cell_id == cell_id)).one()
-                    
-                    if experiment_count > 0:
-                        st.error(f"Cannot delete cell (ID: {cell_id}) because it is referenced by {experiment_count} experiments.")
-                    else:
-                        # Safe to delete
-                        session.exec(delete(Cell).where(Cell.id == cell_id))
-                        session.commit()
-                        st.success(f"Cell with ID {cell_id} deleted successfully!")
-                        st.session_state["confirm_delete_cell"] = False
-                        st.rerun()
+                    with st.spinner("Deleting cell from database..."):
+                        # Perform deletion
+                        cell_id_to_delete = cell_ids[selected_cell_index]
+                        
+                        # Check if the cell is referenced by any experiments
+                        experiment_count = session.exec(select(func.count(Experiment.id)).where(Experiment.cell_id == cell_id_to_delete)).one()
+                        
+                        if experiment_count > 0:
+                            st.error(f"Cannot delete cell (ID: {cell_id_to_delete}) because it is referenced by {experiment_count} experiment(s). Please update or remove those experiments first.")
+                        else:
+                            # Safe to delete
+                            session.exec(delete(Cell).where(Cell.id == cell_id_to_delete))
+                            session.commit()
+                            st.success(f"Cell with ID {cell_id_to_delete} deleted successfully!")
+                            st.session_state["confirm_delete_cell"] = False # Reset confirmation
+                            st.rerun()
                 else:
                     st.warning("⚠️ Are you sure you want to delete this cell? This action cannot be undone.")
-                    if st.button("Confirm Delete", type="primary"):
+                    if st.button("Confirm Delete Cell", type="primary", key="confirm_delete_cell_btn"):
                         st.session_state["confirm_delete_cell"] = True
-                        st.rerun()
+                        st.rerun() # Rerun to process the delete on next click if confirmed
         else:
             st.info("No cells available to delete.")
 
@@ -334,21 +340,22 @@ def render_machine_management():
     
     if submitted:
         if not name:
-            st.error("Machine name is required!")
+            st.error("Machine name is required.")
         else:
             # Create new machine in database
-            with get_session() as session:
-                new_machine = Machine(
-                    name=name,
-                    model_number=model_number if model_number else None,
-                    description=description if description else None
-                )
-                
-                session.add(new_machine)
-                session.commit()
-                
-                st.success(f"New machine added successfully! ID: {new_machine.id}")
-                st.rerun()
+            with st.spinner("Adding machine to database..."):
+                with get_session() as session:
+                    new_machine = Machine(
+                        name=name,
+                        model_number=model_number if model_number else None,
+                        description=description if description else None
+                    )
+                    
+                    session.add(new_machine)
+                    session.commit()
+                    
+                    st.success(f"New machine '{new_machine.name}' added successfully! ID: {new_machine.id}")
+                    st.rerun()
     
     # Delete machine section
     st.subheader("Delete Machine")
@@ -366,33 +373,35 @@ def render_machine_management():
                 selected_machine_index = st.selectbox(
                     "Select Machine to Delete",
                     options=range(len(machine_options)),
-                    format_func=lambda x: machine_options[x]
+                    format_func=lambda x: machine_options[x],
+                    help="Select the specific machine entry you wish to permanently delete."
                 )
             
             with col2:
-                delete_button = st.button("Delete Machine", type="secondary")
+                delete_button = st.button("Delete Machine", type="secondary", help="Permanently remove the selected machine from the database.")
             
             if delete_button:
                 if st.session_state.get("confirm_delete_machine", False):
-                    # Perform deletion
-                    machine_id = machine_ids[selected_machine_index]
-                    
-                    # Check if the machine is referenced by any experiments
-                    experiment_count = session.exec(select(func.count("*")).where(Experiment.machine_id == machine_id)).one()
-                    
-                    if experiment_count > 0:
-                        st.error(f"Cannot delete machine (ID: {machine_id}) because it is referenced by {experiment_count} experiments.")
-                    else:
-                        # Safe to delete
-                        session.exec(delete(Machine).where(Machine.id == machine_id))
-                        session.commit()
-                        st.success(f"Machine with ID {machine_id} deleted successfully!")
-                        st.session_state["confirm_delete_machine"] = False
-                        st.rerun()
+                    with st.spinner("Deleting machine from database..."):
+                        # Perform deletion
+                        machine_id_to_delete = machine_ids[selected_machine_index]
+                        
+                        # Check if the machine is referenced by any experiments
+                        experiment_count = session.exec(select(func.count(Experiment.id)).where(Experiment.machine_id == machine_id_to_delete)).one()
+                        
+                        if experiment_count > 0:
+                            st.error(f"Cannot delete machine (ID: {machine_id_to_delete}) because it is referenced by {experiment_count} experiment(s). Please update or remove those experiments first.")
+                        else:
+                            # Safe to delete
+                            session.exec(delete(Machine).where(Machine.id == machine_id_to_delete))
+                            session.commit()
+                            st.success(f"Machine with ID {machine_id_to_delete} deleted successfully!")
+                            st.session_state["confirm_delete_machine"] = False # Reset confirmation
+                            st.rerun()
                 else:
                     st.warning("⚠️ Are you sure you want to delete this machine? This action cannot be undone.")
-                    if st.button("Confirm Delete", type="primary"):
+                    if st.button("Confirm Delete Machine", type="primary", key="confirm_delete_machine_btn"):
                         st.session_state["confirm_delete_machine"] = True
-                        st.rerun()
+                        st.rerun() # Rerun to process the delete on next click if confirmed
         else:
             st.info("No machines available to delete.")
