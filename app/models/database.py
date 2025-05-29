@@ -24,6 +24,7 @@ class CellChemistry(str, Enum):
     NMC = "NMC"
     LFP = "LFP"
     LTO = "LTO"
+    SIB = "SIB" 
     OTHER = "Others"
 
 

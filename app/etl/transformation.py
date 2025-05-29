@@ -31,7 +31,7 @@ def calculate_c_rate(current: float, nominal_capacity: float) -> float:
         raise ValueError("Nominal capacity must be positive")
     
     # Take absolute value of current for both charge and discharge
-    return abs(current) / nominal_capacity
+    return round(abs(current) / nominal_capacity, 2)
 
 
 def calculate_soc(steps_df: pd.DataFrame, details_df: pd.DataFrame, full_discharge_step_idx: Optional[int] = None) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -118,7 +118,7 @@ def calculate_soc(steps_df: pd.DataFrame, details_df: pd.DataFrame, full_dischar
     
     # Set the reference discharge step's SOC_end to 0%
     steps.at[reference_step_idx, 'soc_end'] = 0.0
-    
+
     # Get sorted step indices for processing in chronological order
     steps_sorted = steps.sort_values('start_time')
     step_indices = list(steps_sorted.index)
@@ -130,8 +130,9 @@ def calculate_soc(steps_df: pd.DataFrame, details_df: pd.DataFrame, full_dischar
         if i >= reference_step_pos:  # Only calculate for steps at or after the reference step
             step = steps.loc[idx]
             if 'total_capacity' in step and pd.notna(step['total_capacity']):
-                steps.at[idx, 'soc_end'] = 100 * (step['total_capacity'] - reference_total_capacity) / abs(reference_capacity)
-    
+                soc_end = 100 * (step['total_capacity'] - reference_total_capacity) / abs(reference_capacity)
+                steps.at[idx, 'soc_end'] = round(soc_end, 2)
+
     # Calculate soc_start for each step based on the end SOC of the previous step
     for i, current_idx in enumerate(step_indices):
         if i == 0 or i <= reference_step_pos:  
@@ -141,24 +142,22 @@ def calculate_soc(steps_df: pd.DataFrame, details_df: pd.DataFrame, full_dischar
             # For steps after reference, start SOC is the end SOC of the previous step
             previous_idx = step_indices[i - 1]
             if pd.notna(steps.loc[previous_idx, 'soc_end']):
-                steps.at[current_idx, 'soc_start'] = steps.loc[previous_idx, 'soc_end']
-    
+                steps.at[current_idx, 'soc_start'] = round(steps.loc[previous_idx, 'soc_end'], 2)
+
     # For the reference step, set soc_start to a small negative value if previous step exists
     if reference_step_pos > 0:
         previous_idx = step_indices[reference_step_pos - 1]
         if 'total_capacity' in steps.loc[previous_idx] and pd.notna(steps.loc[previous_idx, 'total_capacity']):
             previous_total_capacity = steps.loc[previous_idx, 'total_capacity']
-            # Ensure both are scalars
             if isinstance(previous_total_capacity, pd.Series):
                 previous_total_capacity = previous_total_capacity.iloc[0]
             if isinstance(reference_total_capacity, pd.Series):
                 reference_total_capacity = reference_total_capacity.iloc[0]
-            steps.at[reference_step_idx, 'soc_start'] = 100 * (float(previous_total_capacity) - float(reference_total_capacity)) / abs(float(reference_capacity))
-    
+            soc_start = 100 * (float(previous_total_capacity) - float(reference_total_capacity)) / abs(float(reference_capacity))
+            steps.at[reference_step_idx, 'soc_start'] = round(soc_start, 2)
+
     # Return updated steps and unchanged details
     return steps, details_df
-
-
 
 def transform_data(steps_df: pd.DataFrame, details_df: pd.DataFrame, 
                    nominal_capacity: float) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -190,7 +189,6 @@ nominal_capacity：電池的標稱容量，單位為安培小時 (Ah)
     else:
         steps['c_rate'] = 0.0
         details['c_rate'] = 0.0
-    
 
     # 2. Calculate SOC
     steps, details = calculate_soc(steps, details)
