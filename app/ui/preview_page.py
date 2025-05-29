@@ -98,49 +98,53 @@ def apply_transformations(step_df: pd.DataFrame, detail_df: pd.DataFrame, nomina
                     st.warning("No discharge steps found in the data. SOC calculation requires discharge steps.")
                     return step_df, detail_df
                 else:
-                    st.success(f"Found {len(discharge_steps)} discharge steps.")
+                    st.success(f"Found {len(discharge_steps)} discharge steps available for SOC reference.")
                     
                     # Check for total_capacity column
                     if 'total_capacity' not in step_df.columns:
-                        st.error("No 'total_capacity' column found. The '總電壓(Ah)' column might be missing in the Step.csv file.")
+                        st.error("No 'total_capacity' column found. The '總電壓(Ah)' column might be missing or misnamed in the Step.csv file.")
                         return step_df, detail_df
                     else:
                         # Find the 2nd discharge step as reference by default
                         discharge_steps_sorted = discharge_steps.sort_values('step_number')
                         
-                        if len(discharge_steps) >= 2:
+                        if len(discharge_steps_sorted) >= 2:
                             reference_step_idx = discharge_steps_sorted.index[1]  # 2nd discharge step
-                            reference_step = discharge_steps.loc[reference_step_idx]
+                            reference_step = discharge_steps_sorted.loc[reference_step_idx]
                             default_reference = f"Step {reference_step['step_number']} ({reference_step['original_step_type']})"
-                        else:
-                            reference_step_idx = discharge_steps_sorted.index[0]  # 1st discharge step if only one exists
-                            reference_step = discharge_steps.loc[reference_step_idx]
+                        elif not discharge_steps_sorted.empty: # Handles if only one discharge step exists
+                            reference_step_idx = discharge_steps_sorted.index[0]  # 1st discharge step
+                            reference_step = discharge_steps_sorted.loc[reference_step_idx]
                             default_reference = f"Step {reference_step['step_number']} ({reference_step['original_step_type']})"
-                        
+                        else: # Should not happen due to earlier check, but as a fallback
+                            st.warning("Could not determine a default reference step for SOC calculation.")
+                            return step_df, detail_df
+
                         # Create a reference step selector
                         discharge_steps_dict = {
                             f"Step {row['step_number']} ({row['original_step_type']})": idx 
-                            for idx, row in discharge_steps.iterrows()
+                            for idx, row in discharge_steps_sorted.iterrows() # Use sorted steps
                         }
                         
                         # Initialize session state for reference step if not exists
-                        if 'selected_reference_step' not in st.session_state:
+                        if 'selected_reference_step' not in st.session_state or st.session_state.selected_reference_step not in discharge_steps_dict:
                             st.session_state.selected_reference_step = default_reference
                         
                         # Define callback function for selectbox
                         def on_reference_step_change():
-                            st.session_state.selected_reference_step = st.session_state.reference_step_selector
+                            st.session_state.selected_reference_step = st.session_state.reference_step_selector # key of selectbox
                         
                         # Create selectbox with callback
-                        selected_reference = st.selectbox(
+                        selected_reference_label = st.selectbox(
                             "Select reference discharge step for 0% SOC:",
                             options=list(discharge_steps_dict.keys()),
                             index=list(discharge_steps_dict.keys()).index(st.session_state.selected_reference_step),
-                            key="reference_step_selector",
-                            on_change=on_reference_step_change
+                            key="reference_step_selector", # This key is used by the callback
+                            on_change=on_reference_step_change,
+                            help="Choose a discharge step that represents a fully discharged state (0% SOC). This is crucial for accurate SOC calculation."
                         )
                         
-                        selected_reference_idx = discharge_steps_dict[selected_reference]
+                        selected_reference_idx = discharge_steps_dict[selected_reference_label]
                         
                         # Try SOC calculation with explicit reference
                         steps_with_soc, details_with_soc = calculate_soc(
@@ -158,16 +162,16 @@ def apply_transformations(step_df: pd.DataFrame, detail_df: pd.DataFrame, nomina
                             
                             return steps_with_soc, details_with_soc
                         else:
-                            st.warning("No valid SOC values calculated. Check the reference step selection.")
+                            st.warning("SOC calculation did not produce valid values. Please check the selected reference step and its data.")
                             return step_df, detail_df
             
             except Exception as e:
-                st.error(f"Error calculating SOC: {str(e)}")
-                st.error("Check if the reference step has valid capacity data.")
+                st.error(f"An error occurred during SOC calculation. Please check your data and reference step. Details: {str(e)}")
+                st.info("Ensure the selected reference step has valid capacity data and is appropriate for defining 0% SOC.")
                 return step_df, detail_df
                 
         except Exception as e:
-            st.error(f"Error applying transformations: {str(e)}")
+            st.error(f"An error occurred during data transformation. Details: {str(e)}")
             return step_df, detail_df
 
 
@@ -183,7 +187,11 @@ def create_file_upload_area() -> Tuple[Optional[str], Optional[str]]:
     st.header("Upload Data Files")
     
     # Option to use example files
-    use_example_files = st.checkbox("Use example files from example_csv_chromaLex folder", key="use_example_files")
+    use_example_files = st.checkbox(
+        "Use example files from example_csv_chromaLex folder", 
+        key="use_example_files",
+        help="Check this box to use pre-packaged example CSV files for a quick demonstration."
+        )
     
     step_file_path = None
     detail_file_path = None
@@ -194,9 +202,9 @@ def create_file_upload_area() -> Tuple[Optional[str], Optional[str]]:
         example_detail_files = [f for f in os.listdir(EXAMPLE_FOLDER) if f.endswith("_Detail.csv")]
         
         if not example_step_files or not example_detail_files:
-            st.error("No example files found in the example_csv_chromaLex folder.")
+            st.error(f"No example CSV files found in the '{EXAMPLE_FOLDER}' directory.")
         else:
-            st.success(f"Found {len(example_step_files)} step files and {len(example_detail_files)} detail files.")
+            st.success(f"Found {len(example_step_files)} example step files and {len(example_detail_files)} example detail files.")
             
             # Automatically match related step and detail files
             example_pairs = []
@@ -207,15 +215,16 @@ def create_file_upload_area() -> Tuple[Optional[str], Optional[str]]:
                     example_pairs.append((base_name, step_file, detail_file))
             
             if example_pairs:
-                selected_pair = st.selectbox(
+                selected_pair_index = st.selectbox(
                     "Select example file pair:",
                     options=range(len(example_pairs)),
-                    format_func=lambda i: example_pairs[i][0]
+                    format_func=lambda i: example_pairs[i][0], # Show base name for selection
+                    help="Choose a pair of Step and Detail CSV files from the examples."
                 )
                 
-                _, selected_step_file, selected_detail_file = example_pairs[selected_pair]
+                _, selected_step_file, selected_detail_file = example_pairs[selected_pair_index]
                 
-                st.info(f"Selected files: {selected_step_file} and {selected_detail_file}")
+                st.info(f"Using example files: **{selected_step_file}** and **{selected_detail_file}**")
                 
                 # Set the file paths
                 step_file_path = os.path.join(EXAMPLE_FOLDER, selected_step_file)
@@ -300,9 +309,11 @@ def render_preview_page():
     # Create UI for nominal capacity input
     nominal_capacity = st.number_input(
         "Nominal Capacity (Ah)",
-        min_value=0.1,
+        min_value=0.01, # Allow smaller capacities
         value=3.0,
-        help="Nominal capacity of the battery in Amp-hours"
+        step=0.1,
+        format="%.2f",
+        help="Enter the battery's nominal capacity in Amp-hours (Ah) as specified by the manufacturer. This is used for C-rate calculations."
     )
 
     # --- 新增：如果 session_state 已有處理過的資料，直接顯示 preview ---
@@ -381,14 +392,15 @@ def render_preview_page():
                         
                         
                         # Provide a button to continue to step selection
-                        st.success("Data preview complete! You can now proceed to Step Selection to choose which steps to include.")
+                        st.success("Data preview and initial transformations are complete!")
+                        st.info("Review the data below. If everything looks correct, proceed to Step Selection to choose the specific steps for further analysis and database loading.")
                         with continue_col:
                             if st.button("Continue to Step Selection", type="primary", key="continue_to_step_selection_btn"):
                                 st.session_state['current_page'] = "Step Selection"
                                 st.rerun()
                                                 
                 except Exception as e:
-                    st.error(f"Error processing files: {str(e)}")
+                    st.error(f"An error occurred while processing the files. Please ensure they are correctly formatted. Details: {str(e)}")
     
     # Navigation help
     with st.expander("How to use this page"):

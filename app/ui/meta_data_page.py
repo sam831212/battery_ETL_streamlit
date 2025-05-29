@@ -31,6 +31,7 @@ def render_meta_data_page():
     """
     # Set up page
     st.title("Battery ETL Dashboard - Experiment Information")
+    st.caption("Manage your experimental metadata here. Use the tabs to navigate between Cell, Machine, and Experiment information.")
     
     # Get database entities for references
     # Try to get cells and machines with connection retry logic
@@ -46,7 +47,7 @@ def render_meta_data_page():
                 cells = session.query(Cell).order_by(Cell.name).all()
                 machines = session.query(Machine).order_by(Machine.name).all()
         except Exception as retry_error:
-            st.error(f"Database connection error: {str(retry_error)}")
+            st.error(f"Failed to connect to the database after retry. Please check your database configuration or contact support. Details: {str(retry_error)}")
             st.info("Please try refreshing the page. If the issue persists, contact support.")
             cells = []
             machines = []
