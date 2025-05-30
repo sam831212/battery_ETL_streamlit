@@ -80,6 +80,7 @@ menu_items = {
     "Step Selection": "✅",
     "Experiment Info": "📝",
     "Dashboard": "📈",
+    "Pygwalker": "🚶", # Added Pygwalker page
     "Settings": "⚙️"
 }
 
@@ -158,6 +159,10 @@ elif st.session_state['current_page'] == "Experiment Info":
 elif st.session_state['current_page'] == "Dashboard":
     from app.ui.dashboard_page import render_dashboard_page
     render_dashboard_page()
+
+elif st.session_state['current_page'] == "Pygwalker": # Added Pygwalker page
+    from app.ui.pygwalker_page import render_pygwalker_page
+    render_pygwalker_page()
     
 elif st.session_state['current_page'] == "Settings":
     from app.ui.settings_page import render_settings_page

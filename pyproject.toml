@@ -8,6 +8,7 @@ dependencies = [
     "anthropic>=0.50.0",
     "pandas>=2.2.3",
     "plotly>=6.0.1",
+    "pygwalker>=0.1.4.7", # I'm not sure what the latest version is, so I'll use a recent one.
     "pytest>=8.3.5",
     "pytest-cov>=6.1.1",
     "python-dotenv>=1.1.0",
