@@ -1,4 +1,5 @@
 """
+此頁尚未正確編寫，為Jules AI編寫，仍需要進行調整和完善。可以重頭寫
 Dashboard UI components for the Battery ETL Dashboard
 
 This module provides UI components for visualizing and analyzing battery test data.

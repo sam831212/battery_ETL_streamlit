@@ -163,8 +163,7 @@ def plot_data_by_step_type(df: pd.DataFrame,
                           title: str = None,
                           x_title: str = None, 
                           y_title: str = None,
-                          step_type_col: str = 'step_type',
-                          highlight_anomalies: bool = True) -> go.Figure:
+                          step_type_col: str = 'step_type'):
     """
     Create a plot with data colored by step type.
     
@@ -176,7 +175,6 @@ def plot_data_by_step_type(df: pd.DataFrame,
         x_title: X-axis title
         y_title: Y-axis title
         step_type_col: Column containing step types
-        highlight_anomalies: Whether to highlight anomalies
         
     Returns:
         Plotly figure
@@ -200,7 +198,6 @@ def plot_data_by_step_type(df: pd.DataFrame,
             # Skip if filtered dataframe is empty
             if step_df.empty:
                 continue
-            
             # Get color for step type
             color = get_color_by_step_type(step_type)
             
@@ -236,20 +233,15 @@ def plot_data_by_step_type(df: pd.DataFrame,
                 )
             )
         )
-    
-    # Highlight anomalies if requested
-    if highlight_anomalies:
-        fig = add_anomaly_markers(fig, df, x_col, y_col)
-    
-    # Apply consistent styling
-    fig = apply_consistent_styling(
-        fig, 
-        title=title or f"{y_col} vs {x_col}",
-        x_title=x_title or x_col,
-        y_title=y_title or y_col
-    )
-    
+    # Set titles if provided
+    if title:
+        fig.update_layout(title=title)
+    if x_title:
+        fig.update_xaxes(title_text=x_title)
+    if y_title:
+        fig.update_yaxes(title_text=y_title)
     return fig
+
 
 
 def cache_plot(ttl: int = 300):

@@ -28,8 +28,7 @@ from app.etl.validation import (
     generate_validation_report,
     generate_summary_table,
     detect_voltage_anomalies,
-    detect_capacity_anomalies,
-    detect_temperature_anomalies
+    detect_capacity_anomalies,   
 )
 from app.ui.components.preview_page.data_display_ui import display_data_statistics
 from app.ui.components.preview_page.data_display_ui import display_data_tables
@@ -178,6 +177,7 @@ def apply_transformations(step_df: pd.DataFrame, detail_df: pd.DataFrame, nomina
 def create_file_upload_area() -> Tuple[Optional[str], Optional[str]]:
     """
     Create file upload area for step and detail files.
+    Also sets session state for 'uploaded_file_names' or 'selected_example_pair'.
     
     Returns:
         Tuple containing:
@@ -186,99 +186,116 @@ def create_file_upload_area() -> Tuple[Optional[str], Optional[str]]:
     """
     st.header("Upload Data Files")
     
-    # Option to use example files
-    use_example_files = st.checkbox(
+    # Using the key "use_example_files" as in the original file for the checkbox state
+    use_example_files_checked = st.checkbox(
         "Use example files from example_csv_chromaLex folder", 
-        key="use_example_files",
+        key="use_example_files", # Original key
         help="Check this box to use pre-packaged example CSV files for a quick demonstration."
-        )
+    )
     
     step_file_path = None
     detail_file_path = None
     
-    if use_example_files:
-        # Display list of available example files
+    if use_example_files_checked:
+        # Clear uploaded file states if switching to example files
+        if 'uploaded_file_names' in st.session_state:
+            del st.session_state['uploaded_file_names']
+        for key_to_clear in ['step_file_content', 'detail_file_content', 'step_file_name', 'detail_file_name', 'step_file_hash', 'detail_file_hash']:
+            if key_to_clear in st.session_state:
+                del st.session_state[key_to_clear]
+
         example_step_files = [f for f in os.listdir(EXAMPLE_FOLDER) if f.endswith("_Step.csv")]
         example_detail_files = [f for f in os.listdir(EXAMPLE_FOLDER) if f.endswith("_Detail.csv")]
         
         if not example_step_files or not example_detail_files:
             st.error(f"No example CSV files found in the '{EXAMPLE_FOLDER}' directory.")
+            if 'selected_example_pair' in st.session_state: # Clear if previously set and now no examples
+                del st.session_state['selected_example_pair']
         else:
             st.success(f"Found {len(example_step_files)} example step files and {len(example_detail_files)} example detail files.")
-            
-            # Automatically match related step and detail files
             example_pairs = []
-            for step_file in example_step_files:
-                base_name = step_file.replace("_Step.csv", "")
-                detail_file = f"{base_name}_Detail.csv"
-                if detail_file in example_detail_files:
-                    example_pairs.append((base_name, step_file, detail_file))
+            for step_f_name in example_step_files: # Renamed variable
+                base_name = step_f_name.replace("_Step.csv", "")
+                detail_f_name = f"{base_name}_Detail.csv" # Renamed variable
+                if detail_f_name in example_detail_files:
+                    example_pairs.append((base_name, step_f_name, detail_f_name))
             
             if example_pairs:
                 selected_pair_index = st.selectbox(
                     "Select example file pair:",
                     options=range(len(example_pairs)),
-                    format_func=lambda i: example_pairs[i][0], # Show base name for selection
+                    format_func=lambda i: example_pairs[i][0],
+                    key="example_pair_selector_widget", # Added a key for stability
                     help="Choose a pair of Step and Detail CSV files from the examples."
                 )
                 
-                _, selected_step_file, selected_detail_file = example_pairs[selected_pair_index]
-                
+                base_name, selected_step_file, selected_detail_file = example_pairs[selected_pair_index]
                 st.info(f"Using example files: **{selected_step_file}** and **{selected_detail_file}**")
                 
-                # Set the file paths
                 step_file_path = os.path.join(EXAMPLE_FOLDER, selected_step_file)
                 detail_file_path = os.path.join(EXAMPLE_FOLDER, selected_detail_file)
+                # SET SESSION STATE for example files
+                st.session_state['selected_example_pair'] = (base_name, step_file_path, detail_file_path)
             else:
                 st.warning("No matching step and detail file pairs found.")
-    else:
-        # Regular file upload
+                if 'selected_example_pair' in st.session_state: # Clear if no pairs found
+                    del st.session_state['selected_example_pair']
+    else: # Regular file upload
+        # Clear example file state if switching to upload
+        if 'selected_example_pair' in st.session_state:
+            del st.session_state['selected_example_pair']
+
         col1, col2 = st.columns(2)
         
+        # Logic based on original file's way of handling file uploaders and session state
         with col1:
-            step_file = st.file_uploader(
-                "Upload Step.csv",
-                type=["csv"],
-                help="CSV file containing step-level data",
-                key="step_file",
+            step_file_widget_output = st.file_uploader(
+                "Upload Step.csv", type=["csv"], help="CSV file containing step-level data", key="step_file"
             )
-            
-            if step_file:
-                # Store the file name in session state so we can access it later
-                st.session_state["step_file_name"] = step_file.name
-                # Calculate hash from memory for duplicate detection
-                st.session_state["step_file_hash"] = calculate_file_hash_from_memory(step_file.getbuffer())
-                # Store the file in memory
-                st.session_state["step_file_content"] = step_file
-                # Use a session-persistent temporary file
+            if step_file_widget_output:
+                st.session_state["step_file_content"] = step_file_widget_output
+                st.session_state["step_file_name"] = step_file_widget_output.name
+                st.session_state["step_file_hash"] = calculate_file_hash_from_memory(step_file_widget_output.getbuffer())
                 step_file_path = create_session_temp_file(
-                    step_file, 
+                    step_file_widget_output, 
                     file_key=f"step_{st.session_state['step_file_hash']}", 
                     suffix=".csv"
                 )
+            else: # File removed or not uploaded
+                for key_to_clear in ["step_file_content", "step_file_name", "step_file_hash"]:
+                    if key_to_clear in st.session_state:
+                        del st.session_state[key_to_clear]
         
         with col2:
-            detail_file = st.file_uploader(
-                "Upload Detail.csv",
-                type=["csv"],
-                help="CSV file containing detailed measurement data",
-                key="detail_file",
+            detail_file_widget_output = st.file_uploader(
+                "Upload Detail.csv", type=["csv"], help="CSV file containing detailed measurement data", key="detail_file"
             )
-            
-            if detail_file:
-                # Store the file name in session state so we can access it later
-                st.session_state["detail_file_name"] = detail_file.name
-                # Calculate hash from memory for duplicate detection
-                st.session_state["detail_file_hash"] = calculate_file_hash_from_memory(detail_file.getbuffer())
-                # Store the file in memory
-                st.session_state["detail_file_content"] = detail_file
-                # Use a session-persistent temporary file
+            if detail_file_widget_output:
+                st.session_state["detail_file_content"] = detail_file_widget_output
+                st.session_state["detail_file_name"] = detail_file_widget_output.name
+                st.session_state["detail_file_hash"] = calculate_file_hash_from_memory(detail_file_widget_output.getbuffer())
                 detail_file_path = create_session_temp_file(
-                    detail_file,
+                    detail_file_widget_output,
                     file_key=f"detail_{st.session_state['detail_file_hash']}",
                     suffix=".csv"
                 )
-    
+            else: # File removed or not uploaded
+                for key_to_clear in ["detail_file_content", "detail_file_name", "detail_file_hash"]:
+                    if key_to_clear in st.session_state:
+                        del st.session_state[key_to_clear]
+
+        # SET SESSION STATE for uploaded files if both are present
+        s_content = st.session_state.get("step_file_content")
+        d_content = st.session_state.get("detail_file_content")
+
+        if s_content and d_content:
+            st.session_state['uploaded_file_names'] = (s_content.name, d_content.name)
+        else:
+            # If one or both files are missing (cleared above or never uploaded), clear the pair name
+            if 'uploaded_file_names' in st.session_state:
+                del st.session_state['uploaded_file_names']
+                 
+
     return step_file_path, detail_file_path
 
 

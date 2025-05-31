@@ -320,8 +320,14 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
             key="step_selection_table"
         )
         
-        # Add a form submit button
-        submit_form = st.form_submit_button("Apply DB Selection Changes", type="secondary", help="Click to confirm the steps selected for database loading via the checkboxes above.")
+        # Add a form submit button on the right side
+        form_col1, form_col2 = st.columns([3, 1])
+        with form_col2:
+            submit_form = st.form_submit_button(
+                "Apply DB Selection Changes", 
+                type="secondary", 
+                help="Click to confirm the steps selected for database loading via the checkboxes above."
+            )
     
     # When form is submitted, update the temporary session state for DB selections
     if submit_form:

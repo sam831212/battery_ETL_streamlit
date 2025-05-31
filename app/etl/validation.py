@@ -115,51 +115,6 @@ def detect_capacity_anomalies(df: pd.DataFrame,
     return df_result
 
 
-def detect_temperature_anomalies(df: pd.DataFrame,
-                                temp_col: str = 'temperature',
-                                min_temp: float = -20.0,
-                                max_temp: float = 80.0,
-                                max_temp_change: float = 10.0) -> pd.DataFrame:
-    """
-    Detect anomalies in temperature measurements.
-    
-    Args:
-        df: DataFrame containing temperature data
-        temp_col: Name of the temperature column
-        min_temp: Minimum valid temperature (°C)
-        max_temp: Maximum valid temperature (°C)
-        max_temp_change: Maximum allowed temperature change between consecutive readings (°C)
-        
-    Returns:
-        DataFrame with added columns:
-        - 'temperature_change': Change in temperature between consecutive readings
-        - 'temperature_is_anomaly': Boolean flag for anomalous temperature values
-    """
-    if temp_col not in df.columns:
-        # Add empty anomaly columns
-        df_result = df.copy()
-        df_result['temperature_change'] = np.nan
-        df_result['temperature_is_anomaly'] = False
-        return df_result
-    
-    # Copy dataframe to avoid modifying original
-    df_result = df.copy()
-    
-    # Check for temperature values outside valid range
-    range_anomalies = (df_result[temp_col] < min_temp) | (df_result[temp_col] > max_temp)
-    
-    # Calculate temperature changes
-    df_result['temperature_change'] = df_result[temp_col].diff()
-    
-    # Check for sudden temperature changes
-    change_anomalies = (df_result['temperature_change'].abs() > max_temp_change) & \
-                       (~df_result['temperature_change'].isna())
-    
-    # Combine anomaly flags
-    df_result['temperature_is_anomaly'] = range_anomalies | change_anomalies
-    
-    return df_result
-
 
 def validate_soc_range(df: pd.DataFrame, tolerance: float = 3.0) -> Dict[str, Any]:
     """Validate that State of Charge (SOC) values are within expected range
@@ -459,21 +414,7 @@ def generate_validation_report(df: pd.DataFrame, step_type: Optional[str] = None
                     'issues': [f"Found {anomaly_counts['capacity']} capacity anomalies"],
                     'affected_rows': capacity_anomalies
                 }
-        
-        # Detect temperature anomalies
-        if 'temperature' in df_processed.columns:
-            df_processed = detect_temperature_anomalies(df_processed)
-            temperature_anomalies = df_processed[df_processed['temperature_is_anomaly']].index.tolist()
-            anomaly_counts['temperature'] = len(temperature_anomalies)
-            all_affected_rows.extend(temperature_anomalies)
             
-            if anomaly_counts['temperature'] > 0:
-                validations['temperature_anomalies'] = {
-                    'valid': anomaly_counts['temperature'] == 0,
-                    'issues': [f"Found {anomaly_counts['temperature']} temperature anomalies"],
-                    'affected_rows': temperature_anomalies
-                }
-    
     # Get unique affected rows
     unique_affected_rows = list(set(all_affected_rows))
     

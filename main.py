@@ -67,7 +67,25 @@ if 'temp_files_registry' not in st.session_state:
 def change_page(page):
     st.session_state['current_page'] = page
     st.rerun()
-    
+
+def _display_file_pair_info():
+    import os
+    file_pair_info = None
+    if 'uploaded_file_names' in st.session_state and st.session_state['uploaded_file_names']:
+        if isinstance(st.session_state['uploaded_file_names'], tuple) and \
+           len(st.session_state['uploaded_file_names']) == 2 and \
+           isinstance(st.session_state['uploaded_file_names'][0], str) and \
+           isinstance(st.session_state['uploaded_file_names'][1], str):
+            file_pair_info = st.session_state['uploaded_file_names']
+    elif 'selected_example_pair' in st.session_state and st.session_state['selected_example_pair']:
+        if isinstance(st.session_state['selected_example_pair'], tuple) and \
+           len(st.session_state['selected_example_pair']) == 3:
+            base_name, step_file_path, detail_file_path = st.session_state['selected_example_pair']
+            if isinstance(step_file_path, str) and isinstance(detail_file_path, str):
+                 file_pair_info = (os.path.basename(step_file_path), os.path.basename(detail_file_path))
+    if file_pair_info:
+        st.info(f"Processing file pair: {file_pair_info[0]} and {file_pair_info[1]}")
+
 # Sidebar logo and title
 st.sidebar.title("⚡ Battery ETL")
 
@@ -115,10 +133,12 @@ st.title(f"{menu_items[st.session_state['current_page']]} {st.session_state['cur
 
 # Display different content based on the selected page
 if st.session_state['current_page'] == "Data Preview":
+    _display_file_pair_info()
     from app.ui.preview_page import render_preview_page
     render_preview_page()
     
 elif st.session_state['current_page'] == "Step Selection":
+    _display_file_pair_info()
     # Import step selection page
     from app.ui.step_selection_page import render_step_selection_page
     
@@ -138,6 +158,7 @@ elif st.session_state['current_page'] == "Step Selection":
         )
 
 elif st.session_state['current_page'] == "Experiment Info":
+    _display_file_pair_info()
     from app.ui.meta_data_page import render_meta_data_page  # Use the refactored upload module
     
     # Always render the tabbed interface for experiment info

@@ -24,7 +24,6 @@ def plot_capacity_vs_voltage(df: pd.DataFrame,
                              capacity_col: str = 'capacity',
                              step_type_col: str = 'step_type',
                              step_number_col: str = 'step_number',
-                             highlight_anomalies: bool = True,
                              title: str = 'Capacity vs Voltage') -> go.Figure:
     """
     Create capacity vs voltage plot with discharge/charge curves.
@@ -35,7 +34,6 @@ def plot_capacity_vs_voltage(df: pd.DataFrame,
         capacity_col: Name of the capacity column
         step_type_col: Name of the step type column
         step_number_col: Name of the step number column
-        highlight_anomalies: Whether to highlight anomalies
         title: Plot title
         
     Returns:
@@ -118,30 +116,7 @@ def plot_capacity_vs_voltage(df: pd.DataFrame,
                        line=dict(color=PLOT_COLORS['default']),
                        marker=dict(color=PLOT_COLORS['default'], size=5)))
 
-    # Highlight anomalies if requested
-    if highlight_anomalies:
-        # Check for voltage anomalies
-        voltage_anomaly_col = f'{voltage_col}_is_anomaly'
-        if voltage_anomaly_col in processed_df.columns and processed_df[
-                voltage_anomaly_col].any():
-            fig = add_anomaly_markers(fig,
-                                      processed_df,
-                                      voltage_col,
-                                      capacity_col,
-                                      anomaly_col=voltage_anomaly_col,
-                                      name='Voltage Anomalies')
-
-        # Check for capacity anomalies
-        capacity_anomaly_col = f'{capacity_col}_is_anomaly'
-        if capacity_anomaly_col in processed_df.columns and processed_df[
-                capacity_anomaly_col].any():
-            fig = add_anomaly_markers(fig,
-                                      processed_df,
-                                      voltage_col,
-                                      capacity_col,
-                                      anomaly_col=capacity_anomaly_col,
-                                      name='Capacity Anomalies')
-
+   
     # Apply consistent styling
     fig = apply_consistent_styling(fig,
                                    title=title,
@@ -168,7 +143,6 @@ def plot_voltage_vs_time(df: pd.DataFrame,
                          time_col: str = 'timestamp',
                          step_type_col: str = 'step_type',
                          step_number_col: str = 'step_number',
-                         highlight_anomalies: bool = True,
                          title: str = 'Voltage vs Time') -> go.Figure:
     """
     Create voltage vs time plot showing cycling behavior.
@@ -179,7 +153,6 @@ def plot_voltage_vs_time(df: pd.DataFrame,
         time_col: Name of the time column
         step_type_col: Name of the step type column
         step_number_col: Name of the step number column
-        highlight_anomalies: Whether to highlight anomalies
         title: Plot title
         
     Returns:
@@ -210,8 +183,7 @@ def plot_voltage_vs_time(df: pd.DataFrame,
                                  title=title,
                                  x_title='Time',
                                  y_title='Voltage (V)',
-                                 step_type_col=step_type_col,
-                                 highlight_anomalies=highlight_anomalies)
+                                 step_type_col=step_type_col)
 
     # Format time axis for better readability
     fig = format_time_axis(fig, time_col=time_col)
@@ -268,7 +240,6 @@ def plot_current_vs_time(df: pd.DataFrame,
                          time_col: str = 'timestamp',
                          step_type_col: str = 'step_type',
                          step_number_col: str = 'step_number',
-                         highlight_anomalies: bool = True,
                          title: str = 'Current vs Time') -> go.Figure:
     """
     Create current vs time plot showing charge/discharge current.
@@ -279,7 +250,6 @@ def plot_current_vs_time(df: pd.DataFrame,
         time_col: Name of the time column
         step_type_col: Name of the step type column
         step_number_col: Name of the step number column
-        highlight_anomalies: Whether to highlight anomalies
         title: Plot title
         
     Returns:
@@ -310,8 +280,7 @@ def plot_current_vs_time(df: pd.DataFrame,
                                  title=title,
                                  x_title='Time',
                                  y_title='Current (A)',
-                                 step_type_col=step_type_col,
-                                 highlight_anomalies=highlight_anomalies)
+                                 step_type_col=step_type_col)
 
     # Add a horizontal line at zero current
     fig.add_shape(
@@ -339,7 +308,6 @@ def plot_temperature_vs_time(df: pd.DataFrame,
                            time_col: str = 'timestamp',
                            step_type_col: str = 'step_type',
                            step_number_col: str = 'step_number',
-                           highlight_anomalies: bool = True,
                            title: str = 'Temperature vs Time') -> go.Figure:
     """
     Create temperature vs time plot.
@@ -350,7 +318,6 @@ def plot_temperature_vs_time(df: pd.DataFrame,
         time_col: Name of the time column
         step_type_col: Name of the step type column
         step_number_col: Name of the step number column
-        highlight_anomalies: Whether to highlight anomalies
         title: Plot title
         
     Returns:
@@ -412,26 +379,6 @@ def plot_temperature_vs_time(df: pd.DataFrame,
         ))
     
     
-    # Add anomaly markers if requested
-    if highlight_anomalies and temperature_col in df.columns:
-        # Detect temperature anomalies
-        temp_outliers = df[df[temperature_col].abs() > df[temperature_col].abs().quantile(0.95)]
-        if not temp_outliers.empty:
-            # Add markers directly
-            fig.add_trace(go.Scatter(
-                x=temp_outliers[time_col],
-                y=temp_outliers[temperature_col],
-                mode='markers',
-                name='Temperature Anomalies',
-                marker=dict(
-                    symbol='circle',
-                    size=10,
-                    color='red',
-                    line=dict(width=2, color='darkred')
-                ),
-                hovertemplate='Time: %{x}<br>Temperature: %{y}°C<br>Anomaly<extra></extra>'
-            ))
-    
     # Format time axis for better readability
     fig = format_time_axis(fig, time_col=time_col)
     
@@ -459,7 +406,6 @@ def plot_combined_voltage_current(
         step_type_col: str = 'step_type',
         step_number_col: str = 'step_number',
         include_temperature: bool = True,
-        highlight_anomalies: bool = True,
         title: str = 'Voltage, Current, and Temperature vs Time') -> go.Figure:
     """
     Create combined voltage, current, and temperature plot with multiple y-axes.
@@ -472,7 +418,6 @@ def plot_combined_voltage_current(
         time_col: Name of the time column
         step_type_col: Name of the step type column
         include_temperature: Whether to include temperature in the plot
-        highlight_anomalies: Whether to highlight anomalies
         title: Plot title
         
     Returns:
@@ -575,12 +520,12 @@ def plot_combined_voltage_current(
     # Format time axis for better readability
     fig = format_time_axis(fig, time_col=time_col)
 
-    # Apply consistent styling with some modifications for dual y-axis
-    fig.update_layout(legend=dict(orientation="h",
+    # 圖利位置 Apply consistent styling with some modifications for dual y-axis
+    fig.update_layout(legend=dict(orientation="v",
                                   yanchor="bottom",
-                                  y=1.02,
+                                  y=0.8,
                                   xanchor="right",
-                                  x=1,
+                                  x=0.9,
                                   font=dict(size=10),
                                   bgcolor='rgba(255, 255, 255, 0.8)',
                                   bordercolor='rgba(0, 0, 0, 0.2)',

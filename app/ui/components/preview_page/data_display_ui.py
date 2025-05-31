@@ -153,7 +153,6 @@ def display_visualizations(step_df: pd.DataFrame, detail_df: pd.DataFrame):
                 time_col='timestamp',
                 step_type_col='step_type',
                 step_number_col='step_number',
-                highlight_anomalies=True,
                 title='Voltage vs Time by Step Type'
             )
             st.plotly_chart(vt_fig, use_container_width=True)
@@ -179,7 +178,6 @@ def display_visualizations(step_df: pd.DataFrame, detail_df: pd.DataFrame):
                 time_col='timestamp',
                 step_type_col='step_type',
                 step_number_col='step_number',
-                highlight_anomalies=True,
                 title='Current vs Time by Step Type'
             )
             st.plotly_chart(ct_fig, use_container_width=True)
@@ -205,7 +203,6 @@ def display_visualizations(step_df: pd.DataFrame, detail_df: pd.DataFrame):
                 time_col='timestamp',
                 step_type_col='step_type',
                 step_number_col='step_number',
-                highlight_anomalies=True,
                 title='Temperature vs Time by Step Type'
             )
             st.plotly_chart(temp_fig, use_container_width=True)
@@ -234,7 +231,6 @@ def display_visualizations(step_df: pd.DataFrame, detail_df: pd.DataFrame):
                 step_type_col='step_type',
                 step_number_col='step_number',
                 include_temperature=True,
-                highlight_anomalies=True,
                 title='Voltage, Current, and Temperature vs Time'
             )
             st.plotly_chart(combined_fig, use_container_width=True)
