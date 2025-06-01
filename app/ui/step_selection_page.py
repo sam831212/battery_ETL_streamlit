@@ -69,6 +69,7 @@ def init_step_selection_state():
         st.session_state.current_steps_df = None
 
 
+@st.cache_data
 def calculate_step_ranges(steps_df: pd.DataFrame) -> pd.DataFrame:
     """
     Calculate range values for step data.
@@ -84,44 +85,36 @@ def calculate_step_ranges(steps_df: pd.DataFrame) -> pd.DataFrame:
     
     # Add SOC range column if SOC columns exist
     if 'soc_start' in df.columns and 'soc_end' in df.columns:
-        df['soc_range'] = df.apply(
-            lambda row: format_range(row['soc_start'], row['soc_end'], "{:.1f}%") 
-            if not pd.isna(row['soc_start']) and not pd.isna(row['soc_end']) 
-            else "N/A", 
-            axis=1
-        )
+        mask = pd.notna(df['soc_start']) & pd.notna(df['soc_end'])
+        # Format string for SOC values is "{:.1f}%"
+        soc_start_formatted = df['soc_start'].apply(lambda x: "{:.1f}%".format(x) if pd.notna(x) else "")
+        soc_end_formatted = df['soc_end'].apply(lambda x: "{:.1f}%".format(x) if pd.notna(x) else "")
+        df['soc_range'] = np.where(mask, soc_start_formatted + " → " + soc_end_formatted, "N/A")
     else:
         df['soc_range'] = "N/A"
     
     # Add C-rate range column if c_rate column exists
     if 'c_rate' in df.columns:
-        # Use the same C-rate for start and end as a simplification
-        # Alternatively, you could calculate min/max C-rate for each step
-        df['c_rate_range'] = df.apply(
-            lambda row: format_range(row['c_rate'], row['c_rate'], "{:.2f}C")
-            if not pd.isna(row['c_rate'])
-            else "N/A",
-            axis=1
-        )
+        mask = pd.notna(df['c_rate'])
+        # Format string for C-rate is "{:.2f}C"
+        c_rate_formatted = df['c_rate'].apply(lambda x: "{:.2f}C".format(x) if pd.notna(x) else "")
+        # Original used c_rate for both start and end
+        df['c_rate_range'] = np.where(mask, c_rate_formatted + " → " + c_rate_formatted, "N/A")
     else:
         df['c_rate_range'] = "N/A"
     
-    # Add temperature range column if temperature_min and temperature_max exist
+    # Add temperature range column
     if 'temperature_min' in df.columns and 'temperature_max' in df.columns:
-        df['temperature_range'] = df.apply(
-            lambda row: format_range(row['temperature_min'], row['temperature_max'], "{:.1f}°C")
-            if not pd.isna(row['temperature_min']) and not pd.isna(row['temperature_max'])
-            else "N/A",
-            axis=1
-        )
+        mask = pd.notna(df['temperature_min']) & pd.notna(df['temperature_max'])
+        # Format string for temperature is "{:.1f}°C"
+        temp_min_formatted = df['temperature_min'].apply(lambda x: "{:.1f}°C".format(x) if pd.notna(x) else "")
+        temp_max_formatted = df['temperature_max'].apply(lambda x: "{:.1f}°C".format(x) if pd.notna(x) else "")
+        df['temperature_range'] = np.where(mask, temp_min_formatted + " → " + temp_max_formatted, "N/A")
     elif 'temperature' in df.columns:
-        # If only single temperature value is available
-        df['temperature_range'] = df.apply(
-            lambda row: format_range(row['temperature'], row['temperature'], "{:.1f}°C")
-            if not pd.isna(row['temperature'])
-            else "N/A",
-            axis=1
-        )
+        mask = pd.notna(df['temperature'])
+        # Format string for temperature is "{:.1f}°C"
+        temp_formatted = df['temperature'].apply(lambda x: "{:.1f}°C".format(x) if pd.notna(x) else "")
+        df['temperature_range'] = np.where(mask, temp_formatted + " → " + temp_formatted, "N/A")
     else:
         df['temperature_range'] = "N/A"
         
@@ -175,8 +168,10 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
     available_step_types = sorted(display_df['step_type'].unique().tolist())
     
     # Filter default step types to only include available ones
+    # Use a set for faster lookups if available_step_types can be large
+    available_step_types_set = set(available_step_types)
     filtered_defaults = [step_type for step_type in st.session_state.filtered_step_types 
-                        if step_type in available_step_types]
+                        if step_type in available_step_types_set]
     
     selected_step_types = st.multiselect(
         "Select step types to display:",
@@ -331,7 +326,12 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
     
     # When form is submitted, update the temporary session state for DB selections
     if submit_form:
-        temp_selected_db_indices = [filtered_df.index[i] for i, row in edited_df.iterrows() if row['db_selection']]
+        # Use boolean indexing on edited_df for efficiency
+        selected_rows_in_edited_df = edited_df[edited_df['db_selection']]
+        # Get the original indices from filtered_df by using the index of selected_rows_in_edited_df
+        # which corresponds to the row numbers in the displayed data_editor.
+        # These row numbers can be used to get the original indices from filtered_df.
+        temp_selected_db_indices = filtered_df.index[selected_rows_in_edited_df.index].tolist()
         
         if set(temp_selected_db_indices) != set(st.session_state.temp_selected_steps_for_db):
             st.session_state.temp_selected_steps_for_db = temp_selected_db_indices
@@ -609,7 +609,7 @@ def render_step_selection_page(steps_df: pd.DataFrame, details_df: pd.DataFrame)
     # Handle load to DB button click
     if load_db_clicked:
         if validate_step_selections() and st.session_state.steps_df_with_soc is not None:
-            # Prepare selected steps data to be used in the experiment info page
+            # Prepare selected steps data to be used in the Meta Data page
             selected_steps = []
             steps_df_with_soc = st.session_state.steps_df_with_soc
             details_df_with_soc = st.session_state.details_df_with_soc
@@ -620,13 +620,13 @@ def render_step_selection_page(steps_df: pd.DataFrame, details_df: pd.DataFrame)
                 # 工步編號應該已經在step_row中，因為它是來自DataFrame的列
                 selected_steps.append(step_row)
             
-            # Store the selected steps and related data in session state for the experiment info page
+            # Store the selected steps and related data in session state for the Meta Data page
             st.session_state["selected_steps"] = selected_steps
             st.session_state["selected_steps_details_df"] = details_df_with_soc
             
-            # Navigate to the experiment info page
-            st.session_state['current_page'] = "Experiment Info"
-            st.success("Steps selected and ready for database loading! Redirecting to Experiment Info page...")
+            # Navigate to the Meta Data page
+            st.session_state['current_page'] = "Meta Data"
+            st.success("Steps selected and ready for database loading! Redirecting to Meta Data page...")
             st.rerun()
     
     # Return current selections for use in other components

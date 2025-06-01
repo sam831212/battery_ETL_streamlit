@@ -96,7 +96,7 @@ st.sidebar.markdown('<div class="sidebar-title">Navigation</div>', unsafe_allow_
 menu_items = {
     "Data Preview": "📊",
     "Step Selection": "✅",
-    "Experiment Info": "📝",
+    "Meta Data": "📝",
     "Dashboard": "📈",
     "Settings": "⚙️"
 }
@@ -157,11 +157,11 @@ elif st.session_state['current_page'] == "Step Selection":
             st.session_state.details_df if 'details_df_transformed' not in st.session_state else st.session_state.details_df_transformed
         )
 
-elif st.session_state['current_page'] == "Experiment Info":
+elif st.session_state['current_page'] == "Meta Data":
     _display_file_pair_info()
     from app.ui.meta_data_page import render_meta_data_page  # Use the refactored upload module
     
-    # Always render the tabbed interface for experiment info
+    # Always render the tabbed interface for Meta Data
     render_meta_data_page()
     
     # Check if steps have been selected in session state and show appropriate message

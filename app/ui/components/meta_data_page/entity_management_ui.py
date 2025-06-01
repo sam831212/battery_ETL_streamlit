@@ -1,4 +1,3 @@
-
 """
 Handles UI for managing database entities like Cells and Machines
 """
@@ -112,7 +111,16 @@ def render_entity_management(
             else:
                 # Display as a table
                 for entity in entities:
-                    with st.expander(f"{entity_type.capitalize()} #{entity.id}"):
+                    # 顯示 cell/machine name，若無則 fallback 為 #id
+                    if entity_type == "cell":
+                        display_title = getattr(entity, 'name', None) or f"#{entity.id}"
+                        expander_title = f"{entity_type.capitalize()}: {display_title}"
+                    elif entity_type == "machine":
+                        display_title = getattr(entity, 'name', None) or f"#{entity.id}"
+                        expander_title = f"{entity_type.capitalize()}: {display_title}"
+                    else:
+                        expander_title = f"{entity_type.capitalize()} #{entity.id}"
+                    with st.expander(expander_title):
                         # Display each field defined in display_fields
                         for field in display_fields:
                             attr_name = field["attr"]

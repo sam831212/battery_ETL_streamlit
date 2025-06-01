@@ -30,8 +30,8 @@ def render_meta_data_page():
     This function displays the experiment information components.
     """
     # Set up page
-    st.title("Battery ETL Dashboard - Experiment Information")
-    st.caption("Manage your experimental metadata here. Use the tabs to navigate between Cell, Machine, and Experiment information.")
+    st.title("Battery ETL Dashboard - Meta Data")
+    st.caption("Manage your experimental metadata here. Use the tabs to navigate between Cell, Machine, and Meta Data.")
     
     # Get database entities for references
     # Try to get cells and machines with connection retry logic
@@ -56,7 +56,7 @@ def render_meta_data_page():
     tab1, tab2, tab3 = st.tabs([
         "Cell Management",
         "Machine Management",
-        "Experiment Information"
+        "Experiment Info"
     ])
     
     # Tab 1: Cell Management

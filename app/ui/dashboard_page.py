@@ -538,7 +538,7 @@ def render_validation_tab():
                 st.warning("No validation data available for this experiment.")
                 return
             
-            # Display experiment info with Cell and Machine details
+            # Display Meta Data with Cell and Machine details
         st.write(f"#### Experiment: {experiment.name}")
         st.write(f"Battery Type: {experiment.battery_type}")
         st.write(f"Nominal Capacity: {experiment.nominal_capacity} Ah")
