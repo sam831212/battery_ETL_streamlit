@@ -205,6 +205,16 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
     # Add db_selection column for selection
     filtered_df['db_selection'] = False
     
+    # 新增 data_meta 欄位（如不存在）
+    if 'data_meta' not in filtered_df.columns:
+        filtered_df['data_meta'] = ""
+    # 若 session_state 有暫存的 data_meta，則帶入
+    if 'temp_data_meta_dict' not in st.session_state:
+        st.session_state.temp_data_meta_dict = {}
+    for idx in filtered_df.index:
+        if idx in st.session_state.temp_data_meta_dict:
+            filtered_df.at[idx, 'data_meta'] = st.session_state.temp_data_meta_dict[idx]
+
     # Update based on session state
     if st.session_state.full_discharge_step_idx is not None:
         if st.session_state.full_discharge_step_idx in filtered_df.index:
@@ -236,13 +246,23 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
             for idx, row in discharge_only.head(5).iterrows() # Display first 5 for selection
         }
         
-        # Add a "None" option
-        discharge_options["None (Auto-detect)"] = None # Default or if user wants auto
-        
         # 如果放電工步超過 5 個，顯示提示訊息
         if len(discharge_only) > 5:
             st.info(f"Showing the first 5 discharge steps for reference selection (out of {len(discharge_only)} total discharge steps in the current view). Filter steps further if needed.")
         
+        # --- 新增：自動預設選第二個 CC放電 ---
+        # 只有當 temp_reference_step_idx 尚未設定時才自動選擇
+        if st.session_state.temp_reference_step_idx is None:
+            # 找出前 5 個放電工步中 original_step_type == 'CC放電' 的 index
+            cc_discharge_indices = [idx for idx, row in discharge_only.head(5).iterrows() if row.get('original_step_type', '') == 'CC放電']
+            if len(cc_discharge_indices) >= 2:
+                st.session_state.temp_reference_step_idx = cc_discharge_indices[1]
+            elif len(cc_discharge_indices) == 1:
+                st.session_state.temp_reference_step_idx = cc_discharge_indices[0]
+            else:
+                # 若沒有 CC放電，維持 None
+                pass
+        # ---
         # Determine the current index in options based on session state
         current_idx = st.session_state.temp_reference_step_idx # Use temp for immediate UI feedback if needed
         current_option = next(
@@ -282,11 +302,6 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
     
     # Create a form to wrap the data editor
     with st.form(key="step_selection_form"):
-        # Store a copy of the filtered_df in session state to compare changes
-        # This might not be necessary if we always derive from session state or inputs
-        # if 'previous_filtered_df' not in st.session_state:
-        #     st.session_state.previous_filtered_df = filtered_df.copy()
-        
         # Create a data editor for multi-selection
         edited_df = st.data_editor(
             filtered_df[display_cols + ['db_selection']],
@@ -298,6 +313,7 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
                 "soc_range": st.column_config.TextColumn("SOC範圍"),
                 "temperature": st.column_config.TextColumn("溫度 (Aux T1)"),
                 "duration": st.column_config.NumberColumn("工步執行時間(秒)", format="%.1f"),
+                "data_meta": st.column_config.TextColumn("資料備註 (data_meta)", help="可選，為此工步輸入備註/說明，將一併存入資料庫。"),
                 "db_selection": st.column_config.CheckboxColumn("選擇載入資料庫", help="Check to include this step in the data loaded to the database."),
             },
             hide_index=True,
@@ -330,7 +346,15 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         
     selected_db_indices = [int(idx) for idx in st.session_state.selected_steps_for_db] # This is the final confirmed list after "Update Selections"
     
-    return filtered_df, selected_reference_idx, selected_db_indices
+    # 強制 selected_reference_idx 型別為 int 或 None，避免型別錯誤
+    import numpy as np
+    if isinstance(selected_reference_idx, (int, np.integer)):
+        selected_reference_idx_int = int(selected_reference_idx)
+    elif selected_reference_idx is None:
+        selected_reference_idx_int = None
+    else:
+        selected_reference_idx_int = None
+    return filtered_df, selected_reference_idx_int, selected_db_indices
 
 
 def handle_reference_step_selection(
@@ -435,10 +459,32 @@ def display_selected_steps_overview(filtered_df: pd.DataFrame, selected_indices:
         'step_type', 
         'c_rate', 
         'soc_range', 
-        'temperature',  # 改為直接顯示 temperature
-        'duration'
+        'temperature',  
+        'duration',
+        'data_meta',   # 顯示 data_meta
     ]
-    st.dataframe(selected_df[display_cols], hide_index=True, use_container_width=True)
+    # 只允許 data_meta 欄位可編輯
+    edited_selected_df = st.data_editor(
+        selected_df[display_cols],
+        column_config={
+            "step_number": st.column_config.NumberColumn("工步編號", disabled=True),
+            "original_step_type": st.column_config.TextColumn("原始工步類型", disabled=True),
+            "step_type": st.column_config.TextColumn("工步動作", disabled=True),
+            "c_rate": st.column_config.TextColumn("充放電倍率", disabled=True),
+            "soc_range": st.column_config.TextColumn("SOC範圍", disabled=True),
+            "temperature": st.column_config.TextColumn("溫度 (Aux T1)", disabled=True),
+            "duration": st.column_config.NumberColumn("工步執行時間(秒)", format="%.1f", disabled=True),
+            "data_meta": st.column_config.TextColumn("資料備註 (data_meta)", help="可選，為此工步輸入備註/說明，將一併存入資料庫。"),
+        },
+        hide_index=True,
+        use_container_width=True,
+        key="selected_steps_data_meta_editor"
+    )
+    # 將 data_meta 寫回 session_state
+    if 'temp_data_meta_dict' not in st.session_state:
+        st.session_state.temp_data_meta_dict = {}
+    for idx, row in edited_selected_df.iterrows():
+        st.session_state.temp_data_meta_dict[idx] = row.get('data_meta', "")
 
 
 def create_processing_controls():
@@ -603,11 +649,12 @@ def render_step_selection_page(steps_df: pd.DataFrame, details_df: pd.DataFrame)
             selected_steps = []
             steps_df_with_soc = st.session_state.steps_df_with_soc
             details_df_with_soc = st.session_state.details_df_with_soc
-              # Create list of step data dictionaries
+            # Create list of step data dictionaries
             for step_idx in st.session_state.selected_steps_for_db:
                 step_row = steps_df_with_soc.loc[step_idx].to_dict()
-                # 確保使用真正的工步編號，而不是DataFrame的索引
-                # 工步編號應該已經在step_row中，因為它是來自DataFrame的列
+                # 加入 data_meta
+                if 'temp_data_meta_dict' in st.session_state:
+                    step_row['data_meta'] = st.session_state.temp_data_meta_dict.get(step_idx, "")
                 selected_steps.append(step_row)
             
             # Store the selected steps and related data in session state for the Meta Data page

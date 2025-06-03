@@ -9,7 +9,7 @@ import streamlit as st
 
 from app.etl import convert_numpy_types, load_and_preprocess_files
 from app.models import Cell
-from app.services.database_service import check_file_already_processed, save_experiment_to_db,save_measurements_to_db_with_session, save_processed_files_to_db, update_experiment_end_date
+from app.services.database_service import check_file_already_processed, save_experiment_to_db,save_measurements_to_db, save_processed_files_to_db, update_experiment_end_date
 from app.services.validation_service import generate_validation_results
 from app.ui.components.meta_data_page.data_display_ui import display_validation_summary
 from app.services.database_service import save_steps_to_db
@@ -402,9 +402,9 @@ file_data：包含來自 get_file_data_and_metadata 的檔案資料和元資料�
             total_measurements = len(detail_df)
             print(f"總測量數據量: {total_measurements}")
 
-            # **優化重點 4**: 使用 save_measurements_to_db_with_session 在同一會話中保存
+            # **優化重點 4**: 使用 save_measurements_to_db 在同一會話中保存
             try:
-                save_measurements_to_db_with_session(
+                save_measurements_to_db(
                     session=session,
                     experiment_id=experiment.id,
                     details_df=detail_df,
