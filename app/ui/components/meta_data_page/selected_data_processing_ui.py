@@ -46,9 +46,7 @@ def handle_selected_steps_save():
                 machine = session.query(Machine).filter(Machine.id == machine_id).first()
                 if not machine:
                     st.error(f"Machine with ID {machine_id} not found. Please select a valid machine.")
-                    return
-
-                # Get the transformed data if available, otherwise use the original selected steps
+                    return                # Get the transformed data if available, otherwise use the original selected steps
                 if "steps_df_transformed" in st.session_state and st.session_state["steps_df_transformed"] is not None:
                     # Get selected step numbers and use the transformed dataframe
                     selected_step_numbers = [step["step_number"] for step in st.session_state["selected_steps"]]
@@ -56,7 +54,14 @@ def handle_selected_steps_save():
                     # Map step numbers to indices in the transformed dataframe
                     transformed_df = st.session_state["steps_df_transformed"]
                     if "step_number" in transformed_df.columns:
-                        steps_df_to_use = transformed_df[transformed_df["step_number"].isin(selected_step_numbers)]
+                        steps_df_to_use = transformed_df[transformed_df["step_number"].isin(selected_step_numbers)].copy()
+                        
+                        # IMPORTANT: Merge data_meta from selected_steps into the transformed dataframe
+                        # Create a mapping of step_number to data_meta from selected_steps
+                        data_meta_mapping = {step["step_number"]: step.get("data_meta", "") for step in st.session_state["selected_steps"]}
+                        
+                        # Add data_meta column to the transformed dataframe
+                        steps_df_to_use["data_meta"] = steps_df_to_use["step_number"].map(data_meta_mapping).fillna("")
                     else:
                         steps_df_to_use = pd.DataFrame(st.session_state["selected_steps"])
                 else:
@@ -96,9 +101,7 @@ def handle_selected_steps_save():
 
                     # 轉換日期時間
                     start_time = convert_datetime_to_python(row_dict.get("start_time"))
-                    end_time = convert_datetime_to_python(row_dict.get("end_time"))
-
-                    # Create Step with all the available data including SOC and temperature metrics
+                    end_time = convert_datetime_to_python(row_dict.get("end_time"))                    # Create Step with all the available data including SOC and temperature metrics
                     step = Step(
                         experiment_id=experiment.id,
                         step_number=row_dict["step_number"],
@@ -114,7 +117,9 @@ def handle_selected_steps_save():
                         temperature=row_dict.get("temperature", 25.0),
                         c_rate=row_dict.get("c_rate", 0.0),
                         soc_start=row_dict.get("soc_start"),
-                        soc_end=row_dict.get("soc_end")                    )
+                        soc_end=row_dict.get("soc_end"),
+                        data_meta=row_dict.get("data_meta", {})
+                    )
                     session.add(step)
                     steps.append(step)
 

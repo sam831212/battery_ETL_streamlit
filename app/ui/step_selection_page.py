@@ -187,8 +187,7 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
     if not has_discharge_steps:
         st.warning("No discharge steps available for reference selection. Please include discharge steps in your filter.")
     
-    # Prepare columns for display
-    # Create a new DataFrame for display to avoid modifying the filtered one
+    # Prepare columns for display    # Create a new DataFrame for display to avoid modifying the filtered one
     display_cols = [
         'step_number', 
         'original_step_type', 
@@ -196,7 +195,7 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         'duration',  # 工步執行時間(秒)
         'c_rate', 
         'soc_range', 
-        'temperature',  # 改為直接顯示 temperature
+        'temperature', 
     ]
     
     # Add full_discharge_reference column for selection
@@ -329,8 +328,7 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
                 type="secondary", 
                 help="Click to confirm the steps selected for database loading via the checkboxes above."
             )
-    
-    # When form is submitted, update the temporary session state for DB selections
+      # When form is submitted, update the temporary session state for DB selections
     if submit_form:
         # Use boolean indexing on edited_df for efficiency
         selected_rows_in_edited_df = edited_df[edited_df['db_selection']]
@@ -338,6 +336,11 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         # which corresponds to the row numbers in the displayed data_editor.
         # These row numbers can be used to get the original indices from filtered_df.
         temp_selected_db_indices = [int(idx) for idx in filtered_df.index[selected_rows_in_edited_df.index].tolist()]
+        
+        # Capture data_meta changes from the data editor
+        for idx, row in edited_df.iterrows():
+            original_idx = filtered_df.index[idx]  # Get the original dataframe index
+            st.session_state.temp_data_meta_dict[original_idx] = row.get('data_meta', "")
         
         if set(temp_selected_db_indices) != set(st.session_state.temp_selected_steps_for_db):
             st.session_state.temp_selected_steps_for_db = temp_selected_db_indices
@@ -609,8 +612,7 @@ def render_step_selection_page(steps_df: pd.DataFrame, details_df: pd.DataFrame)
         
         # Store the current steps_df for SOC calculations
         st.session_state.current_steps_df = steps_df
-        
-        # Calculate SOC with the updated reference step
+          # Calculate SOC with the updated reference step
         if st.session_state.full_discharge_step_idx is not None or not st.session_state.filtered_step_types or st.session_state.temp_reference_step_idx != st.session_state.full_discharge_step_idx:
             # Condition to recalculate: if a reference is set, or if filters changed, or if temp reference changed
             
@@ -621,6 +623,17 @@ def render_step_selection_page(steps_df: pd.DataFrame, details_df: pd.DataFrame)
                 details_df, # Assuming details_df is relatively static or also reloaded if files change
                 full_discharge_step_idx=st.session_state.full_discharge_step_idx # Use the confirmed reference index
             )
+            
+            # PRESERVE DATA_META: Add user-input data_meta to the recalculated dataframe
+            if 'temp_data_meta_dict' in st.session_state and st.session_state.temp_data_meta_dict:
+                # Add data_meta column if it doesn't exist
+                if 'data_meta' not in steps_with_soc.columns:
+                    steps_with_soc['data_meta'] = ""
+                
+                # Apply user-input data_meta from session state
+                for idx, data_meta_value in st.session_state.temp_data_meta_dict.items():
+                    if idx in steps_with_soc.index:
+                        steps_with_soc.at[idx, 'data_meta'] = data_meta_value
             
             # Update the main steps_df in session state that will be used for display and further processing
             st.session_state.steps_df_with_soc = steps_with_soc # This is the one to use for display
