@@ -35,7 +35,7 @@ def upgrade() -> None:
         sa.Column('current', sa.Float, nullable=False),
         sa.Column('capacity', sa.Float, nullable=False),
         sa.Column('energy', sa.Float, nullable=False),
-        sa.Column('temperature_avg', sa.Float, nullable=False),
+        sa.Column('temperature', sa.Float, nullable=False),
         sa.Column('temperature_min', sa.Float, nullable=False),
         sa.Column('temperature_max', sa.Float, nullable=False),
         sa.Column('c_rate', sa.Float, nullable=False),
@@ -49,7 +49,7 @@ def upgrade() -> None:
         INSERT INTO step_new
         SELECT id, experiment_id, step_number, step_type, start_time, end_time, duration,
                voltage_start, voltage_end, current, capacity, energy,
-               temperature_avg, temperature_min, temperature_max, c_rate,
+               temperature, temperature_min, temperature_max, c_rate,
                soc_start, soc_end, data_meta, created_at, updated_at
         FROM step
     """)

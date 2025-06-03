@@ -66,7 +66,7 @@ def test_experiment_model(db_session):
         description="Test Description",
         battery_type="Li-ion",
         nominal_capacity=3.2,
-        temperature_avg=25.0,
+        temperature=25.0,
         operator="Test Operator",
         start_date=datetime.utcnow(),
         data_meta={"source": "test"}
@@ -115,7 +115,7 @@ def test_step_model(db_session):
         current=1.0,
         capacity=3.0,
         energy=12.0,
-        temperature_avg=25.0,
+        temperature=25.0,
         temperature_min=24.0,
         temperature_max=26.0,
         c_rate=0.3
@@ -161,7 +161,7 @@ def test_measurement_model(db_session):
         current=1.0,
         capacity=3.0,
         energy=12.0,
-        temperature_avg=25.0,
+        temperature=25.0,
         temperature_min=24.0,
         temperature_max=26.0,
         c_rate=0.3
@@ -261,7 +261,7 @@ def test_model_relationships(db_session):
             current=1.0,
             capacity=3.0,
             energy=12.0,
-            temperature_avg=25.0,
+            temperature=25.0,
             temperature_min=24.0,
             temperature_max=26.0,
             c_rate=0.3

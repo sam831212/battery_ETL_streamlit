@@ -168,7 +168,7 @@ def save_experiment_to_db(
     cell_id: int,
     machine_id: int,
     battery_type: str,
-    temperature_avg: float
+    temperature: float
 ) -> Experiment:
     """
     創建並保存新的實驗記錄
@@ -179,7 +179,7 @@ def save_experiment_to_db(
         cell_id: 電池單元ID
         machine_id: 機器ID
         battery_type: 電池類型
-        temperature_avg: 平均溫度
+        temperature: 平均溫度
         
     Returns:
         創建的實驗對象
@@ -189,7 +189,7 @@ def save_experiment_to_db(
         description=experiment_metadata.get('description', ''),
         battery_type=battery_type,
         nominal_capacity=experiment_metadata['nominal_capacity'],
-        temperature_avg=temperature_avg,
+        temperature=temperature,
         operator=experiment_metadata.get('operator', ''),
         start_date=experiment_metadata['start_date'],
         end_date=None,
@@ -476,9 +476,7 @@ def save_steps_to_db(
                 current=row_dict.get("current", 0.0),
                 capacity=row_dict.get("capacity", 0.0),
                 energy=row_dict.get("energy", 0.0),
-                temperature_avg=row_dict.get("temperature_avg", config.default_temperature),
-                temperature_min=row_dict.get("temperature_min", config.default_temperature),
-                temperature_max=row_dict.get("temperature_max", config.default_temperature),
+                temperature=row_dict.get("temperature", config.default_temperature),
                 c_rate=c_rate,
                 soc_start=row_dict.get("soc_start"),
                 soc_end=row_dict.get("soc_end"),

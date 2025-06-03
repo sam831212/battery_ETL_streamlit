@@ -97,26 +97,16 @@ def calculate_step_ranges(steps_df: pd.DataFrame) -> pd.DataFrame:
     if 'c_rate' in df.columns:
         mask = pd.notna(df['c_rate'])
         # Format string for C-rate is "{:.2f}C"
-        c_rate_formatted = df['c_rate'].apply(lambda x: "{:.2f}C".format(x) if pd.notna(x) else "")
-        # Original used c_rate for both start and end
-        df['c_rate_range'] = np.where(mask, c_rate_formatted + " → " + c_rate_formatted, "N/A")
+        c_rate_formatted = df['c_rate'].apply(lambda x: "{:.2f}C".format(x) if pd.notna(x) else "N/A")
+        df['c_rate'] = c_rate_formatted
     else:
-        df['c_rate_range'] = "N/A"
+        df['c_rate'] = "N/A"
     
-    # Add temperature range column
-    if 'temperature_min' in df.columns and 'temperature_max' in df.columns:
-        mask = pd.notna(df['temperature_min']) & pd.notna(df['temperature_max'])
-        # Format string for temperature is "{:.1f}°C"
-        temp_min_formatted = df['temperature_min'].apply(lambda x: "{:.1f}°C".format(x) if pd.notna(x) else "")
-        temp_max_formatted = df['temperature_max'].apply(lambda x: "{:.1f}°C".format(x) if pd.notna(x) else "")
-        df['temperature_range'] = np.where(mask, temp_min_formatted + " → " + temp_max_formatted, "N/A")
-    elif 'temperature' in df.columns:
+    # Add temperature column: 直接顯示 'temperature' 欄位（Aux T1），格式化為單一數值
+    if 'temperature' in df.columns:
         mask = pd.notna(df['temperature'])
-        # Format string for temperature is "{:.1f}°C"
-        temp_formatted = df['temperature'].apply(lambda x: "{:.1f}°C".format(x) if pd.notna(x) else "")
-        df['temperature_range'] = np.where(mask, temp_formatted + " → " + temp_formatted, "N/A")
-    else:
-        df['temperature_range'] = "N/A"
+        temp_formatted = df['temperature'].apply(lambda x: "{:.1f}°C".format(x) if pd.notna(x) else "N/A")
+        df['temperature'] = np.where(mask, temp_formatted, "N/A")
         
     return df
 
@@ -203,11 +193,11 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         'step_number', 
         'original_step_type', 
         'step_type', 
-        'duration',  # 使用原始資料中的工步執行時間(秒)
-        'c_rate_range', 
+        'duration',  # 工步執行時間(秒)
+        'c_rate', 
         'soc_range', 
-        'temperature_range',
-        ]
+        'temperature',  # 改為直接顯示 temperature
+    ]
     
     # Add full_discharge_reference column for selection
     filtered_df['full_discharge_reference'] = False
@@ -304,9 +294,9 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
                 "step_number": st.column_config.NumberColumn("工步編號"),
                 "original_step_type": st.column_config.TextColumn("原始工步類型"),
                 "step_type": st.column_config.TextColumn("工步動作"),
-                "c_rate_range": st.column_config.TextColumn("充放電倍率"),
+                "c_rate": st.column_config.TextColumn("充放電倍率"),
                 "soc_range": st.column_config.TextColumn("SOC範圍"),
-                "temperature_range": st.column_config.TextColumn("溫度範圍"),
+                "temperature": st.column_config.TextColumn("溫度 (Aux T1)"),
                 "duration": st.column_config.NumberColumn("工步執行時間(秒)", format="%.1f"),
                 "db_selection": st.column_config.CheckboxColumn("選擇載入資料庫", help="Check to include this step in the data loaded to the database."),
             },
@@ -331,14 +321,14 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         # Get the original indices from filtered_df by using the index of selected_rows_in_edited_df
         # which corresponds to the row numbers in the displayed data_editor.
         # These row numbers can be used to get the original indices from filtered_df.
-        temp_selected_db_indices = filtered_df.index[selected_rows_in_edited_df.index].tolist()
+        temp_selected_db_indices = [int(idx) for idx in filtered_df.index[selected_rows_in_edited_df.index].tolist()]
         
         if set(temp_selected_db_indices) != set(st.session_state.temp_selected_steps_for_db):
             st.session_state.temp_selected_steps_for_db = temp_selected_db_indices
             st.session_state.update_needed = True # Indicate that "Update Selections" might be relevant if SOC needs recalc
             st.rerun() # Rerun to reflect checkbox changes immediately in "Selected Steps Overview"
-            
-    selected_db_indices = st.session_state.selected_steps_for_db # This is the final confirmed list after "Update Selections"
+        
+    selected_db_indices = [int(idx) for idx in st.session_state.selected_steps_for_db] # This is the final confirmed list after "Update Selections"
     
     return filtered_df, selected_reference_idx, selected_db_indices
 
@@ -443,9 +433,9 @@ def display_selected_steps_overview(filtered_df: pd.DataFrame, selected_indices:
         'step_number', 
         'original_step_type', 
         'step_type', 
-        'c_rate_range', 
+        'c_rate', 
         'soc_range', 
-        'temperature_range',
+        'temperature',  # 改為直接顯示 temperature
         'duration'
     ]
     st.dataframe(selected_df[display_cols], hide_index=True, use_container_width=True)

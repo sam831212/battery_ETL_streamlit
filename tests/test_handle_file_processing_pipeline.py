@@ -72,7 +72,7 @@ def setup_test_data(db_session: Session):
         machine_id=machine.id,
         nominal_capacity=20.0,
         battery_type="LFP",
-        temperature_avg=25.0
+        temperature=25.0
     )
     db_session.add(experiment)
     db_session.commit()
@@ -190,7 +190,7 @@ def test_handle_file_processing_pipeline_with_selected_steps(
         'voltage_end': [4.0, 4.0, 3.3],
         'capacity': [2.0, 2.0, 0.0],
         'energy': [7.0, 7.0, 0.0],
-        'temperature_avg': [25.0, 25.5, 26.0],
+        'temperature': [25.0, 25.5, 26.0],
         'start_time': [
             datetime(2025, 1, 1, 10, 0, 0),
             datetime(2025, 1, 1, 11, 0, 0),
@@ -303,7 +303,7 @@ def test_handle_file_processing_pipeline_step_mapping_validation(
         'voltage_end': [4.0],
         'capacity': [2.0],
         'energy': [7.0],
-        'temperature_avg': [25.0],
+        'temperature': [25.0],
         'start_time': [datetime(2025, 1, 1, 10, 0, 0)],
         'end_time': [datetime(2025, 1, 1, 11, 0, 0)]
     })
@@ -386,7 +386,7 @@ def test_handle_file_processing_pipeline_efficiency(
         'voltage_end': [3.3, 4.0, 4.0, 3.3, 3.3],
         'capacity': [0.0, 2.0, 2.0, 0.0, 0.0],
         'energy': [0.0, 7.0, 7.0, 0.0, 0.0],
-        'temperature_avg': [25.0, 25.1, 25.2, 25.3, 25.4],
+        'temperature': [25.0, 25.1, 25.2, 25.3, 25.4],
         'start_time': [
             datetime(2025, 1, 1, 10, 0, 0),
             datetime(2025, 1, 1, 10, 10, 0),

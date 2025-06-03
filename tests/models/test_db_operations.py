@@ -39,7 +39,7 @@ def sample_data(db_session):
             description=f"Description for experiment {i+1}",
             battery_type=["Li-ion", "NMC", "LFP"][i % 3],
             nominal_capacity=3.0 + i * 0.5,
-            temperature_avg=25.0 + i,
+            temperature=25.0 + i,
             operator=f"Operator {i+1}",
             start_date=datetime.utcnow() - timedelta(days=i),
             end_date=datetime.utcnow() if i < 2 else None
@@ -68,9 +68,9 @@ def sample_data(db_session):
                 current=1.0 - (0.2 * j),
                 capacity=j * 0.5,
                 energy=j * 2.0,
-                temperature_avg=experiment.temperature_avg,
-                temperature_min=experiment.temperature_avg - 1,
-                temperature_max=experiment.temperature_avg + 1,
+                temperature=experiment.temperature,
+                temperature_min=experiment.temperature - 1,
+                temperature_max=experiment.temperature + 1,
                 c_rate=0.3 - (0.1 * j),
                 soc_start=20.0 + j * 10,
                 soc_end=30.0 + j * 10,
@@ -91,7 +91,7 @@ def sample_data(db_session):
                 timestamp=step.start_time + timedelta(minutes=k*10),
                 voltage=step.voltage_start + (step.voltage_end - step.voltage_start) * k / 4,
                 current=step.current,
-                temperature=step.temperature_avg + (k - 2) * 0.2,
+                temperature=step.temperature + (k - 2) * 0.2,
                 capacity=step.capacity * k / 4,
                 energy=step.energy * k / 4,
                 soc=step.soc_start + (step.soc_end - step.soc_start) * k / 4 if step.soc_start is not None else None
@@ -148,7 +148,7 @@ def test_experiment_querying(db_session, sample_data):
     filtered_experiments = db_session.exec(
         select(Experiment).where(
             Experiment.end_date != None,
-            Experiment.temperature_avg > 25.0
+            Experiment.temperature > 25.0
         )
     ).all()
     assert len(filtered_experiments) > 0

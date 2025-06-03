@@ -280,9 +280,9 @@ file_data：包含來自 get_file_data_and_metadata 的檔案資料和元資料�
 
         # Calculate average temperature
         if 'T' in detail_df.columns:
-            temperature_avg = detail_df['T'].mean()
+            temperature = detail_df['T'].mean()
         else:
-            temperature_avg = 25.0  # Default temperature
+            temperature = 25.0  # Default temperature
 
         # Convert problematic numpy types to native Python types for JSON serialization
         converted_step_report = convert_numpy_types(step_validation_report)        # Store experiment data in the database
@@ -300,7 +300,7 @@ file_data：包含來自 get_file_data_and_metadata 的檔案資料和元資料�
                 validation_report=converted_step_report,
                 cell_id=st.session_state["cell_id"],
                 machine_id=st.session_state["machine_id"],
-                battery_type=battery_type,                temperature_avg=temperature_avg
+                battery_type=battery_type,                temperature=temperature
             )
             
             print(f"===== 優化流程：預先建立 step_number:step_id 對應表 =====")

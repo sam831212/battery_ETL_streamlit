@@ -63,9 +63,9 @@ def handle_selected_steps_save():
                     steps_df_to_use = pd.DataFrame(st.session_state["selected_steps"])
 
                 # Calculate average temperature from transformed data
-                temperature_avg = 25.0  # Default value
-                if "temperature_avg" in steps_df_to_use.columns:
-                    temperature_avg = float(steps_df_to_use["temperature_avg"].mean())
+                temperature = 25.0  # Default value
+                if "temperature" in steps_df_to_use.columns:
+                    temperature = float(steps_df_to_use["temperature"].mean())
 
                 # Create experiment metadata
                 experiment = Experiment(
@@ -76,7 +76,7 @@ def handle_selected_steps_save():
                     machine_id=machine_id,
                     nominal_capacity=nominal_capacity,
                     battery_type=cell.chemistry,
-                    temperature_avg=temperature_avg
+                    temperature=temperature
                 )
                 
                 session.add(experiment)
@@ -111,9 +111,7 @@ def handle_selected_steps_save():
                         current=row_dict.get("current", 0.0),
                         capacity=row_dict.get("capacity", 0.0),
                         energy=row_dict.get("energy", 0.0),
-                        temperature_avg=row_dict.get("temperature_avg", 25.0),
-                        temperature_min=row_dict.get("temperature_min", 25.0),
-                        temperature_max=row_dict.get("temperature_max", 25.0),
+                        temperature=row_dict.get("temperature", 25.0),
                         c_rate=row_dict.get("c_rate", 0.0),
                         soc_start=row_dict.get("soc_start"),
                         soc_end=row_dict.get("soc_end")                    )
@@ -248,13 +246,13 @@ def handle_selected_steps_save():
                     last_step = session.exec(last_step_query).first()
 
                     if last_step and last_step.end_time:
-                        experiment.end_date = last_step.end_time                # Update experiment temperature_avg based on all measurements
+                        experiment.end_date = last_step.end_time                # Update experiment temperature based on all measurements
                 # For now, skip the temperature average calculation to avoid join complexity
                 # It will be calculated based on step data instead
                 if len(steps) > 0:
-                    step_temps = [step.temperature_avg for step in steps if step.temperature_avg is not None]
+                    step_temps = [step.temperature for step in steps if step.temperature is not None]
                     if step_temps:
-                        experiment.temperature_avg = sum(step_temps) / len(step_temps)
+                        experiment.temperature = sum(step_temps) / len(step_temps)
 
                 # Commit the changes (ProcessedFiles, Experiment end_date/temp_avg updates)
                 session.commit()

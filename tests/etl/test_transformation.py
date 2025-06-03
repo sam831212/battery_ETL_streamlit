@@ -190,7 +190,7 @@ def test_transform_data_integrated(sample_steps_df, sample_details_df):
         steps_result, details_result = transform_data(sample_steps_df, sample_details_df, nominal_capacity)
         
         # Check that basic columns were added
-        for column in ['c_rate', 'temperature_avg', 'temperature_min', 'temperature_max', 
+        for column in ['c_rate', 'temperature', 'temperature_min', 'temperature_max', 
                       'temperature_std', 'ocv']:
             assert column in steps_result.columns
         
@@ -203,7 +203,7 @@ def test_transform_data_integrated(sample_steps_df, sample_details_df):
             assert abs(step['c_rate'] - expected_c_rate) < 1e-6
         
         # Check that temperature metrics were calculated properly
-        assert not steps_result['temperature_avg'].isna().any()
+        assert not steps_result['temperature'].isna().any()
         assert not steps_result['temperature_min'].isna().any()
         assert not steps_result['temperature_max'].isna().any()
         
@@ -269,7 +269,7 @@ def test_transformation_integration():
                 assert abs(step['c_rate'] - expected_c_rate) < 1e-6
         
         # Check that temperature metrics were calculated
-        assert 'temperature_avg' in steps_result.columns
+        assert 'temperature' in steps_result.columns
         assert 'temperature_min' in steps_result.columns
         assert 'temperature_max' in steps_result.columns
         

@@ -605,7 +605,7 @@ Dependencies:
 
 ### save_experiment_to_db
 ```python
-def save_experiment_to_db(experiment_metadata: Dict[str, Any], validation_report: Dict[str, Any], cell_id: int, machine_id: int, battery_type: str, temperature_avg: float) -> Experiment
+def save_experiment_to_db(experiment_metadata: Dict[str, Any], validation_report: Dict[str, Any], cell_id: int, machine_id: int, battery_type: str, temperature: float) -> Experiment
 """
 Create and save a new experiment record in the database.
 
@@ -615,7 +615,7 @@ Args:
     cell_id: ID of the cell used in the experiment
     machine_id: ID of the machine used in the experiment
     battery_type: Type of battery used
-    temperature_avg: Average temperature
+    temperature: Average temperature
     
 Returns:
     Created Experiment object

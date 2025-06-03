@@ -313,11 +313,11 @@ def parse_step_csv(file_path: str) -> pd.DataFrame:
         else:
             df_filtered['step_type'] = 'unknown'
 
-        # Add temperature_avg if temperature exists
+        # Add temperature if temperature exists
         if 'temperature' in df_filtered.columns:
-            df_filtered['temperature_avg'] = df_filtered['temperature']
+            df_filtered['temperature'] = df_filtered['temperature']
         else:
-            df_filtered['temperature_avg'] = None
+            df_filtered['temperature'] = None
 
         # Drop duplicates if any
         if 'step_number' in df_filtered.columns:

@@ -79,7 +79,7 @@ class Experiment(BaseModel, table=True):
     description: Optional[str] = Field(default=None)
     battery_type: str = Field(nullable=False)
     nominal_capacity: float = Field(nullable=False)  # Ah
-    temperature_avg: Optional[float] = Field(default=None)  # Average test temperature in Celsius
+    temperature: Optional[float] = Field(default=None)  # Average test temperature in Celsius
     operator: Optional[str] = Field(default=None)
     start_date: datetime = Field(nullable=False)
     end_date: Optional[datetime] = Field(default=None)
@@ -115,9 +115,7 @@ class Step(BaseModel, table=True):
     current: float  # A
     capacity: float  # Ah
     energy: float  # Wh
-    temperature_avg: float  # Celsius
-    temperature_min: float  # Celsius
-    temperature_max: float  # Celsius
+    temperature: float  # Celsius
     c_rate: float  # C
     soc_start: Optional[float] = Field(default=None)  # %
     soc_end: Optional[float] = Field(default=None)  # %

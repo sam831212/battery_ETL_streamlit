@@ -50,7 +50,7 @@ def test_simulate_user_upload_and_save_step_45(db_session: Session, example_step
         machine_id=machine.id,
         nominal_capacity=20.0, # Example, should match cell if applicable
         battery_type="NCM",
-        temperature_avg=25.0
+        temperature=25.0
     )
     db_session.add(experiment)
     db_session.commit()
@@ -76,7 +76,7 @@ def test_simulate_user_upload_and_save_step_45(db_session: Session, example_step
 
     # Inferring column names from `app.services.database_service.save_steps_to_db` and `Step` model
     # Step model fields: experiment_id, step_number, step_type, start_time, end_time, duration,
-    # voltage_start, voltage_end, current, capacity, energy, temperature_avg, temperature_min,
+    # voltage_start, voltage_end, current, capacity, energy, temperature, temperature_min,
     # temperature_max, c_rate, soc_start, soc_end, ocv, data_meta
 
     # Convert date string to datetime object
@@ -102,14 +102,11 @@ def test_simulate_user_upload_and_save_step_45(db_session: Session, example_step
         'current': [float(step_45_data_series['截止電流(A)'])],
         'capacity': [float(step_45_data_series['截止電量(Ah)'])], # This is '截止電量(Ah)'
         'energy': [float(step_45_data_series['能量(Wh)'])],
-        'temperature_avg': [float(step_45_data_series.get('溫箱溫度', 25.0))], # Use '溫箱溫度' or default
-        'temperature_min': [float(step_45_data_series.get('Aux T1', 25.0))], # Placeholder
-        'temperature_max': [float(step_45_data_series.get('Aux T2', 25.0))], # Placeholder
+        'temperature': [float(step_45_data_series.get('溫箱溫度', 25.0))], # Use '溫箱溫度' or default
         # 'c_rate': [None], # This is calculated in save_steps_to_db
         'soc_start': [None], # Placeholder, typically calculated
         'soc_end': [None], # Placeholder, typically calculated
-        'ocv': [None], # Placeholder, typically from rest steps
-        # 'data_meta' will be the row_dict in save_steps_to_db
+        # 'ocv' and 'data_meta' will be the row_dict in save_steps_to_db
     }
     steps_df_for_saving = pd.DataFrame(steps_for_db_data)    # 3. Save Step Data
     # Ensure experiment.id and experiment.nominal_capacity are not None
@@ -166,7 +163,7 @@ def test_simulate_user_upload_and_save_step_45(db_session: Session, example_step
         assert retrieved_step.energy is not None, f"energy for {retrieved_step.step_type} should not be null"
         assert retrieved_step.energy != 0, f"energy for {retrieved_step.step_type} should not be 0"
 
-    assert retrieved_step.temperature_avg is not None, "temperature_avg should not be null"
+    assert retrieved_step.temperature is not None, "temperature should not be null"
     # c_rate is calculated, so it should exist if current and nominal_capacity are valid
     assert retrieved_step.c_rate is not None, "c_rate should not be null"
     if retrieved_step.step_type not in ["靜置", "rest", "溫箱控制"] : # C-rate can be 0 for rest steps

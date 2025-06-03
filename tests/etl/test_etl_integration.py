@@ -126,8 +126,8 @@ def test_etl_complete_flow(processed_data):
         assert metadata['experiment']['nominal_capacity'] == processed_data['nominal_capacity']
     
     # Temperature metrics should be calculated (this is done in extraction regardless of transformation)
-    assert 'temperature_avg' in step_df.columns
-    assert not step_df['temperature_avg'].isna().all()
+    assert 'temperature' in step_df.columns
+    assert not step_df['temperature'].isna().all()
     
     # Check some transformation columns if they exist
     # These are all optional depending on whether transformations succeeded
@@ -156,7 +156,7 @@ def test_etl_to_database(test_session, processed_data):
             description="Test for ETL integration",
             battery_type="Li-ion",
             nominal_capacity=processed_data['nominal_capacity'],
-            temperature_avg=float(step_df['temperature_avg'].mean()),
+            temperature=float(step_df['temperature'].mean()),
             start_date=step_df['start_time'].min(),
             end_date=step_df['end_time'].max(),
             data_meta=metadata['experiment']
@@ -206,9 +206,9 @@ def test_etl_to_database(test_session, processed_data):
                 'current': float(row['current']),
                 'capacity': float(row['capacity']),
                 'energy': float(row['energy']),
-                'temperature_avg': float(row['temperature_avg']),
-                'temperature_min': float(row.get('temperature_min', row['temperature_avg'])),
-                'temperature_max': float(row.get('temperature_max', row['temperature_avg'])),
+                'temperature': float(row['temperature']),
+                'temperature_min': float(row.get('temperature_min', row['temperature'])),
+                'temperature_max': float(row.get('temperature_max', row['temperature'])),
                 
                 # Columns that might be missing if transformations failed
                 'c_rate': float(row['c_rate']) if 'c_rate' in row and pd.notna(row['c_rate']) else 0.0,
@@ -368,7 +368,7 @@ def test_end_to_end_etl():
             }
         
         # Add temperature metrics to step data
-        step_df['temperature_avg'] = step_df['step_number'].map(lambda x: temp_stats.get(x, {}).get('avg', None))
+        step_df['temperature'] = step_df['step_number'].map(lambda x: temp_stats.get(x, {}).get('avg', None))
         step_df['temperature_min'] = step_df['step_number'].map(lambda x: temp_stats.get(x, {}).get('min', None))
         step_df['temperature_max'] = step_df['step_number'].map(lambda x: temp_stats.get(x, {}).get('max', None))
         step_df['temperature_std'] = step_df['step_number'].map(lambda x: temp_stats.get(x, {}).get('std', None))
@@ -390,7 +390,7 @@ def test_end_to_end_etl():
         print(f"Detail Records: {len(detail_df)}")
         print(f"Step dataframe information:")
         print(f"Step types: {step_df['step_type'].unique().tolist()}")
-        print(f"Temperature averages range: {step_df['temperature_avg'].min()} to {step_df['temperature_avg'].max()}")
+        print(f"Temperature averages range: {step_df['temperature'].min()} to {step_df['temperature'].max()}")
         
         # Test passed successfully if we got here
         print("✓ End-to-end ETL test passed with basic transformations")

@@ -57,7 +57,7 @@ def sample_experiment(test_session):
         description="Test for integration testing",
         battery_type="Li-ion",
         nominal_capacity=3.2,
-        temperature_avg=25.0,
+        temperature=25.0,
         operator="Test Operator",
         start_date=datetime.utcnow() - timedelta(days=1),
         end_date=datetime.utcnow(),
@@ -90,9 +90,7 @@ def sample_data(test_session, sample_experiment):
             current=1.0 if i != 2 else 0.0,  # 0 current for rest
             capacity=i * 0.5,
             energy=i * 2.0,
-            temperature_avg=25.0,
-            temperature_min=24.0,
-            temperature_max=26.0,
+            temperature=25.0,
             c_rate=0.3 if i != 2 else 0.0,  # 0 C-rate for rest
             soc_start=20.0 + i * 10,
             soc_end=30.0 + i * 10,
@@ -239,9 +237,7 @@ def test_query_experiments(test_session):
         current=1.0,
         capacity=2.0,
         energy=8.0,
-        temperature_avg=25.0,
-        temperature_min=24.0,
-        temperature_max=26.0,
+        temperature=25.0,
         c_rate=0.5
     )
     test_session.add(step)

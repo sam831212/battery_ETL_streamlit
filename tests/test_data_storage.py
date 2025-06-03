@@ -2,6 +2,7 @@ import pytest
 import pandas as pd
 from datetime import datetime, timedelta, UTC
 from app.models.database import Experiment, Step, Measurement, Cell, Machine
+from app.models.enums import CellChemistry
 from sqlmodel import Session, select
 
 def save_steps_to_db(
@@ -25,12 +26,11 @@ def save_steps_to_db(
             current=float(row['current']),
             capacity=float(row['capacity']),
             energy=float(row['energy']),
-            temperature_avg=float(row['temperature_avg']),
-            temperature_min=float(row['temperature_min']),
-            temperature_max=float(row['temperature_max']),
+            temperature=float(row['temperature']),
             c_rate=float(row['c_rate']),
             soc_start=float(row['soc_start']) if pd.notna(row['soc_start']) else None,
-            soc_end=float(row['soc_end']) if pd.notna(row['soc_end']) else None
+            soc_end=float(row['soc_end']) if pd.notna(row['soc_end']) else None,
+            data_meta=row.get('data_meta', {})
         )
         session.add(step)
         steps.append(step)
@@ -79,20 +79,19 @@ def sample_data():
     step_data = {
         'step_number': [1, 2, 3],
         'step_type': ['charge', 'discharge', 'rest'],
-        'start_time': [datetime.now() + timedelta(minutes=i) for i in range(3)],
-        'end_time': [datetime.now() + timedelta(minutes=i+10) for i in range(3)],
-        'duration': [600, 600, 600],
-        'voltage_start': [3.0, 4.2, 4.0],
-        'voltage_end': [4.2, 3.0, 4.0],
+        'start_time': [pd.Timestamp('2023-01-01 00:00:00')]*3,
+        'end_time': [pd.Timestamp('2023-01-01 01:00:00')]*3,
+        'duration': [3600, 3600, 3600],
+        'voltage_start': [3.0, 3.2, 3.1],
+        'voltage_end': [3.2, 3.1, 3.0],
         'current': [1.0, -1.0, 0.0],
-        'capacity': [1.0, 1.0, 0.0],
-        'energy': [3.6, 3.6, 0.0],
-        'temperature_avg': [25.0, 25.0, 25.0],
-        'temperature_min': [24.0, 24.0, 24.0],
-        'temperature_max': [26.0, 26.0, 26.0],
-        'c_rate': [0.3, 0.3, 0.0],
-        'soc_start': [20.0, 80.0, 50.0],
-        'soc_end': [80.0, 20.0, 50.0]
+        'capacity': [1.0, -1.0, 0.0],
+        'energy': [3.2, 3.1, 0.0],
+        'temperature': [25.0, 25.0, 25.0],
+        'c_rate': [0.5, 0.5, 0.0],
+        'soc_start': [0.0, 50.0, 100.0],
+        'soc_end': [50.0, 100.0, 100.0],
+        'data_meta': [{}, {}, {}]
     }
     step_df = pd.DataFrame(step_data)
 
@@ -103,9 +102,8 @@ def sample_data():
         'voltage': [3.0, 3.6, 4.2, 4.2, 3.6, 3.0, 4.0, 4.0, 4.0],
         'current': [1.0, 1.0, 1.0, -1.0, -1.0, -1.0, 0.0, 0.0, 0.0],
         'temperature': [25.0] * 9,
-        'capacity': [0.0, 0.5, 1.0, 0.0, 0.5, 1.0, 0.0, 0.0, 0.0],
-        'energy': [0.0, 1.8, 3.6, 0.0, 1.8, 3.6, 0.0, 0.0, 0.0],
-        'soc': [20.0, 50.0, 80.0, 80.0, 50.0, 20.0, 50.0, 50.0, 50.0]
+        'capacity': [0.0, 0.5, 1.0, 0.0, 1.8, 3.6, 0.0, 0.0, 0.0],
+        'energy': [0.0, 1.8, 3.6, 0.0, 1.8, 3.6, 0.0, 0.0, 0.0]
     }
     detail_df = pd.DataFrame(detail_data)
 
@@ -118,7 +116,7 @@ def test_data_storage_flow(db_session, sample_data):
     # 1. 創建 Cell 和 Machine
     cell = Cell(
         name="Test Cell",
-        chemistry="NMC",
+        chemistry=CellChemistry.NMC,
         nominal_capacity=3.2
     )
     machine = Machine(
@@ -134,7 +132,7 @@ def test_data_storage_flow(db_session, sample_data):
         description="Test Description",
         battery_type="NMC",
         nominal_capacity=3.2,
-        temperature_avg=25.0,
+        temperature=25.0,
         operator="Test Operator",
         start_date=datetime.now(),
         cell_id=cell.id,
@@ -146,7 +144,7 @@ def test_data_storage_flow(db_session, sample_data):
     # 3. 儲存 Steps
     steps = save_steps_to_db(
         session=db_session,
-        experiment_id=experiment.id,
+        experiment_id=int(experiment.id),
         steps_df=step_df,
         nominal_capacity=3.2
     )
@@ -158,7 +156,7 @@ def test_data_storage_flow(db_session, sample_data):
         assert step.step_number in [1, 2, 3]
 
     # 4. 創建 step mapping
-    step_mapping = {step.step_number: step.id for step in steps}
+    step_mapping = {step.step_number: int(step.id) for step in steps}
 
     # 5. 儲存 Measurements
     save_measurements_to_db(
@@ -258,4 +256,4 @@ def test_measurement_data_validation(db_session, sample_data):
             db_session.delete(measurement)
         db_session.delete(step)
     db_session.delete(experiment)
-    db_session.commit() 
+    db_session.commit()
