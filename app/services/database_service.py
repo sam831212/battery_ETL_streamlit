@@ -183,7 +183,7 @@ def save_experiment_to_db(
         
     Returns:
         創建的實驗對象
-    """
+    """ 
     experiment = Experiment(
         name=experiment_metadata['name'],
         description=experiment_metadata.get('description', ''),
@@ -193,7 +193,6 @@ def save_experiment_to_db(
         operator=experiment_metadata.get('operator', ''),
         start_date=experiment_metadata['start_date'],
         end_date=None,
-        data_meta=experiment_metadata,
         validation_status=validation_report['valid'],
         validation_report=validation_report,
         cell_id=cell_id,

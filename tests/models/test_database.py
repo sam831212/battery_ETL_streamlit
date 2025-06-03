@@ -59,8 +59,7 @@ def test_base_model_fields():
 
 
 def test_experiment_model(db_session):
-    """Test Experiment model creation and field constraints"""
-    # Create a test experiment
+    """Test Experiment model creation and field constraints"""    # Create a test experiment
     experiment = Experiment(
         name="Test Experiment",
         description="Test Description",
@@ -68,8 +67,7 @@ def test_experiment_model(db_session):
         nominal_capacity=3.2,
         temperature=25.0,
         operator="Test Operator",
-        start_date=datetime.utcnow(),
-        data_meta={"source": "test"}
+        start_date=datetime.utcnow()
     )
     
     # Add to database
@@ -79,12 +77,10 @@ def test_experiment_model(db_session):
     
     # Verify ID was created
     assert experiment.id is not None
-    
-    # Verify fields were saved correctly
+      # Verify fields were saved correctly
     assert experiment.name == "Test Experiment"
     assert experiment.battery_type == "Li-ion"
     assert experiment.nominal_capacity == 3.2
-    assert experiment.data_meta == {"source": "test"}
     
     # Verify steps relationship exists
     assert hasattr(experiment, "steps")

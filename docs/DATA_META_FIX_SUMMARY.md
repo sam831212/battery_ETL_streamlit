@@ -6,25 +6,10 @@ The user-input `data_meta` comments were not being saved to the database despite
 ### Root Cause
 The problem occurred in two places:
 
-1. **Step Selection UI**: The `data_meta` column was not being included in the data editor display columns
 2. **SOC Recalculation**: When "Update Selections" was clicked, the SOC recalculation process created a new dataframe that overwrote the user-input `data_meta`
 
 ### Fixes Applied
 
-#### Fix 1: Include data_meta in display columns
-**File**: `app/ui/step_selection_page.py` (line ~197)
-```python
-display_cols = [
-    'step_number', 
-    'original_step_type', 
-    'step_type', 
-    'duration',
-    'c_rate', 
-    'soc_range', 
-    'temperature',
-    'data_meta',  # ✅ ADDED: Now included in display columns
-]
-```
 
 #### Fix 2: Capture data_meta changes from form submission
 **File**: `app/ui/step_selection_page.py` (line ~340)
