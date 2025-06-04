@@ -322,7 +322,7 @@ def render_preview_page():
             ]:
                 if k in st.session_state:
                     del st.session_state[k]
-            st.rerun()  # 修正：新版 Streamlit 用 st.rerun() 取代 st.experimental_rerun()
+            st.rerun()  
     # Create UI for nominal capacity input
     nominal_capacity = st.number_input(
         "Nominal Capacity (Ah)",
