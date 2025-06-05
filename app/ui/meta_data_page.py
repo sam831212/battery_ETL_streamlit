@@ -6,6 +6,7 @@ This module provides UI components for uploading and processing battery test dat
 import streamlit as st
 from app.ui.components.meta_data_page.entity_management_ui import render_cell_management
 from app.ui.components.meta_data_page.entity_management_ui import render_machine_management
+from app.ui.components.meta_data_page.entity_management_ui import render_project_management
 from app.ui.components.meta_data_page.experiment_info_ui import render_experiment_metadata
 from app.ui.components.meta_data_page.selected_data_processing_ui import render_preview_data_section
 from app.utils.config import UPLOAD_FOLDER
@@ -17,6 +18,7 @@ from app.etl import (
 from app.etl.extraction import STEP_REQUIRED_HEADERS, DETAIL_REQUIRED_HEADERS
 from app.etl.validation import generate_validation_report
 from app.models import Cell, Machine
+from app.models.database import Project
 from app.utils.database import get_session as get_db_session
 from app.utils.temp_files import temp_file_from_upload
 
@@ -39,6 +41,7 @@ def render_meta_data_page():
         with get_db_session() as session:
             cells = session.query(Cell).order_by(Cell.name).all()
             machines = session.query(Machine).order_by(Machine.name).all()
+            projects = session.query(Project).order_by(Project.name).all()
     except Exception as e:
         # If first attempt fails, try resetting the connection pool
         st.warning("Database connection issue detected. Attempting to reconnect...")
@@ -46,16 +49,19 @@ def render_meta_data_page():
             with get_db_session() as session:
                 cells = session.query(Cell).order_by(Cell.name).all()
                 machines = session.query(Machine).order_by(Machine.name).all()
+                projects = session.query(Project).order_by(Project.name).all()
         except Exception as retry_error:
             st.error(f"Failed to connect to the database after retry. Please check your database configuration or contact support. Details: {str(retry_error)}")
             st.info("Please try refreshing the page. If the issue persists, contact support.")
             cells = []
             machines = []
+            projects = []
     
     # Create tabs for different sections
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2, tab3, tab4 = st.tabs([
         "Cell Management",
         "Machine Management",
+        "Project Management",
         "Experiment Info"
     ])
     
@@ -67,13 +73,17 @@ def render_meta_data_page():
     with tab2:
         render_machine_management()
     
-    # Tab 3: Experiment Information
+    # Tab 3: Project Management
     with tab3:
+        render_project_management()
+    
+    # Tab 4: Experiment Information
+    with tab4:
         # Check if data is available from previous step
         has_data_from_preview = "selected_steps" in st.session_state
         
         # Render experiment metadata form
-        render_experiment_metadata(cells, machines, has_data_from_preview)
+        render_experiment_metadata(cells, machines, has_data_from_preview, projects)
         
         # Render section for data from preview
         if has_data_from_preview:

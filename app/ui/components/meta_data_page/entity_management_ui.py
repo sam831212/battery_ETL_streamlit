@@ -2,7 +2,7 @@
 Handles UI for managing database entities like Cells and Machines
 """
 from app.models import Cell, Experiment, Machine
-from app.models.database import CellChemistry, CellFormFactor
+from app.models.database import CellChemistry, CellFormFactor, Project
 from app.utils.database import get_session as get_db_session
 
 
@@ -249,4 +249,29 @@ def render_machine_management():
         form_fields=form_fields,
         display_fields=display_fields,
         reference_check=machine_reference_check
+    )
+
+
+def render_project_management():
+    """Render project management UI"""
+    form_fields = [
+        {"name": "name", "type": "text", "label": "Project Name"},
+        {"name": "description", "type": "textarea", "label": "Description", "default": ""},
+        {"name": "start_date", "type": "date", "label": "Start Date"},
+        {"name": "end_date", "type": "date", "label": "End Date"}
+    ]
+
+    display_fields = [
+        {"attr": "name", "display": "Name"},
+        {"attr": "description", "display": "Description"},
+        {"attr": "start_date", "display": "Start Date"},
+        {"attr": "end_date", "display": "End Date"}
+    ]
+
+    render_entity_management(
+        entity_type="project",
+        entity_class=Project,
+        header_text="Project Management",
+        form_fields=form_fields,
+        display_fields=display_fields
     )

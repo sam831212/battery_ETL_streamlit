@@ -1,8 +1,8 @@
 """init
 
-Revision ID: 4b6c3d56bab9
-Revises: 
-Create Date: 2025-06-05 09:23:28.260557
+Revision ID: 802e5a6bd824
+Revises: 934696b3bbba
+Create Date: 2025-06-05 14:05:23.003224
 
 """
 from typing import Sequence, Union
@@ -11,10 +11,9 @@ from alembic import op
 import sqlalchemy as sa
 import sqlmodel
 
-
 # revision identifiers, used by Alembic.
-revision: str = '4b6c3d56bab9'
-down_revision: Union[str, None] = None
+revision: str = '802e5a6bd824'
+down_revision: Union[str, None] = '934696b3bbba'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -26,34 +25,45 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(), nullable=True),
-    sa.Column('manufacturer', sa.String(), nullable=True),
+    sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('manufacturer', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('chemistry', sa.Enum('NMC', 'LFP', 'LTO', 'SIB', 'OTHER', name='cellchemistry'), nullable=False),
     sa.Column('capacity', sa.Float(), nullable=True),
     sa.Column('form', sa.Enum('PRISMATIC', 'CYLINDRICAL', 'POUCH', 'OTHER', name='cellformfactor'), nullable=True),
     sa.Column('nominal_capacity', sa.Float(), nullable=True),
     sa.Column('nominal_voltage', sa.Float(), nullable=True),
     sa.Column('form_factor', sa.Enum('PRISMATIC', 'CYLINDRICAL', 'POUCH', 'OTHER', name='cellformfactor'), nullable=True),
-    sa.Column('serial_number', sa.String(), nullable=True),
+    sa.Column('serial_number', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('date_received', sa.DateTime(), nullable=True),
-    sa.Column('notes', sa.String(), nullable=True),
+    sa.Column('notes', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('machine',
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(), nullable=False),
-    sa.Column('description', sa.String(), nullable=True),
-    sa.Column('model_number', sa.String(), nullable=True),
+    sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('model_number', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('project',
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), nullable=False),
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('start_date', sa.DateTime(), nullable=True),
+    sa.Column('end_date', sa.DateTime(), nullable=True),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_project_name'), 'project', ['name'], unique=False)
     op.create_table('savedview',
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(), nullable=False),
-    sa.Column('description', sa.String(), nullable=True),
+    sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('view_config', sa.JSON(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
@@ -62,19 +72,21 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(), nullable=False),
-    sa.Column('description', sa.String(), nullable=True),
-    sa.Column('battery_type', sa.String(), nullable=False),
+    sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('battery_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('nominal_capacity', sa.Float(), nullable=False),
     sa.Column('temperature', sa.Float(), nullable=True),
     sa.Column('start_date', sa.DateTime(), nullable=False),
     sa.Column('end_date', sa.DateTime(), nullable=True),
+    sa.Column('project_id', sa.Integer(), nullable=True),
     sa.Column('cell_id', sa.Integer(), nullable=True),
     sa.Column('machine_id', sa.Integer(), nullable=True),
     sa.Column('validation_status', sa.Boolean(), nullable=True),
     sa.Column('validation_report', sa.JSON(), nullable=True),
     sa.ForeignKeyConstraint(['cell_id'], ['cell.id'], ),
     sa.ForeignKeyConstraint(['machine_id'], ['machine.id'], ),
+    sa.ForeignKeyConstraint(['project_id'], ['project.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_experiment_name'), 'experiment', ['name'], unique=False)
@@ -83,9 +95,9 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('experiment_id', sa.Integer(), nullable=False),
-    sa.Column('filename', sa.String(), nullable=False),
-    sa.Column('file_type', sa.String(), nullable=False),
-    sa.Column('file_hash', sa.String(), nullable=False),
+    sa.Column('filename', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('file_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('file_hash', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('processed_at', sa.DateTime(), nullable=False),
     sa.Column('row_count', sa.Integer(), nullable=False),
     sa.Column('data_meta', sa.JSON(), nullable=True),
@@ -99,7 +111,7 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('experiment_id', sa.Integer(), nullable=False),
     sa.Column('step_number', sa.Integer(), nullable=False),
-    sa.Column('step_type', sa.String(), nullable=False),
+    sa.Column('step_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('start_time', sa.DateTime(), nullable=False),
     sa.Column('end_time', sa.DateTime(), nullable=True),
     sa.Column('duration', sa.Float(), nullable=False),
@@ -144,6 +156,8 @@ def downgrade() -> None:
     op.drop_table('experiment')
     op.drop_index(op.f('ix_savedview_name'), table_name='savedview')
     op.drop_table('savedview')
+    op.drop_index(op.f('ix_project_name'), table_name='project')
+    op.drop_table('project')
     op.drop_table('machine')
     op.drop_table('cell')
     # ### end Alembic commands ###

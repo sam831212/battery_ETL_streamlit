@@ -70,6 +70,19 @@ class Machine(BaseModel, table=True):
     experiments: List["Experiment"] = Relationship(back_populates="machine", sa_relationship_kwargs={"lazy": "selectin"})
 
 
+class Project(BaseModel, table=True):
+    """Model representing a project, which can contain multiple experiments"""
+    __table_args__ = {'extend_existing': True}
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(nullable=False, index=True)
+    description: Optional[str] = Field(default=None)
+    start_date: Optional[datetime] = Field(default=None)
+    end_date: Optional[datetime] = Field(default=None)
+    # Relationships
+    experiments: List["Experiment"] = Relationship(back_populates="project", sa_relationship_kwargs={"lazy": "selectin"})
+
+
 class Experiment(BaseModel, table=True):
     """Model representing a battery test experiment"""
     __table_args__ = {'extend_existing': True}
@@ -83,6 +96,9 @@ class Experiment(BaseModel, table=True):
     start_date: datetime = Field(nullable=False)
     end_date: Optional[datetime] = Field(default=None)
     
+    # 新增 Project 外鍵
+    project_id: Optional[int] = Field(default=None, foreign_key="project.id")
+    
     # References to Cell and Machine
     cell_id: Optional[int] = Field(default=None, foreign_key="cell.id")
     machine_id: Optional[int] = Field(default=None, foreign_key="machine.id")
@@ -95,6 +111,8 @@ class Experiment(BaseModel, table=True):
     steps: List["Step"] = Relationship(back_populates="experiment", sa_relationship_kwargs={"lazy": "selectin"})
     cell: Optional["Cell"] = Relationship(back_populates="experiments", sa_relationship_kwargs={"lazy": "selectin"})
     machine: Optional["Machine"] = Relationship(back_populates="experiments", sa_relationship_kwargs={"lazy": "selectin"})
+    # 新增與 Project 的關聯
+    project: Optional["Project"] = Relationship(back_populates="experiments", sa_relationship_kwargs={"lazy": "selectin"})
 
 
 class Step(BaseModel, table=True):
@@ -170,6 +188,7 @@ class SavedView(BaseModel, table=True):
 
 
 # Update forward references
+Project.model_rebuild()
 Experiment.model_rebuild()
 Step.model_rebuild()
 Measurement.model_rebuild()

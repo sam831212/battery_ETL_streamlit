@@ -1,4 +1,3 @@
-
 """
 Manages the UI for experiment metadata input
 """
@@ -77,12 +76,27 @@ def save_experiment_metadata(
     return True
 
 
-def render_experiment_metadata(cells, machines, has_data_from_preview):
+def render_experiment_metadata(cells, machines, has_data_from_preview, projects=None):
     """Render experiment metadata form"""
     # Create form for experiment metadata
     st.header("Experiment Information")
 
     with st.form("experiment_metadata_form"):
+        # Project selection
+        project_id = None
+        if projects:
+            project_options = {p.id: p.name for p in projects}
+            project_id = st.selectbox(
+                "Project",
+                options=list(project_options.keys()),
+                format_func=lambda x: project_options.get(x, "Unknown"),
+                index=0 if st.session_state.get("selected_project_id") is None else
+                      list(project_options.keys()).index(st.session_state["selected_project_id"])
+                      if st.session_state.get("selected_project_id") in project_options else 0,
+                help="Select the project for this experiment"
+            )
+            st.session_state["selected_project_id"] = project_id
+
         # Basic metadata
         experiment_name = st.text_input(
             "Experiment Name*",
