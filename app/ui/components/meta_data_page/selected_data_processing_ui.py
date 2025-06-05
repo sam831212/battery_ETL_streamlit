@@ -75,7 +75,8 @@ def handle_selected_steps_save():
                 # Create experiment metadata
                 experiment = Experiment(
                     name=experiment_name,
-                    start_date=experiment_date,                    operator=operator,
+                    start_date=experiment_date,                    
+                    operator=operator,
                     description=description,
                     cell_id=cell_id,
                     machine_id=machine_id,
@@ -115,6 +116,8 @@ def handle_selected_steps_save():
                         capacity=row_dict.get("capacity", 0.0),
                         energy=row_dict.get("energy", 0.0),
                         temperature=row_dict.get("temperature", 25.0),
+                        temperature_start=row_dict.get("temperature_start"),
+                        temperature_end=row_dict.get("temperature_end"),
                         c_rate=row_dict.get("c_rate", 0.0),
                         soc_start=row_dict.get("soc_start"),
                         soc_end=row_dict.get("soc_end"),
@@ -255,10 +258,14 @@ def handle_selected_steps_save():
                 # For now, skip the temperature average calculation to avoid join complexity
                 # It will be calculated based on step data instead
                 if len(steps) > 0:
-                    step_temps = [step.temperature for step in steps if step.temperature is not None]
+                    step_temps = []
+                    for step in steps:
+                        if hasattr(step, 'temperature_start') and step.temperature_start is not None:
+                            step_temps.append(step.temperature_start)
+                        if hasattr(step, 'temperature_end') and step.temperature_end is not None:
+                            step_temps.append(step.temperature_end)
                     if step_temps:
                         experiment.temperature = sum(step_temps) / len(step_temps)
-
                 # Commit the changes (ProcessedFiles, Experiment end_date/temp_avg updates)
                 session.commit()
 

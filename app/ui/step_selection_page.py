@@ -102,12 +102,15 @@ def calculate_step_ranges(steps_df: pd.DataFrame) -> pd.DataFrame:
     else:
         df['c_rate'] = "N/A"
     
-    # Add temperature column: 直接顯示 'temperature' 欄位（Aux T1），格式化為單一數值
-    if 'temperature' in df.columns:
-        mask = pd.notna(df['temperature'])
-        temp_formatted = df['temperature'].apply(lambda x: "{:.1f}°C".format(x) if pd.notna(x) else "N/A")
-        df['temperature'] = np.where(mask, temp_formatted, "N/A")
-        
+    # Add temperature_range column: 顯示 temperature_start → temperature_end
+    if 'temperature_start' in df.columns and 'temperature_end' in df.columns:
+        mask = pd.notna(df['temperature_start']) & pd.notna(df['temperature_end'])
+        temp_start_formatted = df['temperature_start'].apply(lambda x: "{:.1f}".format(x) if pd.notna(x) else "")
+        temp_end_formatted = df['temperature_end'].apply(lambda x: "{:.1f}".format(x) if pd.notna(x) else "")
+        df['temperature_range'] = np.where(mask, temp_start_formatted + " → " + temp_end_formatted, "N/A")
+    else:
+        df['temperature_range'] = "N/A"
+    
     return df
 
 
@@ -194,8 +197,8 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         'step_type', 
         'duration',  # 工步執行時間(秒)
         'c_rate', 
-        'soc_range', 
-        'temperature', 
+        'soc_range',
+        'temperature_range',  # 改為顯示溫度範圍
     ]
     
     # Add full_discharge_reference column for selection
@@ -310,7 +313,7 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
                 "step_type": st.column_config.TextColumn("工步動作"),
                 "c_rate": st.column_config.TextColumn("充放電倍率"),
                 "soc_range": st.column_config.TextColumn("SOC範圍"),
-                "temperature": st.column_config.TextColumn("溫度 (Aux T1)"),
+                "temperature_range": st.column_config.TextColumn("溫度範圍", help="起始溫度 → 截止溫度"),
                 "duration": st.column_config.NumberColumn("工步執行時間(秒)", format="%.1f"),
                 "data_meta": st.column_config.TextColumn("資料備註 (data_meta)", help="可選，為此工步輸入備註/說明，將一併存入資料庫。"),
                 "db_selection": st.column_config.CheckboxColumn("選擇載入資料庫", help="Check to include this step in the data loaded to the database."),
@@ -339,7 +342,8 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         
         # Capture data_meta changes from the data editor
         for idx, row in edited_df.iterrows():
-            original_idx = filtered_df.index[idx]  # Get the original dataframe index
+            # original_idx = filtered_df.index[idx]  # Get the original dataframe index
+            original_idx = idx  # 直接用 idx 即可
             st.session_state.temp_data_meta_dict[original_idx] = row.get('data_meta', "")
         
         if set(temp_selected_db_indices) != set(st.session_state.temp_selected_steps_for_db):
@@ -462,7 +466,7 @@ def display_selected_steps_overview(filtered_df: pd.DataFrame, selected_indices:
         'step_type', 
         'c_rate', 
         'soc_range', 
-        'temperature',  
+        'temperature_range',  # 改為顯示溫度範圍
         'duration',
         'data_meta',   # 顯示 data_meta
     ]
@@ -475,7 +479,7 @@ def display_selected_steps_overview(filtered_df: pd.DataFrame, selected_indices:
             "step_type": st.column_config.TextColumn("工步動作", disabled=True),
             "c_rate": st.column_config.TextColumn("充放電倍率", disabled=True),
             "soc_range": st.column_config.TextColumn("SOC範圍", disabled=True),
-            "temperature": st.column_config.TextColumn("溫度 (Aux T1)", disabled=True),
+            "temperature_range": st.column_config.TextColumn("溫度範圍", help="起始溫度 → 截止溫度", disabled=True),
             "duration": st.column_config.NumberColumn("工步執行時間(秒)", format="%.1f", disabled=True),
             "data_meta": st.column_config.TextColumn("資料備註 (data_meta)", help="可選，為此工步輸入備註/說明，將一併存入資料庫。"),
         },

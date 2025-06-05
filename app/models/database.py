@@ -113,7 +113,8 @@ class Step(BaseModel, table=True):
     current: float  # A
     capacity: float  # Ah
     energy: float  # Wh
-    temperature: float  # Celsius
+    temperature_start: Optional[float] = Field(default=None, nullable=True)
+    temperature_end: Optional[float] = Field(default=None, nullable=True)  
     c_rate: float  # C
     soc_start: Optional[float] = Field(default=None)  # %
     soc_end: Optional[float] = Field(default=None)  # %

@@ -23,6 +23,7 @@ from sqlalchemy.pool import StaticPool
 class ProcessingConfig:
     """處理配置類"""
     default_batch_size: int = 1000
+    measurement_internal_batch_size: int = 50  # 新增：用於測量數據內部小批次的大小
     max_retry_attempts: int = 3
     voltage_precision: int = 3
     current_precision: int = 3
@@ -37,6 +38,10 @@ config = ProcessingConfig()
 
 # 設置日誌
 logger = logging.getLogger(__name__)
+
+# 定義文件類型常量
+FILE_TYPE_STEP = "step"
+FILE_TYPE_DETAIL = "detail"
 
 # 自定義異常類別
 class DatabaseError(Exception):
@@ -120,6 +125,30 @@ def validate_required_columns(df: pd.DataFrame, required_columns: List[str]) -> 
     missing_columns = [col for col in required_columns if col not in df.columns]
     if missing_columns:
         raise ValidationError(f"缺少必要的列: {missing_columns}")
+
+def safe_get_float_from_dict(d: Dict[str, Any], key: str, default: float = 0.0) -> float:
+    """安全地從字典中獲取浮點數值"""
+    try:
+        v = d.get(key, default)
+        return float(v) if v is not None else default
+    except (ValueError, TypeError):
+        return default
+
+def safe_get_str_from_dict(d: Dict[str, Any], key: str, default: str = "") -> str:
+    """安全地從字典中獲取字串"""
+    try:
+        v = d.get(key, default)
+        return str(v) if v is not None else default
+    except (ValueError, TypeError):
+        return default
+
+def safe_get_optional_float_from_dict(d: Dict[str, Any], key: str) -> Optional[float]:
+    """安全地從字典中獲取可選的浮點數值"""
+    try:
+        v = d.get(key)
+        return float(v) if v is not None else None
+    except (ValueError, TypeError):
+        return None
 
 def round_numeric_value(value: Any, precision: int, default: float = 0.0) -> float:
     """安全地四捨五入數值"""
@@ -316,7 +345,7 @@ def save_measurements_batch(
     
     try:
         # 分小批次處理，避免一次性插入太多數據
-        small_batch_size = 50
+        small_batch_size = config.measurement_internal_batch_size # 使用配置值
         for i in range(0, len(measurements), small_batch_size):
             small_batch = measurements[i:i + small_batch_size]
             session.add_all(small_batch)
@@ -450,37 +479,44 @@ def save_steps_to_db(
     try:
         for _, row in steps_df.iterrows():
             row_dict = convert_numpy_types(row.to_dict())
-
-            # 驗證必要欄位
-            try:
-                step_number = int(row_dict.get("step_number"))
-                step_type = row_dict.get("step_type")
-            except (ValueError, TypeError) as e:
-                logger.warning(f"步驟資料缺少必要欄位: {e}")
-                continue
-
-            start_time = convert_datetime_to_python(row_dict.get("start_time"))
-            end_time = convert_datetime_to_python(row_dict.get("end_time"))
-            c_rate = calculate_c_rate(row_dict.get("current", 0.0), nominal_capacity)
-
+            
+            step_number = safe_get_float_from_dict(row_dict, "step_number", 0.0)
+            step_type = safe_get_str_from_dict(row_dict, "step_type", "unknown")
+            duration = safe_get_float_from_dict(row_dict, "duration", 0.0)
+            voltage_start = safe_get_float_from_dict(row_dict, "voltage_start", 0.0)
+            voltage_end = safe_get_float_from_dict(row_dict, "voltage_end", 0.0)
+            current = safe_get_float_from_dict(row_dict, "current", 0.0)
+            capacity = safe_get_float_from_dict(row_dict, "capacity", 0.0)
+            energy = safe_get_float_from_dict(row_dict, "energy", 0.0)
+            temperature_start = safe_get_float_from_dict(row_dict, "temperature_start", config.default_temperature)
+            temperature_end = safe_get_float_from_dict(row_dict, "temperature_end", config.default_temperature)
+            soc_start = safe_get_optional_float_from_dict(row_dict, "soc_start")
+            soc_end = safe_get_optional_float_from_dict(row_dict, "soc_end")
+            start_time = row_dict.get('start_time', None) # 保持原樣，因為它處理 datetime
+            end_time = row_dict.get('end_time', None) # 保持原樣，因為它處理 datetime
+            c_rate = safe_get_float_from_dict(row_dict, "c_rate", 0.0)
+            
+            # 注意：如果 start_time 或 end_time 為 None，則默認為當前時間 (datetime.now())。
+            # 這意味著如果源數據中缺少這些時間，將記錄處理時間而非實際事件時間。
+            # 如果需要實際事件時間且不應為 None，則應在此處添加驗證或修改 Step 模型以允許 None。
             step = Step(
                 experiment_id=experiment_id,
-                step_number=step_number,
+                step_number=int(step_number),
                 step_type=step_type,
-                start_time=start_time,
-                end_time=end_time,
-                duration=row_dict.get("duration", 0.0),
-                voltage_start=row_dict.get("voltage_start", 0.0),
-                voltage_end=row_dict.get("voltage_end", 0.0),
-                current=row_dict.get("current", 0.0),
-                capacity=row_dict.get("capacity", 0.0),
-                energy=row_dict.get("energy", 0.0),
-                temperature=row_dict.get("temperature", config.default_temperature),
+                start_time=start_time if start_time is not None else datetime.now(),
+                end_time=end_time if end_time is not None else datetime.now(),
+                duration=duration,
+                voltage_start=voltage_start,
+                voltage_end=voltage_end,
+                current=current,
+                capacity=capacity,
+                energy=energy,
+                temperature_start=temperature_start,
+                temperature_end=temperature_end,
                 c_rate=c_rate,
-                soc_start=row_dict.get("soc_start"),
-                soc_end=row_dict.get("soc_end"),
-                ocv=row_dict.get("ocv"),
-                data_meta=row_dict
+                soc_start=soc_start,
+                soc_end=soc_end,
+                data_meta=row_dict if isinstance(row_dict, dict) else {}
             )
 
             session.add(step)
@@ -543,7 +579,7 @@ def save_processed_files_to_db(
             session.add(ProcessedFile(
                 experiment_id=experiment_id,
                 filename=step_filename,
-                file_type="step",
+                file_type=FILE_TYPE_STEP,  # 使用常量
                 file_hash=step_file_hash,
                 row_count=step_df_len,
                 data_meta=step_metadata
@@ -552,7 +588,7 @@ def save_processed_files_to_db(
             session.add(ProcessedFile(
                 experiment_id=experiment_id,
                 filename=detail_filename,
-                file_type="detail",
+                file_type=FILE_TYPE_DETAIL,  # 使用常量
                 file_hash=detail_file_hash,
                 row_count=detail_df_len,
                 data_meta=detail_metadata

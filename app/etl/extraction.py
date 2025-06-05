@@ -313,11 +313,22 @@ def parse_step_csv(file_path: str) -> pd.DataFrame:
         else:
             df_filtered['step_type'] = 'unknown'
 
-        # Add temperature if temperature exists
+        # Add temperature_end and temperature_start columns
         if 'temperature' in df_filtered.columns:
-            df_filtered['temperature'] = df_filtered['temperature']
+            df_filtered = df_filtered.rename(columns={'temperature': 'temperature_end'})
+            df_filtered['temperature_start'] = None
+            if 'step_number' in df_filtered.columns:
+                df_filtered = df_filtered.sort_values('step_number')
+                for i in range(1, len(df_filtered)):
+                    prev_idx = df_filtered.index[i - 1]
+                    current_idx = df_filtered.index[i]
+                    df_filtered.at[current_idx, 'temperature_start'] = df_filtered.at[prev_idx, 'temperature_end']
+                    first_idx = df_filtered.index[0]
+                    if pd.isnull(df_filtered.at[first_idx, 'temperature_start']):
+                        df_filtered.at[first_idx, 'temperature_start'] = df_filtered.at[first_idx, 'temperature_end']
         else:
-            df_filtered['temperature'] = None
+            df_filtered['temperature_end'] = None
+            df_filtered['temperature_start'] = None
 
         # Drop duplicates if any
         if 'step_number' in df_filtered.columns:

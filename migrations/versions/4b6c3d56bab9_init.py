@@ -1,8 +1,8 @@
-"""init all tables
+"""init
 
-Revision ID: de227a3297e5
+Revision ID: 4b6c3d56bab9
 Revises: 
-Create Date: 2025-05-21 13:54:15.655662
+Create Date: 2025-06-05 09:23:28.260557
 
 """
 from typing import Sequence, Union
@@ -13,7 +13,7 @@ import sqlmodel
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'de227a3297e5'
+revision: str = '4b6c3d56bab9'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -26,34 +26,34 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('manufacturer', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('chemistry', sa.Enum('NMC', 'LFP', 'LTO', 'OTHER', name='cellchemistry'), nullable=False),
+    sa.Column('name', sa.String(), nullable=True),
+    sa.Column('manufacturer', sa.String(), nullable=True),
+    sa.Column('chemistry', sa.Enum('NMC', 'LFP', 'LTO', 'SIB', 'OTHER', name='cellchemistry'), nullable=False),
     sa.Column('capacity', sa.Float(), nullable=True),
     sa.Column('form', sa.Enum('PRISMATIC', 'CYLINDRICAL', 'POUCH', 'OTHER', name='cellformfactor'), nullable=True),
     sa.Column('nominal_capacity', sa.Float(), nullable=True),
     sa.Column('nominal_voltage', sa.Float(), nullable=True),
     sa.Column('form_factor', sa.Enum('PRISMATIC', 'CYLINDRICAL', 'POUCH', 'OTHER', name='cellformfactor'), nullable=True),
-    sa.Column('serial_number', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('serial_number', sa.String(), nullable=True),
     sa.Column('date_received', sa.DateTime(), nullable=True),
-    sa.Column('notes', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('notes', sa.String(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('machine',
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('model_number', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('name', sa.String(), nullable=False),
+    sa.Column('description', sa.String(), nullable=True),
+    sa.Column('model_number', sa.String(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('savedview',
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('name', sa.String(), nullable=False),
+    sa.Column('description', sa.String(), nullable=True),
     sa.Column('view_config', sa.JSON(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
@@ -62,15 +62,13 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('battery_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('name', sa.String(), nullable=False),
+    sa.Column('description', sa.String(), nullable=True),
+    sa.Column('battery_type', sa.String(), nullable=False),
     sa.Column('nominal_capacity', sa.Float(), nullable=False),
     sa.Column('temperature', sa.Float(), nullable=True),
-    sa.Column('operator', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('start_date', sa.DateTime(), nullable=False),
     sa.Column('end_date', sa.DateTime(), nullable=True),
-    sa.Column('data_meta', sa.JSON(), nullable=True),
     sa.Column('cell_id', sa.Integer(), nullable=True),
     sa.Column('machine_id', sa.Integer(), nullable=True),
     sa.Column('validation_status', sa.Boolean(), nullable=True),
@@ -85,9 +83,9 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('experiment_id', sa.Integer(), nullable=False),
-    sa.Column('filename', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('file_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('file_hash', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('filename', sa.String(), nullable=False),
+    sa.Column('file_type', sa.String(), nullable=False),
+    sa.Column('file_hash', sa.String(), nullable=False),
     sa.Column('processed_at', sa.DateTime(), nullable=False),
     sa.Column('row_count', sa.Integer(), nullable=False),
     sa.Column('data_meta', sa.JSON(), nullable=True),
@@ -101,22 +99,20 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('experiment_id', sa.Integer(), nullable=False),
     sa.Column('step_number', sa.Integer(), nullable=False),
-    sa.Column('step_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('step_type', sa.String(), nullable=False),
     sa.Column('start_time', sa.DateTime(), nullable=False),
     sa.Column('end_time', sa.DateTime(), nullable=True),
     sa.Column('duration', sa.Float(), nullable=False),
-    sa.Column('voltage_start', sa.Float(), nullable=False),
+    sa.Column('voltage_start', sa.Float(), nullable=True),
     sa.Column('voltage_end', sa.Float(), nullable=False),
     sa.Column('current', sa.Float(), nullable=False),
     sa.Column('capacity', sa.Float(), nullable=False),
     sa.Column('energy', sa.Float(), nullable=False),
-    sa.Column('temperature', sa.Float(), nullable=False),
-    sa.Column('temperature_min', sa.Float(), nullable=False),
-    sa.Column('temperature_max', sa.Float(), nullable=False),
+    sa.Column('temperature_start', sa.Float(), nullable=True),
+    sa.Column('temperature_end', sa.Float(), nullable=True),
     sa.Column('c_rate', sa.Float(), nullable=False),
     sa.Column('soc_start', sa.Float(), nullable=True),
     sa.Column('soc_end', sa.Float(), nullable=True),
-    sa.Column('ocv', sa.Float(), nullable=True),
     sa.Column('data_meta', sa.JSON(), nullable=True),
     sa.ForeignKeyConstraint(['experiment_id'], ['experiment.id'], ),
     sa.PrimaryKeyConstraint('id')
@@ -132,7 +128,6 @@ def upgrade() -> None:
     sa.Column('temperature', sa.Float(), nullable=False),
     sa.Column('capacity', sa.Float(), nullable=False),
     sa.Column('energy', sa.Float(), nullable=False),
-    sa.Column('soc', sa.Float(), nullable=True),
     sa.ForeignKeyConstraint(['step_id'], ['step.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
