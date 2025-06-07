@@ -12,6 +12,7 @@
         "NMC",
         "LFP",
         "LTO",
+        "SIB",
         "OTHER"
       ],
       "methods": [],
@@ -19,6 +20,7 @@
         "NMC",
         "LFP",
         "LTO",
+        "SIB",
         "OTHER"
       ]
     },
@@ -50,6 +52,16 @@
     },
     "database.py:Machine": {
       "docstring": "Model representing a testing machine",
+      "attributes": [
+        "__table_args__"
+      ],
+      "methods": [],
+      "relationships": [
+        "__table_args__"
+      ]
+    },
+    "database.py:Project": {
+      "docstring": "Model representing a project, which can contain multiple experiments",
       "attributes": [
         "__table_args__"
       ],
@@ -146,17 +158,9 @@
       "signature": "calculate_soc(steps_df, details_df, full_discharge_step_idx)",
       "docstring": "Calculate State of Charge (SOC) for all steps using Coulomb counting method.\n    \n    SOC calculatio..."
     },
-    "transformation.py:extract_ocv_values": {
-      "signature": "extract_ocv_values(steps_df)",
-      "docstring": "Extract Open Circuit Voltage (OCV) values from rest steps.\n    \n    OCV is extracted from the voltag..."
-    },
-    "transformation.py:calculate_temperature_metrics": {
-      "signature": "calculate_temperature_metrics(df, temp_column)",
-      "docstring": "Calculate temperature statistics per step.\n    \n    Args:\n        df: DataFrame containing temperatu..."
-    },
     "transformation.py:transform_data": {
       "signature": "transform_data(steps_df, details_df, nominal_capacity)",
-      "docstring": "Apply all transformation functions to the step and detail data.\n    \n    Args:\n        steps_df: Dat..."
+      "docstring": "\u5c07\u6240\u6709\u8f49\u63db\u51fd\u6578\u61c9\u7528\u65bc\u6b65\u9a5f\u548c\u8a73\u7d30\u8cc7\u8a0a\u8cc7\u6599\u3002\n\n\u53c3\u6578\uff1a\nsteps_df\uff1a\u5305\u542b\u6b65\u9a5f\u8cc7\u6599\u7684\u8cc7\u6599\u5e40\ndetails_df\uff1a\u5305\u542b\u8a73\u7d30\u6e2c\u91cf\u8cc7\u6599\u7684\u8cc7\u6599\u5e40\nnominal_capacity\uff1a\u96fb\u6c60\u7684\u6a19\u7a31\u5bb9\u91cf\uff0c\u55ae\u4f4d\u70ba\u5b89\u57f9..."
     },
     "validation.py:detect_voltage_anomalies": {
       "signature": "detect_voltage_anomalies(df, voltage_col, window_size, z_threshold)",
@@ -165,10 +169,6 @@
     "validation.py:detect_capacity_anomalies": {
       "signature": "detect_capacity_anomalies(df, capacity_col, total_capacity_col, step_type_col, min_capacity_threshold, max_change_pct)",
       "docstring": "Detect anomalies in capacity measurements.\n    \n    Args:\n        df: DataFrame containing capacity ..."
-    },
-    "validation.py:detect_temperature_anomalies": {
-      "signature": "detect_temperature_anomalies(df, temp_col, min_temp, max_temp, max_temp_change)",
-      "docstring": "Detect anomalies in temperature measurements.\n    \n    Args:\n        df: DataFrame containing temper..."
     },
     "validation.py:validate_soc_range": {
       "signature": "validate_soc_range(df, tolerance)",
@@ -222,18 +222,58 @@
       "signature": "run_migrations_online()",
       "docstring": "Run migrations in 'online' mode.\n\n    In this scenario we need to create an Engine\n    and associate..."
     },
-    "versions\\de227a3297e5_init_all_tables.py:upgrade": {
+    "versions\\184edc502748_merge_heads_for_pre_test_rest_time_.py:upgrade": {
       "signature": "upgrade()",
       "docstring": "Upgrade schema...."
     },
-    "versions\\de227a3297e5_init_all_tables.py:downgrade": {
+    "versions\\184edc502748_merge_heads_for_pre_test_rest_time_.py:downgrade": {
       "signature": "downgrade()",
       "docstring": "Downgrade schema...."
+    },
+    "versions\\255834f25e01_init.py:upgrade": {
+      "signature": "upgrade()",
+      "docstring": "Upgrade schema...."
+    },
+    "versions\\255834f25e01_init.py:downgrade": {
+      "signature": "downgrade()",
+      "docstring": "Downgrade schema...."
+    },
+    "versions\\802e5a6bd824_init.py:upgrade": {
+      "signature": "upgrade()",
+      "docstring": "Upgrade schema...."
+    },
+    "versions\\802e5a6bd824_init.py:downgrade": {
+      "signature": "downgrade()",
+      "docstring": "Downgrade schema...."
+    },
+    "versions\\934696b3bbba_init.py:upgrade": {
+      "signature": "upgrade()",
+      "docstring": "Upgrade schema...."
+    },
+    "versions\\934696b3bbba_init.py:downgrade": {
+      "signature": "downgrade()",
+      "docstring": "Downgrade schema...."
+    },
+    "versions\\add_pre_test_rest_time_20250605.py:upgrade": {
+      "signature": "upgrade()",
+      "docstring": null
+    },
+    "versions\\add_pre_test_rest_time_20250605.py:downgrade": {
+      "signature": "downgrade()",
+      "docstring": null
+    },
+    "versions\\add_pre_test_rest_time_20250606.py:upgrade": {
+      "signature": "upgrade()",
+      "docstring": null
+    },
+    "versions\\add_pre_test_rest_time_20250606.py:downgrade": {
+      "signature": "downgrade()",
+      "docstring": null
     }
   },
   "ui_components": [
     "dashboard_page.py",
-    "exp_meta_data_page.py",
+    "meta_data_page.py",
     "preview_page.py",
     "settings_page.py",
     "step_selection_page.py",
