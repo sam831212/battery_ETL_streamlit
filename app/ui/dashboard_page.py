@@ -162,6 +162,18 @@ def create_interactive_table(df: pd.DataFrame, table_name: str,
         st.warning(f"No data available for {table_name}")
         return {"selected_rows": []}
     
+    # Reset index to ensure clean DataFrame for AgGrid
+    df = df.reset_index(drop=True)
+    
+    # Additional debug info
+    print(f"DEBUG: DataFrame for {table_name} - shape: {df.shape}")
+    print(f"DEBUG: DataFrame columns: {df.columns.tolist()}")
+    print(f"DEBUG: DataFrame dtypes: {df.dtypes.to_dict()}")
+    print(f"DEBUG: DataFrame index: {df.index}")
+    if 'id' in df.columns:
+        print(f"DEBUG: ID column sample values: {df['id'].head().tolist()}")
+        print(f"DEBUG: ID column dtype: {df['id'].dtype}")
+    
     if not AGGRID_AVAILABLE:
         # Fallback to native streamlit table with checkbox selection
         st.dataframe(df, use_container_width=True)
@@ -177,16 +189,31 @@ def create_interactive_table(df: pd.DataFrame, table_name: str,
         
         return {"selected_rows": selected_rows}
     
-    # Configure grid options for st_aggrid
+    # 1.1.5 syntax: set checkboxSelection on a column, and rowSelection in gridOptions
     gb = GridOptionsBuilder.from_dataframe(df)
     gb.configure_pagination(paginationAutoPageSize=True)
     gb.configure_side_bar()
-    gb.configure_selection(selection_mode=selection_mode, use_checkbox=True)
+    gb.configure_selection(selection_mode=selection_mode)  # do NOT use use_checkbox
+    # 找到第一個未被隱藏的欄位設 checkboxSelection
+    preferred_cols = ['name', 'step_number', 'step_type', 'experiment_name']
+    checkbox_col = None
+    for col in preferred_cols:
+        if col in df.columns and col not in ['id']:
+            checkbox_col = col
+            break
+    if not checkbox_col:
+        # fallback: 找第一個不是 id 的欄位
+        for col in df.columns:
+            if col not in ['id']:
+                checkbox_col = col
+                break
+    if checkbox_col:
+        gb.configure_column(checkbox_col, checkboxSelection=True)
     
     # Configure columns
     for col in df.columns:
-        if col in ['id', 'project_id', 'experiment_id']:
-            gb.configure_column(col, hide=True)
+        if col == 'id':
+            gb.configure_column(col, editable=False, width=40, pinned='left')
         elif col in ['start_date', 'end_date', 'start_time', 'end_time']:
             gb.configure_column(col, type=["dateColumnFilter", "customDateTimeFormat"], 
                               custom_format_string='dd/MM/yyyy HH:mm')
@@ -196,25 +223,129 @@ def create_interactive_table(df: pd.DataFrame, table_name: str,
                               precision=3)
     
     grid_options = gb.build()
+    grid_options['rowSelection'] = selection_mode
+    grid_options['suppressRowClickSelection'] = False
     
-    # Display the grid
-    grid_response = AgGrid(
-        df,
-        gridOptions=grid_options,
-        data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-        update_mode=GridUpdateMode.SELECTION_CHANGED,
-        fit_columns_on_grid_load=True,
-        enable_enterprise_modules=False,
-        height=400,
-        width='100%'
-    )
+    # 強制刷新 key
+    aggrid_key = f"aggrid_{table_name.lower()}_{hash(str(df))}_{str(st.session_state.dashboard_filters)}"    # Display the grid
+    # Try FILTERED_AND_SORTED mode first, fallback to AS_INPUT if needed
+    try:
+        grid_response = AgGrid(
+            df,
+            gridOptions=grid_options,
+            data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+            update_mode=GridUpdateMode.SELECTION_CHANGED,
+            fit_columns_on_grid_load=True,
+            enable_enterprise_modules=False,
+            height=400,
+            width='100%',
+            key=aggrid_key
+        )
+    except Exception as e:
+        print(f"DEBUG: FILTERED_AND_SORTED mode failed: {e}, trying AS_INPUT mode")
+        grid_response = AgGrid(
+            df,
+            gridOptions=grid_options,
+            data_return_mode=DataReturnMode.AS_INPUT,
+            update_mode=GridUpdateMode.SELECTION_CHANGED,
+            fit_columns_on_grid_load=True,
+            enable_enterprise_modules=False,
+            height=400,
+            width='100%',
+            key=f"{aggrid_key}_fallback"
+        )
     
-    return dict(grid_response)
+    # Enhanced Debug Information
+    print(f"DEBUG: ===== AgGrid Response for {table_name} =====")
+    print(f"DEBUG: Full grid_response keys: {list(grid_response.keys())}")
+    print(f"DEBUG: grid_response type: {type(grid_response)}")
+    
+    selected_rows = grid_response.get('selected_rows', [])
+    print(f"DEBUG: selected_rows: {selected_rows}")
+    print(f"DEBUG: selected_rows type: {type(selected_rows)}")
+    
+    # Safe check for selected_rows - handle DataFrame case first
+    if isinstance(selected_rows, pd.DataFrame):
+        has_selected_rows = not selected_rows.empty
+        print(f"DEBUG: selected_rows is DataFrame, empty: {selected_rows.empty}")
+        print(f"DEBUG: DataFrame shape: {selected_rows.shape}")
+        # Convert DataFrame to list of dicts for further processing
+        if not selected_rows.empty:
+            selected_rows = selected_rows.to_dict('records')
+            print(f"DEBUG: Converted DataFrame to list of dicts: {len(selected_rows)} rows")
+            has_selected_rows = True
+        else:
+            has_selected_rows = False
+    elif isinstance(selected_rows, (list, tuple)):
+        has_selected_rows = len(selected_rows) > 0
+        print(f"DEBUG: selected_rows is list/tuple, length: {len(selected_rows)}")
+    else:
+        print(f"DEBUG: selected_rows is other type: {type(selected_rows)}")
+        has_selected_rows = False
+    
+    if has_selected_rows:
+        print(f"DEBUG: First selected_row: {selected_rows[0]}")
+        print(f"DEBUG: First selected_row type: {type(selected_rows[0])}")
+        
+        # Handle different possible formats
+        if isinstance(selected_rows[0], dict):
+            print(f"DEBUG: First row is dict with keys: {list(selected_rows[0].keys())}")
+        elif isinstance(selected_rows[0], (list, tuple)):
+            print(f"DEBUG: First row is list/tuple with length: {len(selected_rows[0])}")
+            print(f"DEBUG: First row contents: {selected_rows[0]}")
+        elif isinstance(selected_rows[0], str):
+            print(f"DEBUG: First row is string: '{selected_rows[0]}'")
+        else:
+            print(f"DEBUG: First row is unknown type: {type(selected_rows[0])}")
+    
+    # Convert grid_response to dict for modification
+    response_dict = dict(grid_response)
+      # Try to fix selected_rows format if it's not a list of dicts
+    if has_selected_rows and isinstance(selected_rows, list) and selected_rows and not isinstance(selected_rows[0], dict):
+        print(f"DEBUG: WARNING - selected_rows format is not dict, attempting to fix...")
+        
+        # If it's a list of indices, try to map back to DataFrame
+        if all(isinstance(row, (int, float)) or (isinstance(row, str) and row.isdigit()) for row in selected_rows):
+            try:
+                # Convert to integer indices
+                int_indices = []
+                for row in selected_rows:
+                    if isinstance(row, str) and row.isdigit():
+                        int_indices.append(int(row))
+                    elif isinstance(row, (int, float)):
+                        int_indices.append(int(row))
+                
+                if int_indices and all(0 <= idx < len(df) for idx in int_indices):
+                    fixed_rows = df.iloc[int_indices].to_dict('records')
+                    print(f"DEBUG: Successfully converted indices to dict records: {len(fixed_rows)} rows")
+                    response_dict['selected_rows'] = fixed_rows
+            except Exception as e:
+                print(f"DEBUG: Failed to fix selected_rows using indices: {e}")
+        
+        # If it's a list of lists, try to map to column names
+        elif selected_rows and isinstance(selected_rows[0], (list, tuple)):
+            try:
+                fixed_rows = []
+                for row in selected_rows:
+                    if len(row) == len(df.columns):
+                        row_dict = dict(zip(df.columns, row))
+                        fixed_rows.append(row_dict)
+                if fixed_rows:
+                    print(f"DEBUG: Successfully converted list rows to dict records: {len(fixed_rows)} rows")
+                    response_dict['selected_rows'] = fixed_rows
+            except Exception as e:
+                print(f"DEBUG: Failed to fix selected_rows using column mapping: {e}")
+    
+    print(f"DEBUG: ===== End AgGrid Response Debug =====")
+    return response_dict
 
 
 def render_step_plot(steps_df: pd.DataFrame):
     """Render the Step-level plotting area"""
     st.subheader("Step-Level Data Visualization")
+    
+    print(f"DEBUG: render_step_plot called with DataFrame shape: {steps_df.shape}")
+    print(f"DEBUG: steps_df columns: {steps_df.columns.tolist() if not steps_df.empty else 'Empty DataFrame'}")
     
     if steps_df.empty:
         st.info("Select steps to enable plotting")
@@ -292,11 +423,16 @@ def render_detail_plot(selected_step_ids: List[int]):
     """Render the Detail-level time-series plotting area"""
     st.subheader("Detail-Level Time-Series Visualization")
     
+    print(f"DEBUG: render_detail_plot called with step_ids: {selected_step_ids}")
+    
     if not selected_step_ids:
         st.info("Select steps to enable time-series plotting")
         return
     
     measurements_df = get_measurements_for_steps(selected_step_ids)
+    
+    print(f"DEBUG: measurements_df shape: {measurements_df.shape}")
+    print(f"DEBUG: measurements_df columns: {measurements_df.columns.tolist() if not measurements_df.empty else 'Empty DataFrame'}")
     
     if measurements_df.empty:
         st.warning("No measurement data available for selected steps")
@@ -389,7 +525,7 @@ def render_filtering_controls():
                                       ["charge", "discharge", "rest"], 
                                       default=[])
             
-            c_rate_range = st.slider("C-Rate Range", 0.0, 5.0, (0.0, 5.0), step=0.1)
+            c_rate_range = st.slider("C-Rate Range", 0.0, 30.0 , (0.0, 30.0), step=0.1)
             
         with col2:
             st.subheader("Experiment Filters")
@@ -397,7 +533,7 @@ def render_filtering_controls():
                                          ["Li-ion", "NMC", "LFP", "LTO"], 
                                          default=[])
             
-            capacity_range = st.slider("Nominal Capacity Range (Ah)", 0.0, 10.0, (0.0, 10.0), step=0.1)
+            capacity_range = st.slider("Nominal Capacity Range (Ah)", 0.0, 100.0, (0.0, 100.0), step=0.1)
         
         # Store filters in session state
         st.session_state.dashboard_filters = {
@@ -411,24 +547,121 @@ def render_filtering_controls():
 def apply_filters(df: pd.DataFrame, table_type: str) -> pd.DataFrame:
     """Apply filters to dataframe based on table type"""
     filters = st.session_state.dashboard_filters
+    print(f"DEBUG: apply_filters called for {table_type}")
+    print(f"DEBUG: Current filters: {filters}")
+    print(f"DEBUG: Input DataFrame shape: {df.shape}")
     
     if table_type == "experiments" and not df.empty:
+        print(f"DEBUG: Available battery_types in df: {df['battery_type'].unique() if 'battery_type' in df.columns else 'No battery_type column'}")
+        print(f"DEBUG: Available nominal_capacity range: {df['nominal_capacity'].min()}-{df['nominal_capacity'].max() if 'nominal_capacity' in df.columns and not df['nominal_capacity'].isna().all() else 'No valid nominal_capacity'}")
+        
         if filters.get('battery_types'):
+            print(f"DEBUG: Filtering by battery_types: {filters['battery_types']}")
             df = df[df['battery_type'].isin(filters['battery_types'])]
+            print(f"DEBUG: After battery_type filter: {len(df)} rows")
         
         if filters.get('capacity_range'):
             min_cap, max_cap = filters['capacity_range']
+            print(f"DEBUG: Filtering by capacity range: {min_cap}-{max_cap}")
             df = df[(df['nominal_capacity'] >= min_cap) & (df['nominal_capacity'] <= max_cap)]
+            print(f"DEBUG: After capacity filter: {len(df)} rows")
     
     elif table_type == "steps" and not df.empty:
+        print(f"DEBUG: Available step_types in df: {df['step_type'].unique() if 'step_type' in df.columns else 'No step_type column'}")
+        print(f"DEBUG: Available c_rate range: {df['c_rate'].min()}-{df['c_rate'].max() if 'c_rate' in df.columns and not df['c_rate'].isna().all() else 'No valid c_rate'}")
+        
         if filters.get('step_types'):
+            print(f"DEBUG: Filtering by step_types: {filters['step_types']}")
             df = df[df['step_type'].isin(filters['step_types'])]
+            print(f"DEBUG: After step_type filter: {len(df)} rows")
         
         if filters.get('c_rate_range'):
             min_rate, max_rate = filters['c_rate_range']
+            print(f"DEBUG: Filtering by c_rate range: {min_rate}-{max_rate}")
             df = df[(df['c_rate'] >= min_rate) & (df['c_rate'] <= max_rate)]
+            print(f"DEBUG: After c_rate filter: {len(df)} rows")
     
+    print(f"DEBUG: Final DataFrame shape: {df.shape}")
     return df
+
+
+def extract_selected_ids(selected_rows: List[Any], table_name: str) -> List[int]:
+    """Extract IDs from selected rows, handling various formats including DataFrame"""
+    selected_ids = []
+    
+    print(f"DEBUG: extract_selected_ids for {table_name}")
+    print(f"DEBUG: Input selected_rows: {selected_rows}")
+    print(f"DEBUG: Input type: {type(selected_rows)}")
+    
+    # Handle DataFrame case first
+    if isinstance(selected_rows, pd.DataFrame):
+        print(f"DEBUG: selected_rows is DataFrame, empty: {selected_rows.empty}")
+        if selected_rows.empty:
+            return selected_ids
+        # Convert DataFrame to list of dicts
+        selected_rows = selected_rows.to_dict('records')
+        print(f"DEBUG: Converted DataFrame to list of dicts: {len(selected_rows)} rows")
+    
+    # Handle other empty cases
+    if not selected_rows or (hasattr(selected_rows, '__len__') and len(selected_rows) == 0):
+        return selected_ids
+    
+    for i, row in enumerate(selected_rows):
+        try:
+            print(f"DEBUG: Processing row {i}: {row} (type: {type(row)})")
+            
+            # Case 1: Row is a dictionary (expected format)
+            if isinstance(row, dict):
+                if 'id' in row:
+                    row_id = row['id']
+                    if isinstance(row_id, (int, float)):
+                        selected_ids.append(int(row_id))
+                        print(f"DEBUG: Extracted ID from dict: {int(row_id)}")
+                    elif isinstance(row_id, str) and row_id.isdigit():
+                        selected_ids.append(int(row_id))
+                        print(f"DEBUG: Extracted ID from string: {int(row_id)}")
+                    else:
+                        print(f"DEBUG: Invalid ID type in dict: {row_id} ({type(row_id)})")
+                else:
+                    print(f"DEBUG: No 'id' key in dict row: {list(row.keys())}")
+            
+            # Case 2: Row is a list/tuple (values in column order)
+            elif isinstance(row, (list, tuple)):
+                if len(row) > 0:
+                    # Assume first column is ID
+                    potential_id = row[0]
+                    if isinstance(potential_id, (int, float)):
+                        selected_ids.append(int(potential_id))
+                        print(f"DEBUG: Extracted ID from list first element: {int(potential_id)}")
+                    elif isinstance(potential_id, str) and potential_id.isdigit():
+                        selected_ids.append(int(potential_id))
+                        print(f"DEBUG: Extracted ID from list string: {int(potential_id)}")
+                    else:
+                        print(f"DEBUG: Invalid ID in list: {potential_id} ({type(potential_id)})")
+                else:
+                    print(f"DEBUG: Empty list/tuple row")
+            
+            # Case 3: Row is a single value (might be an ID)
+            elif isinstance(row, (int, float)):
+                selected_ids.append(int(row))
+                print(f"DEBUG: Extracted ID from single value: {int(row)}")
+            
+            elif isinstance(row, str):
+                if row.isdigit():
+                    selected_ids.append(int(row))
+                    print(f"DEBUG: Extracted ID from string value: {int(row)}")
+                else:
+                    print(f"DEBUG: Non-numeric string value: {row}")
+            
+            else:
+                print(f"DEBUG: Unhandled row type: {type(row)}, value: {row}")
+                
+        except Exception as e:
+            print(f"DEBUG: Error processing row {i}: {e}, row: {row}")
+            continue
+    
+    print(f"DEBUG: Final extracted IDs for {table_name}: {selected_ids}")
+    return selected_ids
 
 
 def render_dashboard_page():
@@ -439,6 +672,14 @@ def render_dashboard_page():
     # Initialize session state
     init_session_state()
     
+    # DEBUG: Print session state
+    print("=== DEBUG: Session State ===")
+    print(f"selected_projects: {st.session_state.selected_projects}")
+    print(f"selected_experiments: {st.session_state.selected_experiments}")
+    print(f"selected_steps: {st.session_state.selected_steps}")
+    print(f"dashboard_filters: {st.session_state.dashboard_filters}")
+    print("=" * 30)
+    
     # Show AgGrid availability status
     if not AGGRID_AVAILABLE:
         st.warning("st_aggrid not available. Using fallback tables. For full functionality, install with: pip install streamlit-aggrid")
@@ -448,8 +689,7 @@ def render_dashboard_page():
     
     # Create three columns for the hierarchical tables
     st.header("Data Selection")
-    
-    # Project Table
+      # Project Table
     st.subheader("1. Projects")
     projects_df = get_projects_data()
     
@@ -457,29 +697,37 @@ def render_dashboard_page():
         project_response = create_interactive_table(projects_df, "Projects")
         selected_project_rows = project_response.get("selected_rows", [])
         
-        if selected_project_rows:
-            selected_project_ids = [row['id'] for row in selected_project_rows]
+        if selected_project_rows is not None and len(selected_project_rows) > 0:
+            selected_project_ids = extract_selected_ids(selected_project_rows, "Projects")
             st.session_state.selected_projects = selected_project_ids
-            st.success(f"Selected {len(selected_project_ids)} project(s)")
+            if selected_project_ids:
+                st.success(f"Selected {len(selected_project_ids)} project(s)")
+            else:
+                st.warning("Could not extract project IDs from selection")
         else:
             st.session_state.selected_projects = []
     else:
         st.warning("No projects found in database")
         st.session_state.selected_projects = []
-    
-    # Experiment Table (filtered by selected projects)
+      # Experiment Table (filtered by selected projects)
     st.subheader("2. Experiments")
+    print(f"DEBUG: Getting experiments for project IDs: {st.session_state.selected_projects}")
     experiments_df = get_experiments_data(st.session_state.selected_projects)
+    print(f"DEBUG: Experiments before filter: {len(experiments_df)} rows")
+    print(f"DEBUG: Experiments columns: {experiments_df.columns.tolist() if not experiments_df.empty else 'Empty'}")
     experiments_df = apply_filters(experiments_df, "experiments")
+    print(f"DEBUG: Experiments after filter: {len(experiments_df)} rows")
     
     if not experiments_df.empty:
         experiment_response = create_interactive_table(experiments_df, "Experiments")
         selected_experiment_rows = experiment_response.get("selected_rows", [])
-        
-        if selected_experiment_rows:
-            selected_experiment_ids = [row['id'] for row in selected_experiment_rows]
+        if selected_experiment_rows is not None and len(selected_experiment_rows) > 0:
+            selected_experiment_ids = extract_selected_ids(selected_experiment_rows, "Experiments")
             st.session_state.selected_experiments = selected_experiment_ids
-            st.success(f"Selected {len(selected_experiment_ids)} experiment(s)")
+            if selected_experiment_ids:
+                st.success(f"Selected {len(selected_experiment_ids)} experiment(s)")
+            else:
+                st.warning("Could not extract experiment IDs from selection")
         else:
             st.session_state.selected_experiments = []
     else:
@@ -491,21 +739,29 @@ def render_dashboard_page():
     
     # Step Table (filtered by selected experiments)
     st.subheader("3. Steps")
+    print(f"DEBUG: Getting steps for experiment IDs: {st.session_state.selected_experiments}")
     steps_df = get_steps_data(st.session_state.selected_experiments)
+    print(f"DEBUG: Steps before filter: {len(steps_df)} rows")
+    print(f"DEBUG: Steps columns: {steps_df.columns.tolist() if not steps_df.empty else 'Empty'}")
     steps_df = apply_filters(steps_df, "steps")
+    print(f"DEBUG: Steps after filter: {len(steps_df)} rows")
     
     selected_step_ids = []
     if not steps_df.empty:
         step_response = create_interactive_table(steps_df, "Steps")
         selected_step_rows = step_response.get("selected_rows", [])
         
-        if selected_step_rows:
-            selected_step_ids = [row['id'] for row in selected_step_rows]
+        if selected_step_rows is not None and len(selected_step_rows) > 0:
+            selected_step_ids = extract_selected_ids(selected_step_rows, "Steps")
             st.session_state.selected_steps = selected_step_ids
-            st.success(f"Selected {len(selected_step_ids)} step(s)")
             
-            # Create filtered dataframe for plotting
-            selected_steps_df = steps_df[steps_df['id'].isin(selected_step_ids)]
+            if selected_step_ids:
+                st.success(f"Selected {len(selected_step_ids)} step(s)")
+                # Create filtered dataframe for plotting
+                selected_steps_df = steps_df[steps_df['id'].isin(selected_step_ids)]
+            else:
+                st.warning("Could not extract step IDs from selection")
+                selected_steps_df = pd.DataFrame()
         else:
             st.session_state.selected_steps = []
             selected_steps_df = pd.DataFrame()

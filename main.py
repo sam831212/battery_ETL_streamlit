@@ -1,11 +1,23 @@
 """
 Battery ETL Dashboard - Main application entry point
 """
+
+
 import streamlit as st
 from app.utils.config import DEBUG
 from app.utils.database import init_db
 import os
+import threading
+import webbrowser
 
+# Set Streamlit server port and browser behavior before importing streamlit
+os.environ["STREAMLIT_SERVER_PORT"] = "5000"
+os.environ["STREAMLIT_SERVER_HEADLESS"] = "false"
+os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
+os.environ["STREAMLIT_SERVER_ENABLECORS"] = "false"
+os.environ["STREAMLIT_SERVER_ENABLE_WEB_SOCKET_COMPRESSION"] = "true"
+os.environ["STREAMLIT_SERVER_ADDRESS"] = "localhost"  # 確保這行存在
+os.environ["STREAMLIT_BROWSER_OPEN_BROWSER"] = "true"
 # Initialize the database
 db_init_success = init_db()
 
@@ -183,3 +195,17 @@ elif st.session_state['current_page'] == "Dashboard":
 elif st.session_state['current_page'] == "Settings":
     from app.ui.settings_page import render_settings_page
     render_settings_page()
+
+# def _open_browser():
+#     import time
+#     # webbrowser is imported at the top of the file
+#     time.sleep(1)  # 等待 Streamlit server 啟動
+#     webbrowser.open("http://localhost:5000")
+
+# if __name__ == "__main__":
+#     # This block now executes when running 'streamlit run main.py'.
+#     # Streamlit is configured with STREAMLIT_BROWSER_OPEN_BROWSER="true",
+#     # which should ideally handle opening the browser.
+#     # This explicit call acts as a direct method if Streamlit's default isn't working.
+#     thread = threading.Thread(target=_open_browser, daemon=True)
+#     thread.start()

@@ -65,12 +65,15 @@ def handle_selected_steps_save():
                     else:
                         steps_df_to_use = pd.DataFrame(st.session_state["selected_steps"])
                 else:
-                    steps_df_to_use = pd.DataFrame(st.session_state["selected_steps"])
-
-                # Calculate average temperature from transformed data
+                    steps_df_to_use = pd.DataFrame(st.session_state["selected_steps"])                # Calculate average temperature from transformed data
                 temperature = 25.0  # Default value
                 if "temperature" in steps_df_to_use.columns:
                     temperature = float(steps_df_to_use["temperature"].mean())
+
+                # Get project_id from session state
+                project_id = st.session_state.get("selected_project_id")
+                print(f"[DEBUG] handle_selected_steps_save project_id: {project_id}")
+                print(f"[DEBUG] session_state keys: {list(st.session_state.keys())}")
 
                 # Create experiment metadata
                 experiment = Experiment(
@@ -82,7 +85,8 @@ def handle_selected_steps_save():
                     machine_id=machine_id,
                     nominal_capacity=nominal_capacity,
                     battery_type=cell.chemistry,
-                    temperature=temperature
+                    temperature=temperature,
+                    project_id=project_id  # Add project_id here
                 )
                 
                 session.add(experiment)

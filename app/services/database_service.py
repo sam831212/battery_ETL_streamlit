@@ -197,7 +197,8 @@ def save_experiment_to_db(
     cell_id: int,
     machine_id: int,
     battery_type: str,
-    temperature: float
+    temperature: float,
+    project_id: Optional[int] = None
 ) -> Experiment:
     """
     創建並保存新的實驗記錄
@@ -225,7 +226,8 @@ def save_experiment_to_db(
         validation_status=validation_report['valid'],
         validation_report=validation_report,
         cell_id=cell_id,
-        machine_id=machine_id
+        machine_id=machine_id,
+        project_id=project_id
     )
 
     try:
