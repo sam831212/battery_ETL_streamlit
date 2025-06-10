@@ -29,7 +29,7 @@ EXPERIMENT_DF_COLUMNS = ['id', 'name', 'project_id', 'project_name', 'battery_ty
 STEP_DF_COLUMNS = ['id', 'experiment_id', 'experiment_name', 'step_number',
                    'step_type', 'start_time', 'end_time', 'duration',
                    'voltage_start', 'voltage_end', 'current', 'capacity',
-                   'energy', 'temperature', 'c_rate', 'soc_start', 'soc_end']
+                   'energy', 'temperature', 'c_rate', 'soc_start', 'soc_end', 'data_meta']
 MEASUREMENT_DF_COLUMNS = ['step_id', 'execution_time', 'voltage', 'current', 'temperature', 'capacity', 'energy']
 
 
@@ -129,12 +129,14 @@ def get_steps_data(selected_experiment_ids: Optional[List[int]] = None) -> pd.Da
                 experiment_name = step.experiment.name if step.experiment else 'Unknown'
                 # Use temperature_start if temperature attribute doesn't exist
                 temperature = getattr(step, 'temperature', step.temperature_start if hasattr(step, 'temperature_start') else None)
+                # 取得 data_meta 欄位，若不存在則為 None
+                data_meta = getattr(step, 'data_meta', None)
                 
                 data.append({
                     'id': step.id,
+                    'step_number': step.step_number,
                     'experiment_id': step.experiment_id,
                     'experiment_name': experiment_name,
-                    'step_number': step.step_number,
                     'step_type': step.step_type,
                     'start_time': step.start_time,
                     'end_time': step.end_time,
@@ -147,7 +149,8 @@ def get_steps_data(selected_experiment_ids: Optional[List[int]] = None) -> pd.Da
                     'temperature': temperature,
                     'c_rate': step.c_rate,
                     'soc_start': step.soc_start,
-                    'soc_end': step.soc_end
+                    'soc_end': step.soc_end,
+                    'data_meta': data_meta
                 })
             
             return pd.DataFrame(data)
@@ -187,45 +190,82 @@ def create_interactive_table(df: pd.DataFrame, table_name: str,
         checkbox_col = next((col for col in df.columns if col != 'id'), None)
     
     if checkbox_col:
-        gb.configure_column(checkbox_col, checkboxSelection=True)
-    
-    for col_name in df.columns:
-        if col_name == 'id':
-            gb.configure_column(col_name, editable=False, width=40, pinned='left')
-        elif col_name in ['start_date', 'end_date', 'start_time', 'end_time']:
-            gb.configure_column(col_name, type=["dateColumnFilter", "customDateTimeFormat"], 
-                              custom_format_string='dd/MM/yyyy HH:mm')
-        elif col_name in ['duration', 'voltage_start', 'voltage_end', 'current', 'capacity', 
-                     'energy', 'temperature', 'c_rate', 'soc_start', 'soc_end', 'nominal_capacity']:
-            gb.configure_column(col_name, type=["numericColumn", "numberColumnFilter", "customNumericFormat"],
-                              precision=3)
+        gb.configure_column(checkbox_col, checkboxSelection=True)    # Configure columns based on table type and column characteristics
+    _configure_table_columns(gb, df, table_name)
     
     grid_options = gb.build()
     grid_options['rowSelection'] = selection_mode
-    grid_options['suppressRowClickSelection'] = False # Allow row click selection
+    grid_options['suppressRowClickSelection'] = False # Allow row click selection    # Enhanced column sizing for Steps table
+    if table_name == "Steps":
+        # Force autoWidth for all columns in Steps table
+        for col_def in grid_options.get('columnDefs', []):
+            col_def.update({
+                'resizable': True,
+                'sortable': True,
+                'filter': True
+            })
+            # Remove any fixed width settings
+            col_def.pop('width', None)
+            col_def.pop('minWidth', None)
+            col_def.pop('maxWidth', None)
+            col_def.pop('flex', None)  # 也移除 flex 設置
+        
+        grid_options.update({
+            'skipHeaderOnAutoSize': False,
+            'suppressColumnVirtualisation': False,
+            'enableColResize': True
+        })
     
+    # Define aggrid_key outside the conditional blocks
     aggrid_key = f"aggrid_{table_name.lower()}_{str(st.session_state.dashboard_filters)}"
     
     try:
-        grid_response = AgGrid(
-            df,
-            gridOptions=grid_options,
-            data_return_mode=DataReturnMode.FILTERED_AND_SORTED, # Prefer this for consistency
-            update_mode=GridUpdateMode.SELECTION_CHANGED,
-            fit_columns_on_grid_load=True,
-            enable_enterprise_modules=False, # Set to True if you have a license
-            height=400,
-            width='100%',
-            key=aggrid_key,
-            allow_unsafe_jscode=True # If using JsCode for formatting or callbacks
-        )
+        # Special configuration for Steps table
+        if table_name == "Steps":
+            # 為 Steps 表格添加專門的自動調整寬度配置
+            from st_aggrid import JsCode            # 添加 onGridReady 回調來強制調整列寬
+            onGridReady = JsCode("""
+            function(params) {
+                // 自動調整所有列寬以適應內容，不限制最大寬度
+                params.columnApi.autoSizeAllColumns(false);
+            }
+            """)
+            
+
+            grid_response = AgGrid(
+                df,
+                gridOptions=grid_options,
+                data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+                update_mode=GridUpdateMode.SELECTION_CHANGED,
+                fit_columns_on_grid_load=False,
+                columns_auto_size_mode=2,  # Force auto-sizing
+                enable_enterprise_modules=False,
+                height=400,
+                width='100%',
+                key=aggrid_key,
+                allow_unsafe_jscode=True,
+                theme='streamlit'
+            )
+        else:
+            grid_response = AgGrid(
+                df,
+                gridOptions=grid_options,
+                data_return_mode=DataReturnMode.FILTERED_AND_SORTED, # Prefer this for consistency
+                update_mode=GridUpdateMode.SELECTION_CHANGED,
+                fit_columns_on_grid_load=False,
+                enable_enterprise_modules=False, # Set to True if you have a license
+                height=400,
+                width='100%',
+                key=aggrid_key,
+                allow_unsafe_jscode=True # If using JsCode for formatting or callbacks
+            )
     except Exception: # Fallback if FILTERED_AND_SORTED causes issues (less likely with simpler config)
         grid_response = AgGrid(
             df,
             gridOptions=grid_options,
             data_return_mode=DataReturnMode.AS_INPUT, # Fallback
             update_mode=GridUpdateMode.SELECTION_CHANGED,
-            fit_columns_on_grid_load=True,
+            fit_columns_on_grid_load=False,
             enable_enterprise_modules=False,
             height=400,
             width='100%',
@@ -305,7 +345,7 @@ def render_step_plot(steps_df: pd.DataFrame):
                              index=y_default_index if available_y_cols else None, key="step_plot_y_axis")
     
     with col3:
-        categorical_columns = ['step_type', 'experiment_name']
+        categorical_columns = ['step_type', 'experiment_name', 'data_meta']
         available_color_cols = ['None'] + [col for col in categorical_columns if col in steps_df.columns and steps_df[col].nunique() > 0]
         color_by = st.selectbox("Color/Group by", available_color_cols, key="step_plot_color_by")
     
@@ -371,6 +411,15 @@ def render_detail_plot(selected_step_ids: List[int]):
         st.warning("No measurement data available for selected steps or an error occurred.")
         return
     
+    # 取得 step_id 對應的 data_meta
+    steps_meta_map = {}
+    try:
+        all_steps_df = get_steps_data()
+        if 'data_meta' in all_steps_df.columns:
+            steps_meta_map = dict(zip(all_steps_df['id'], all_steps_df['data_meta']))
+    except Exception:
+        steps_meta_map = {}
+    
     # Potential candidates for axes
     # Ensure 'execution_time' is handled as a primary candidate for x-axis
     # Other numeric columns can be candidates for both x and y axes.
@@ -410,6 +459,13 @@ def render_detail_plot(selected_step_ids: List[int]):
     with col3:
         plot_type = st.radio("Plot type", ["Separate subplots", "Combined plot"], key="detail_plot_type")
     
+    def get_legend_label(step_id_val):
+        meta = steps_meta_map.get(step_id_val, None)
+        if meta is not None and str(meta).strip() != '':
+            return f"{meta} (Step {step_id_val})"
+        else:
+            return f"Step {step_id_val}"
+    
     if x_axis_detail and selected_y_metrics:
         if plot_type == "Separate subplots":
             from plotly.subplots import make_subplots
@@ -433,7 +489,7 @@ def render_detail_plot(selected_step_ids: List[int]):
                                     x=step_data[x_axis_detail],
                                     y=step_data[metric],
                                     mode='lines',
-                                    name=f"Step {step_id_val}",
+                                    name=get_legend_label(step_id_val),
                                     showlegend=(i == 1) 
                                 ),
                                 row=i, col=1
@@ -457,7 +513,7 @@ def render_detail_plot(selected_step_ids: List[int]):
                                     x=step_data[x_axis_detail],
                                     y=step_data[metric],
                                     mode='lines',
-                                    name=f"{metric} (Step {step_id_val})",
+                                    name=f"{metric} (" + get_legend_label(step_id_val) + ")",
                                     line=dict(color=color),
                                     yaxis=f"y{i+1}" if len(selected_y_metrics) > 1 else "y"
                                 )
@@ -647,91 +703,88 @@ def render_dashboard_page():
     # Render filtering controls
     render_filtering_controls()
     
-    # Create three columns for the hierarchical tables
+    # Create tabs for the hierarchical tables
     st.header("Data Selection")
-      # Project Table
-    st.subheader("1. Projects")
-    projects_df = get_projects_data()
-    
-    if not projects_df.empty:
-        project_response = create_interactive_table(projects_df, "Projects")
-        selected_project_rows = project_response.get("selected_rows", [])
-        
-        if selected_project_rows is not None and len(selected_project_rows) > 0:
-            selected_project_ids = extract_selected_ids(selected_project_rows, "Projects")
-            st.session_state.selected_projects = selected_project_ids
-            if selected_project_ids:
-                st.success(f"Selected {len(selected_project_ids)} project(s)")
+    tab_projects, tab_experiments, tab_steps = st.tabs(["Projects", "Experiments", "Steps"])
+
+    with tab_projects:
+        st.subheader("Projects")
+        projects_df = get_projects_data()
+        if not projects_df.empty:
+            project_response = create_interactive_table(projects_df, "Projects")
+            selected_project_rows = project_response.get("selected_rows", [])
+            if selected_project_rows is not None and len(selected_project_rows) > 0:
+                selected_project_ids = extract_selected_ids(selected_project_rows, "Projects")
+                st.session_state.selected_projects = selected_project_ids
+                if selected_project_ids:
+                    st.success(f"Selected {len(selected_project_ids)} project(s)")
+                else:
+                    st.warning("Could not extract project IDs from selection")
             else:
-                st.warning("Could not extract project IDs from selection")
+                st.session_state.selected_projects = []
         else:
+            st.warning("No projects found in database")
             st.session_state.selected_projects = []
-    else:
-        st.warning("No projects found in database")
-        st.session_state.selected_projects = []
-      # Experiment Table (filtered by selected projects)
-    st.subheader("2. Experiments")
-    print(f"DEBUG: Getting experiments for project IDs: {st.session_state.selected_projects}")
-    experiments_df = get_experiments_data(st.session_state.selected_projects)
-    print(f"DEBUG: Experiments before filter: {len(experiments_df)} rows")
-    print(f"DEBUG: Experiments columns: {experiments_df.columns.tolist() if not experiments_df.empty else 'Empty'}")
-    experiments_df = apply_filters(experiments_df, "experiments")
-    print(f"DEBUG: Experiments after filter: {len(experiments_df)} rows")
-    
-    if not experiments_df.empty:
-        experiment_response = create_interactive_table(experiments_df, "Experiments")
-        selected_experiment_rows = experiment_response.get("selected_rows", [])
-        if selected_experiment_rows is not None and len(selected_experiment_rows) > 0:
-            selected_experiment_ids = extract_selected_ids(selected_experiment_rows, "Experiments")
-            st.session_state.selected_experiments = selected_experiment_ids
-            if selected_experiment_ids:
-                st.success(f"Selected {len(selected_experiment_ids)} experiment(s)")
+
+    with tab_experiments:
+        st.subheader("Experiments")
+        print(f"DEBUG: Getting experiments for project IDs: {st.session_state.selected_projects}")
+        experiments_df = get_experiments_data(st.session_state.selected_projects)
+        print(f"DEBUG: Experiments before filter: {len(experiments_df)} rows")
+        print(f"DEBUG: Experiments columns: {experiments_df.columns.tolist() if not experiments_df.empty else 'Empty'}")
+        experiments_df = apply_filters(experiments_df, "experiments")
+        print(f"DEBUG: Experiments after filter: {len(experiments_df)} rows")
+        if not experiments_df.empty:
+            experiment_response = create_interactive_table(experiments_df, "Experiments")
+            selected_experiment_rows = experiment_response.get("selected_rows", [])
+            if selected_experiment_rows is not None and len(selected_experiment_rows) > 0:
+                selected_experiment_ids = extract_selected_ids(selected_experiment_rows, "Experiments")
+                st.session_state.selected_experiments = selected_experiment_ids
+                if selected_experiment_ids:
+                    st.success(f"Selected {len(selected_experiment_ids)} experiment(s)")
+                else:
+                    st.warning("Could not extract experiment IDs from selection")
             else:
-                st.warning("Could not extract experiment IDs from selection")
+                st.session_state.selected_experiments = []
         else:
+            if st.session_state.selected_projects:
+                st.warning("No experiments found for selected projects")
+            else:
+                st.info("Select projects to view experiments")
             st.session_state.selected_experiments = []
-    else:
-        if st.session_state.selected_projects:
-            st.warning("No experiments found for selected projects")
-        else:
-            st.info("Select projects to view experiments")
-        st.session_state.selected_experiments = []
-    
-    # Step Table (filtered by selected experiments)
-    st.subheader("3. Steps")
-    print(f"DEBUG: Getting steps for experiment IDs: {st.session_state.selected_experiments}")
-    steps_df = get_steps_data(st.session_state.selected_experiments)
-    print(f"DEBUG: Steps before filter: {len(steps_df)} rows")
-    print(f"DEBUG: Steps columns: {steps_df.columns.tolist() if not steps_df.empty else 'Empty'}")
-    steps_df = apply_filters(steps_df, "steps")
-    print(f"DEBUG: Steps after filter: {len(steps_df)} rows")
-    
-    selected_step_ids = []
-    if not steps_df.empty:
-        step_response = create_interactive_table(steps_df, "Steps")
-        selected_step_rows = step_response.get("selected_rows", [])
-        
-        if selected_step_rows is not None and len(selected_step_rows) > 0:
-            selected_step_ids = extract_selected_ids(selected_step_rows, "Steps")
-            st.session_state.selected_steps = selected_step_ids
-            
-            if selected_step_ids:
-                st.success(f"Selected {len(selected_step_ids)} step(s)")
-                # Create filtered dataframe for plotting
-                selected_steps_df = steps_df[steps_df['id'].isin(selected_step_ids)]
+
+    with tab_steps:
+        st.subheader("Steps")
+        print(f"DEBUG: Getting steps for experiment IDs: {st.session_state.selected_experiments}")
+        steps_df = get_steps_data(st.session_state.selected_experiments)
+        print(f"DEBUG: Steps before filter: {len(steps_df)} rows")
+        print(f"DEBUG: Steps columns: {steps_df.columns.tolist() if not steps_df.empty else 'Empty'}")
+        steps_df = apply_filters(steps_df, "steps")
+        print(f"DEBUG: Steps after filter: {len(steps_df)} rows")
+        selected_step_ids = []
+        if not steps_df.empty:
+            step_response = create_interactive_table(steps_df, "Steps")
+            selected_step_rows = step_response.get("selected_rows", [])
+            if selected_step_rows is not None and len(selected_step_rows) > 0:
+                selected_step_ids = extract_selected_ids(selected_step_rows, "Steps")
+                st.session_state.selected_steps = selected_step_ids
+                if selected_step_ids:
+                    st.success(f"Selected {len(selected_step_ids)} step(s)")
+                    # Create filtered dataframe for plotting
+                    selected_steps_df = steps_df[steps_df['id'].isin(selected_step_ids)]
+                else:
+                    st.warning("Could not extract step IDs from selection")
+                    selected_steps_df = pd.DataFrame()
             else:
-                st.warning("Could not extract step IDs from selection")
+                st.session_state.selected_steps = []
                 selected_steps_df = pd.DataFrame()
         else:
+            if st.session_state.selected_experiments:
+                st.warning("No steps found for selected experiments")
+            else:
+                st.info("Select experiments to view steps")
             st.session_state.selected_steps = []
             selected_steps_df = pd.DataFrame()
-    else:
-        if st.session_state.selected_experiments:
-            st.warning("No steps found for selected experiments")
-        else:
-            st.info("Select experiments to view steps")
-        st.session_state.selected_steps = []
-        selected_steps_df = pd.DataFrame()
     
     # Plotting Areas
     st.header("Data Visualization")
@@ -765,310 +818,100 @@ def render_dashboard_page():
                 label="Download CSV",
                 data=csv,
                 file_name="selected_steps.csv",
-                mime="text/csv"
-            )
+                mime="text/csv"            )
+
+
+def _configure_table_columns(gb: GridOptionsBuilder, df: pd.DataFrame, table_name: str):
+    """Configure table columns with appropriate settings for different table types"""
+      # Define column categories
+    date_columns = ['start_date', 'end_date', 'start_time', 'end_time']
+    numeric_columns = [
+        'duration', 'voltage_start', 'voltage_end', 'current', 'capacity', 
+        'energy', 'temperature', 'c_rate', 'soc_start', 'soc_end', 'nominal_capacity'
+    ]    # Special handling for Steps table - force auto-width for all columns
+    if table_name == "Steps":
+        for col_name in df.columns:
+            # 簡化配置，專注於列寬自動調整
+            config = {}  # 使用空字典，讓它自動推斷類型
+            config['resizable'] = True
+            config['sortable'] = True
+            config['suppressSizeToFit'] = False
+            
+            # Apply column type-specific settings for Steps
+            if col_name == 'id':
+                config['editable'] = False
+                config['pinned'] = 'left'
+                config['flex'] = 0.5  # Make ID column smaller
+            elif col_name in date_columns:
+                config['type'] = ["dateColumnFilter", "customDateTimeFormat"]
+                config['custom_format_string'] = 'dd/MM/yyyy HH:mm'
+            elif col_name in numeric_columns:
+                config['type'] = ["numericColumn", "numberColumnFilter", "customNumericFormat"]
+                config['precision'] = 3
+            
+            gb.configure_column(col_name, **config)
+        return  # Early return for Steps table
+    
+    # Table-specific width strategies for other tables
+    table_width_config = {
+        'Projects': {
+            'id': {'width': 40, 'pinned': 'left'},
+            'name': {'autoWidth': True, 'minWidth': 120},
+            'description': {'autoWidth': True, 'minWidth': 200},
+            'default': {'autoWidth': True}
+        },
+        'Experiments': {
+            'id': {'width': 40, 'pinned': 'left'},
+            'name': {'autoWidth': True, 'minWidth': 120},
+            'project_name': {'autoWidth': True, 'minWidth': 100},
+            'battery_type': {'autoWidth': True, 'minWidth': 80},
+            'default': {'autoWidth': True}
+        },        'Steps': {
+            # Steps 表格專門配置：移除所有固定寬度設置，強制使用自動寬度
+            'default': {
+                'autoWidth': True, 
+                'flex': 1,
+                'resizable': True,
+                'sortable': True,
+                'suppressSizeToFit': False
+            }
+        }
+    }
+    
+    # Get width config for current table
+    width_config = table_width_config.get(table_name, {'default': {'autoWidth': True}})
+    
+    for col_name in df.columns:
+        base_config = {}
+        
+        # Apply column-specific width settings
+        if col_name in width_config:
+            base_config.update(width_config[col_name])
+        else:
+            base_config.update(width_config.get('default', {'autoWidth': True}))
+        
+        # Apply column type-specific settings
+        if col_name == 'id':
+            base_config.update({
+                'editable': False,
+                'width': base_config.get('width', 40),
+                'pinned': base_config.get('pinned', 'left')
+            })
+        elif col_name in date_columns:
+            base_config.update({
+                'type': ["dateColumnFilter", "customDateTimeFormat"],
+                'custom_format_string': 'dd/MM/yyyy HH:mm'
+            })
+        elif col_name in numeric_columns:
+            base_config.update({
+                'type': ["numericColumn", "numberColumnFilter", "customNumericFormat"],
+                'precision': 3
+            })
+        
+        # Configure the column
+        gb.configure_column(col_name, **base_config)
 
 
 if __name__ == "__main__":
     render_dashboard_page()
 
-
-# Additional functions for test compatibility
-def render_overview_tab():
-    """Render overview tab - wrapper for test compatibility"""
-    selected_experiment_id = st.session_state.get("selected_experiment_id")
-    
-    if not selected_experiment_id:
-        st.info("Please select an experiment from the sidebar or adjust filters to view its overview.")
-        return
-    
-    try:
-        with get_session() as session:
-            experiment = session.get(Experiment, selected_experiment_id)
-            if not experiment:
-                st.error("Experiment not found.")
-                return
-            
-            # Get steps for this experiment
-            steps = session.exec(
-                select(Step).where(Step.experiment_id == selected_experiment_id)
-            ).all()
-            
-            if not steps:
-                st.info("No discharge capacity data (from 'discharge' steps) available to display for this experiment.")
-                return
-            
-            # Calculate metrics - handle both real model and test mock attributes
-            discharge_steps = []
-            charge_steps = []
-            
-            for s in steps:
-                # Get capacity - handle both 'capacity' (real model) and 'capacity_ah' (test mock)
-                step_capacity = getattr(s, 'capacity_ah', getattr(s, 'capacity', None))
-                if s.step_type == "discharge" and step_capacity:
-                    discharge_steps.append((s, step_capacity))
-                elif s.step_type == "charge" and step_capacity:
-                    charge_steps.append((s, step_capacity))
-            
-            total_discharge_capacity = sum(capacity for _, capacity in discharge_steps) if discharge_steps else 0
-            total_charge_capacity = sum(capacity for _, capacity in charge_steps) if charge_steps else 0
-            
-            # Cycle count - use cycle_number if available (test mock), otherwise approximate from step count
-            if discharge_steps and hasattr(discharge_steps[0][0], 'cycle_number'):
-                cycle_count = len(set(getattr(s, 'cycle_number') for s, _ in discharge_steps if hasattr(s, 'cycle_number') and getattr(s, 'cycle_number') is not None))
-            else:
-                cycle_count = len(discharge_steps)
-            
-            # Efficiency calculation
-            efficiency = (total_discharge_capacity / total_charge_capacity * 100) if total_charge_capacity > 0 else 0
-            
-            # Max temperature from measurements
-            max_temp = None
-            # Prepare step_ids for query
-            step_ids_for_query = [s.id for s, _ in discharge_steps + charge_steps]
-            
-            if step_ids_for_query:
-                try:
-                    # Try with temperature first (test mock attribute)
-                    max_temp_val_c = session.exec(
-                        select(func.max(Measurement.temperature)).where(
-                            col(Measurement.step_id).in_(step_ids_for_query)
-                        )
-                    ).one_or_none()
-                    if max_temp_val_c is not None:
-                        max_temp = max_temp_val_c
-                except Exception:
-                    pass
-
-                if max_temp is None:
-                    try:
-                        # Fallback to temperature (real model attribute)
-                        max_temp_val = session.exec(
-                            select(func.max(Measurement.temperature)).where(
-                                col(Measurement.step_id).in_(step_ids_for_query)
-                            )
-                        ).one_or_none()
-                        if max_temp_val is not None:
-                            max_temp = max_temp_val
-                    except Exception:
-                        pass
-            # Display metrics
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("Total Discharge Capacity (Ah)", f"{total_discharge_capacity:.2f}" if total_discharge_capacity > 0 else "--")
-            
-            with col2:
-                st.metric("Cycle Count", str(cycle_count))
-            
-            with col3:
-                st.metric("Overall C/D Efficiency (%)", f"{efficiency:.2f}%" if efficiency > 0 else "0.00%")
-            
-            with col4:
-                st.metric("Max Temperature (°C)", f"{max_temp:.2f}" if max_temp is not None else "--")
-            
-            # Plot discharge capacity
-            if discharge_steps:
-                # Use cycle_number if available, otherwise step_number
-                if hasattr(discharge_steps[0], 'cycle_number'):
-                    df_plot = pd.DataFrame([{
-                        'Cycle': getattr(s, 'cycle_number', i+1),
-                        'Discharge Capacity (Ah)': capacity
-                    } for i, (s, capacity) in enumerate(discharge_steps)])
-                    
-                    fig = px.line(df_plot, x='Cycle', y='Discharge Capacity (Ah)', 
-                                title='Discharge Capacity per Cycle')
-                else:
-                    df_plot = pd.DataFrame([{
-                        'Step': s.step_number,
-                        'Discharge Capacity (Ah)': capacity
-                    } for s, capacity in discharge_steps])
-                    
-                    fig = px.line(df_plot, x='Step', y='Discharge Capacity (Ah)', 
-                                title='Discharge Capacity per Step')
-                
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("No discharge capacity data (from 'discharge' steps) available to display for this experiment.")
-                
-    except Exception as e:
-        st.error(f"Error loading overview data: {str(e)}")
-
-
-def render_capacity_tab():
-    """Render capacity tab - wrapper for test compatibility"""
-    selected_experiment_id = st.session_state.get("selected_experiment_id")
-    
-    if not selected_experiment_id:
-        st.info("Please select an experiment from the sidebar or adjust filters to view capacity analysis.")
-        return
-    
-    try:
-        with get_session() as session:
-            # Get discharge steps
-            discharge_steps = session.exec(
-                select(Step).where(
-                    Step.experiment_id == selected_experiment_id,
-                    Step.step_type == "discharge"
-                )
-            ).all()
-            
-            # Extract capacity data - handle both 'capacity' and 'capacity_ah'
-            discharge_data = []
-            for s in discharge_steps:
-                step_capacity = getattr(s, 'capacity_ah', getattr(s, 'capacity', None))
-                if step_capacity is not None:
-                    # Use cycle_number if available, otherwise step_number
-                    x_value = getattr(s, 'cycle_number', s.step_number)
-                    discharge_data.append((x_value, step_capacity))
-            
-            if not discharge_data:
-                st.info("No discharge capacity data available for this experiment.")
-                return
-            
-            # Create dataframe and plot
-            x_label = 'Cycle' if hasattr(discharge_steps[0], 'cycle_number') else 'Step'
-            df = pd.DataFrame(discharge_data, columns=[x_label, 'Discharge Capacity (Ah)'])
-            
-            if not df.empty:
-                initial_capacity = df['Discharge Capacity (Ah)'].iloc[0]
-                final_capacity = df['Discharge Capacity (Ah)'].iloc[-1]
-                retention = (final_capacity / initial_capacity * 100) if initial_capacity > 0 else 0
-                
-                st.caption(f"Capacity retention: {retention:.1f}% (from {initial_capacity:.3f} Ah to {final_capacity:.3f} Ah)")
-                
-                fig = px.line(df, x=x_label, y='Discharge Capacity (Ah)', 
-                            title=f'Discharge Capacity vs {x_label}')
-                st.plotly_chart(fig, use_container_width=True)
-            
-    except Exception as e:
-        st.error(f"Error loading capacity data: {str(e)}")
-
-
-def render_voltage_tab():
-    """Render voltage tab - wrapper for test compatibility"""
-    selected_experiment_id = st.session_state.get("selected_experiment_id")
-    
-    if not selected_experiment_id:
-        st.info("Please select an experiment from the sidebar or adjust filters to view voltage analysis.")
-        return
-    
-    try:
-        with get_session() as session:
-            # Get steps for this experiment
-            steps = session.exec(
-                select(Step).where(Step.experiment_id == selected_experiment_id)
-            ).all()
-            
-            if not steps:
-                st.warning("No steps available for this experiment.")
-                return
-            
-            # Step selection
-            step_options = [f"Step {s.step_number}: {s.step_type}" for s in steps]
-            selected_step_index = st.selectbox("Select a step to view voltage data:", 
-                                             range(len(step_options)), 
-                                             format_func=lambda x: step_options[x])
-            
-            selected_step = steps[selected_step_index]
-            
-            # Get measurements for selected step
-            measurements = session.exec(
-                select(Measurement).where(Measurement.step_id == selected_step.id)
-            ).all()
-            
-            if not measurements:
-                st.warning(f"No measurement data available for {step_options[selected_step_index]}.")
-                return
-            
-            # Create voltage plot
-            df = pd.DataFrame([{
-                'timestamp': m.execution_time,
-                'voltage': m.voltage
-            } for m in measurements if m.voltage is not None])
-            
-            if not df.empty:
-                fig = px.line(df, x='timestamp', y='voltage', 
-                            title=f'Voltage vs Time - {step_options[selected_step_index]}')
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.warning("No voltage data available for the selected step.")
-                
-    except Exception as e:
-        st.error(f"Error loading voltage data: {str(e)}")
-
-
-def render_temperature_tab():
-    """Render temperature tab - wrapper for test compatibility"""
-    selected_experiment_id = st.session_state.get("selected_experiment_id")
-    
-    if not selected_experiment_id:
-        st.info("Please select an experiment from the sidebar or adjust filters to view temperature analysis.")
-        return
-    
-    try:
-        with get_session() as session:
-            # Get steps for this experiment
-            steps = session.exec(
-                select(Step).where(Step.experiment_id == selected_experiment_id)
-            ).all()
-            
-            if not steps:
-                st.info("No temperature data available for this experiment.")
-                return
-            
-            # Get temperature data from measurements - handle both real and mock data
-            step_ids = [s.id for s in steps]
-            measurements = session.exec(
-                select(Measurement).where(col(Measurement.step_id).in_(step_ids))
-            ).all()
-            
-            # Extract temperature data - handle both 'temperature' and 'temperature'
-            temp_measurements = []
-            for m in measurements:
-                temp_value = getattr(m, 'temperature', getattr(m, 'temperature', None))
-                if temp_value is not None:
-                    temp_measurements.append((m.execution_time, temp_value))
-            
-            if temp_measurements:
-                # Overall temperature plot
-                df_temp = pd.DataFrame(temp_measurements, columns=['timestamp', 'temperature'])
-                
-                fig_overall = px.line(df_temp, x='timestamp', y='temperature',
-                                    title='Overall Temperature vs Time')
-                st.plotly_chart(fig_overall, use_container_width=True)
-            else:
-                st.info("No temperature data available for this experiment.")
-                return
-            
-            # Step-specific temperature analysis
-            if steps:
-                step_options = [f"Step {s.step_number}: {s.step_type}" for s in steps]
-                selected_step_index = st.selectbox("Select a step for detailed temperature analysis:", 
-                                                 range(len(step_options)), 
-                                                 format_func=lambda x: step_options[x])
-                
-                selected_step = steps[selected_step_index]
-                
-                step_measurements = session.exec(
-                    select(Measurement).where(Measurement.step_id == selected_step.id)
-                ).all()
-                
-                # Extract step temperature data
-                step_temp_data = []
-                for m in step_measurements:
-                    temp_value = getattr(m, 'temperature', getattr(m, 'temperature', None))
-                    if temp_value is not None:
-                        step_temp_data.append((m.execution_time, temp_value))
-                
-                if step_temp_data:
-                    df_step = pd.DataFrame(step_temp_data, columns=['timestamp', 'temperature'])
-                    
-                    fig_step = px.line(df_step, x='timestamp', y='temperature',
-                                     title=f'Temperature vs Time - {step_options[selected_step_index]}')
-                    st.plotly_chart(fig_step, use_container_width=True)
-                else:
-                    st.info(f"No temperature measurements available for {step_options[selected_step_index]}.")
-            
-    except Exception as e:
-        st.error(f"Error loading temperature data: {str(e)}")
