@@ -21,6 +21,17 @@ except ImportError:
 from app.models.database import Project, Experiment, Step, Measurement
 from app.utils.database import get_session
 
+# Define DataFrame column constants
+PROJECT_DF_COLUMNS = ['id', 'name', 'description', 'start_date', 'end_date', 'experiment_count']
+EXPERIMENT_DF_COLUMNS = ['id', 'name', 'project_id', 'project_name', 'battery_type',
+                           'nominal_capacity', 'temperature', 'operator', 'start_date',
+                           'end_date', 'step_count']
+STEP_DF_COLUMNS = ['id', 'experiment_id', 'experiment_name', 'step_number',
+                   'step_type', 'start_time', 'end_time', 'duration',
+                   'voltage_start', 'voltage_end', 'current', 'capacity',
+                   'energy', 'temperature', 'c_rate', 'soc_start', 'soc_end']
+MEASUREMENT_DF_COLUMNS = ['step_id', 'execution_time', 'voltage', 'current', 'temperature', 'capacity', 'energy']
+
 
 def init_session_state():
     """Initialize session state variables for the dashboard"""
@@ -41,7 +52,7 @@ def get_projects_data() -> pd.DataFrame:
             projects = session.exec(select(Project)).all()
             
             if not projects:
-                return pd.DataFrame(columns=['id', 'name', 'description', 'start_date', 'end_date', 'experiment_count'])
+                return pd.DataFrame(columns=PROJECT_DF_COLUMNS)
             
             data = []
             for project in projects:
@@ -58,7 +69,7 @@ def get_projects_data() -> pd.DataFrame:
             return pd.DataFrame(data)
     except Exception as e:
         st.error(f"Error fetching projects: {str(e)}")
-        return pd.DataFrame(columns=['id', 'name', 'description', 'start_date', 'end_date', 'experiment_count'])
+        return pd.DataFrame(columns=PROJECT_DF_COLUMNS)
 
 
 def get_experiments_data(selected_project_ids: Optional[List[int]] = None) -> pd.DataFrame:
@@ -72,9 +83,7 @@ def get_experiments_data(selected_project_ids: Optional[List[int]] = None) -> pd
             experiments = session.exec(query).all()
             
             if not experiments:
-                return pd.DataFrame(columns=['id', 'name', 'project_id', 'project_name', 'battery_type', 
-                                           'nominal_capacity', 'temperature', 'operator', 'start_date', 
-                                           'end_date', 'step_count'])
+                return pd.DataFrame(columns=EXPERIMENT_DF_COLUMNS)
             
             data = []
             for experiment in experiments:
@@ -98,9 +107,7 @@ def get_experiments_data(selected_project_ids: Optional[List[int]] = None) -> pd
             return pd.DataFrame(data)
     except Exception as e:
         st.error(f"Error fetching experiments: {str(e)}")
-        return pd.DataFrame(columns=['id', 'name', 'project_id', 'project_name', 'battery_type', 
-                                   'nominal_capacity', 'temperature', 'operator', 'start_date', 
-                                   'end_date', 'step_count'])
+        return pd.DataFrame(columns=EXPERIMENT_DF_COLUMNS)
 
 
 def get_steps_data(selected_experiment_ids: Optional[List[int]] = None) -> pd.DataFrame:
@@ -115,10 +122,7 @@ def get_steps_data(selected_experiment_ids: Optional[List[int]] = None) -> pd.Da
             steps = session.exec(query).all()
             
             if not steps:
-                return pd.DataFrame(columns=['id', 'experiment_id', 'experiment_name', 'step_number', 
-                                           'step_type', 'start_time', 'end_time', 'duration', 
-                                           'voltage_start', 'voltage_end', 'current', 'capacity', 
-                                           'energy', 'temperature', 'c_rate', 'soc_start', 'soc_end'])
+                return pd.DataFrame(columns=STEP_DF_COLUMNS)
             
             data = []
             for step in steps:
@@ -149,10 +153,7 @@ def get_steps_data(selected_experiment_ids: Optional[List[int]] = None) -> pd.Da
             return pd.DataFrame(data)
     except Exception as e:
         st.error(f"Error fetching steps: {str(e)}")
-        return pd.DataFrame(columns=['id', 'experiment_id', 'experiment_name', 'step_number', 
-                                   'step_type', 'start_time', 'end_time', 'duration', 
-                                   'voltage_start', 'voltage_end', 'current', 'capacity', 
-                                   'energy', 'temperature', 'c_rate', 'soc_start', 'soc_end'])
+        return pd.DataFrame(columns=STEP_DF_COLUMNS)
 
 
 def create_interactive_table(df: pd.DataFrame, table_name: str, 
@@ -162,214 +163,151 @@ def create_interactive_table(df: pd.DataFrame, table_name: str,
         st.warning(f"No data available for {table_name}")
         return {"selected_rows": []}
     
-    # Reset index to ensure clean DataFrame for AgGrid
     df = df.reset_index(drop=True)
     
-    # Additional debug info
-    print(f"DEBUG: DataFrame for {table_name} - shape: {df.shape}")
-    print(f"DEBUG: DataFrame columns: {df.columns.tolist()}")
-    print(f"DEBUG: DataFrame dtypes: {df.dtypes.to_dict()}")
-    print(f"DEBUG: DataFrame index: {df.index}")
-    if 'id' in df.columns:
-        print(f"DEBUG: ID column sample values: {df['id'].head().tolist()}")
-        print(f"DEBUG: ID column dtype: {df['id'].dtype}")
-    
     if not AGGRID_AVAILABLE:
-        # Fallback to native streamlit table with checkbox selection
         st.dataframe(df, use_container_width=True)
-        
-        # Use multiselect for row selection
+        selected_rows = []
         if 'name' in df.columns:
             selected_names = st.multiselect(f"Select {table_name} (by name):", 
                                           df['name'].tolist(), 
                                           key=f"{table_name}_selector")
-            selected_rows = df[df['name'].isin(selected_names)].to_dict('records')
-        else:
-            selected_rows = []
-        
+            if selected_names:
+                selected_rows = df[df['name'].isin(selected_names)].to_dict('records')
         return {"selected_rows": selected_rows}
     
-    # 1.1.5 syntax: set checkboxSelection on a column, and rowSelection in gridOptions
     gb = GridOptionsBuilder.from_dataframe(df)
     gb.configure_pagination(paginationAutoPageSize=True)
     gb.configure_side_bar()
-    gb.configure_selection(selection_mode=selection_mode)  # do NOT use use_checkbox
-    # 找到第一個未被隱藏的欄位設 checkboxSelection
+    gb.configure_selection(selection_mode=selection_mode)
+
     preferred_cols = ['name', 'step_number', 'step_type', 'experiment_name']
-    checkbox_col = None
-    for col in preferred_cols:
-        if col in df.columns and col not in ['id']:
-            checkbox_col = col
-            break
+    checkbox_col = next((col for col in preferred_cols if col in df.columns and col != 'id'), None)
     if not checkbox_col:
-        # fallback: 找第一個不是 id 的欄位
-        for col in df.columns:
-            if col not in ['id']:
-                checkbox_col = col
-                break
+        checkbox_col = next((col for col in df.columns if col != 'id'), None)
+    
     if checkbox_col:
         gb.configure_column(checkbox_col, checkboxSelection=True)
     
-    # Configure columns
-    for col in df.columns:
-        if col == 'id':
-            gb.configure_column(col, editable=False, width=40, pinned='left')
-        elif col in ['start_date', 'end_date', 'start_time', 'end_time']:
-            gb.configure_column(col, type=["dateColumnFilter", "customDateTimeFormat"], 
+    for col_name in df.columns:
+        if col_name == 'id':
+            gb.configure_column(col_name, editable=False, width=40, pinned='left')
+        elif col_name in ['start_date', 'end_date', 'start_time', 'end_time']:
+            gb.configure_column(col_name, type=["dateColumnFilter", "customDateTimeFormat"], 
                               custom_format_string='dd/MM/yyyy HH:mm')
-        elif col in ['duration', 'voltage_start', 'voltage_end', 'current', 'capacity', 
+        elif col_name in ['duration', 'voltage_start', 'voltage_end', 'current', 'capacity', 
                      'energy', 'temperature', 'c_rate', 'soc_start', 'soc_end', 'nominal_capacity']:
-            gb.configure_column(col, type=["numericColumn", "numberColumnFilter", "customNumericFormat"],
+            gb.configure_column(col_name, type=["numericColumn", "numberColumnFilter", "customNumericFormat"],
                               precision=3)
     
     grid_options = gb.build()
     grid_options['rowSelection'] = selection_mode
-    grid_options['suppressRowClickSelection'] = False
+    grid_options['suppressRowClickSelection'] = False # Allow row click selection
     
-    # 強制刷新 key
-    aggrid_key = f"aggrid_{table_name.lower()}_{hash(str(df))}_{str(st.session_state.dashboard_filters)}"    # Display the grid
-    # Try FILTERED_AND_SORTED mode first, fallback to AS_INPUT if needed
+    aggrid_key = f"aggrid_{table_name.lower()}_{str(st.session_state.dashboard_filters)}"
+    
     try:
         grid_response = AgGrid(
             df,
             gridOptions=grid_options,
-            data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+            data_return_mode=DataReturnMode.FILTERED_AND_SORTED, # Prefer this for consistency
             update_mode=GridUpdateMode.SELECTION_CHANGED,
             fit_columns_on_grid_load=True,
-            enable_enterprise_modules=False,
+            enable_enterprise_modules=False, # Set to True if you have a license
             height=400,
             width='100%',
-            key=aggrid_key
+            key=aggrid_key,
+            allow_unsafe_jscode=True # If using JsCode for formatting or callbacks
         )
-    except Exception as e:
-        print(f"DEBUG: FILTERED_AND_SORTED mode failed: {e}, trying AS_INPUT mode")
+    except Exception: # Fallback if FILTERED_AND_SORTED causes issues (less likely with simpler config)
         grid_response = AgGrid(
             df,
             gridOptions=grid_options,
-            data_return_mode=DataReturnMode.AS_INPUT,
+            data_return_mode=DataReturnMode.AS_INPUT, # Fallback
             update_mode=GridUpdateMode.SELECTION_CHANGED,
             fit_columns_on_grid_load=True,
             enable_enterprise_modules=False,
             height=400,
             width='100%',
-            key=f"{aggrid_key}_fallback"
+            key=f"{aggrid_key}_fallback",
+            allow_unsafe_jscode=True
         )
     
-    # Enhanced Debug Information
-    print(f"DEBUG: ===== AgGrid Response for {table_name} =====")
-    print(f"DEBUG: Full grid_response keys: {list(grid_response.keys())}")
-    print(f"DEBUG: grid_response type: {type(grid_response)}")
+    selected_rows_data = grid_response.get('selected_rows', [])
     
-    selected_rows = grid_response.get('selected_rows', [])
-    print(f"DEBUG: selected_rows: {selected_rows}")
-    print(f"DEBUG: selected_rows type: {type(selected_rows)}")
-    
-    # Safe check for selected_rows - handle DataFrame case first
-    if isinstance(selected_rows, pd.DataFrame):
-        has_selected_rows = not selected_rows.empty
-        print(f"DEBUG: selected_rows is DataFrame, empty: {selected_rows.empty}")
-        print(f"DEBUG: DataFrame shape: {selected_rows.shape}")
-        # Convert DataFrame to list of dicts for further processing
-        if not selected_rows.empty:
-            selected_rows = selected_rows.to_dict('records')
-            print(f"DEBUG: Converted DataFrame to list of dicts: {len(selected_rows)} rows")
-            has_selected_rows = True
-        else:
-            has_selected_rows = False
-    elif isinstance(selected_rows, (list, tuple)):
-        has_selected_rows = len(selected_rows) > 0
-        print(f"DEBUG: selected_rows is list/tuple, length: {len(selected_rows)}")
-    else:
-        print(f"DEBUG: selected_rows is other type: {type(selected_rows)}")
-        has_selected_rows = False
-    
-    if has_selected_rows:
-        print(f"DEBUG: First selected_row: {selected_rows[0]}")
-        print(f"DEBUG: First selected_row type: {type(selected_rows[0])}")
-        
-        # Handle different possible formats
-        if isinstance(selected_rows[0], dict):
-            print(f"DEBUG: First row is dict with keys: {list(selected_rows[0].keys())}")
-        elif isinstance(selected_rows[0], (list, tuple)):
-            print(f"DEBUG: First row is list/tuple with length: {len(selected_rows[0])}")
-            print(f"DEBUG: First row contents: {selected_rows[0]}")
-        elif isinstance(selected_rows[0], str):
-            print(f"DEBUG: First row is string: '{selected_rows[0]}'")
-        else:
-            print(f"DEBUG: First row is unknown type: {type(selected_rows[0])}")
-    
-    # Convert grid_response to dict for modification
+    # Ensure selected_rows_data is a list of dicts
+    if isinstance(selected_rows_data, pd.DataFrame):
+        processed_selected_rows = selected_rows_data.to_dict('records')
+    elif isinstance(selected_rows_data, list) and all(isinstance(item, dict) for item in selected_rows_data):
+        processed_selected_rows = selected_rows_data
+    else: # If it's in an unexpected format, try to handle or default to empty
+        processed_selected_rows = []
+        if selected_rows_data: # Log if there's data but format is wrong
+            st.warning(f"AgGrid selected_rows for {table_name} in unexpected format. Please check AgGrid configuration.")
+
+    # Return a copy of the grid_response and ensure 'selected_rows' is in the desired format
     response_dict = dict(grid_response)
-      # Try to fix selected_rows format if it's not a list of dicts
-    if has_selected_rows and isinstance(selected_rows, list) and selected_rows and not isinstance(selected_rows[0], dict):
-        print(f"DEBUG: WARNING - selected_rows format is not dict, attempting to fix...")
-        
-        # If it's a list of indices, try to map back to DataFrame
-        if all(isinstance(row, (int, float)) or (isinstance(row, str) and row.isdigit()) for row in selected_rows):
-            try:
-                # Convert to integer indices
-                int_indices = []
-                for row in selected_rows:
-                    if isinstance(row, str) and row.isdigit():
-                        int_indices.append(int(row))
-                    elif isinstance(row, (int, float)):
-                        int_indices.append(int(row))
-                
-                if int_indices and all(0 <= idx < len(df) for idx in int_indices):
-                    fixed_rows = df.iloc[int_indices].to_dict('records')
-                    print(f"DEBUG: Successfully converted indices to dict records: {len(fixed_rows)} rows")
-                    response_dict['selected_rows'] = fixed_rows
-            except Exception as e:
-                print(f"DEBUG: Failed to fix selected_rows using indices: {e}")
-        
-        # If it's a list of lists, try to map to column names
-        elif selected_rows and isinstance(selected_rows[0], (list, tuple)):
-            try:
-                fixed_rows = []
-                for row in selected_rows:
-                    if len(row) == len(df.columns):
-                        row_dict = dict(zip(df.columns, row))
-                        fixed_rows.append(row_dict)
-                if fixed_rows:
-                    print(f"DEBUG: Successfully converted list rows to dict records: {len(fixed_rows)} rows")
-                    response_dict['selected_rows'] = fixed_rows
-            except Exception as e:
-                print(f"DEBUG: Failed to fix selected_rows using column mapping: {e}")
+    response_dict['selected_rows'] = processed_selected_rows
     
-    print(f"DEBUG: ===== End AgGrid Response Debug =====")
     return response_dict
+
+
+def get_available_numeric_columns(df: pd.DataFrame, candidate_columns: List[str]) -> List[str]:
+    """Returns columns from candidate_columns that exist in df, are numeric, and not all NaN."""
+    if df.empty:
+        return []
+    available_cols = []
+    for col_name in candidate_columns:
+        if col_name in df.columns:
+            # Check if the column is numeric-like (handles ints, floats)
+            # and ensure not all values are NaN, as this can cause issues with some plots
+            try:
+                if pd.api.types.is_numeric_dtype(df[col_name]) and not df[col_name].isna().all():
+                    available_cols.append(col_name)
+            except TypeError: # Handle cases where dtype check might fail for mixed types if not strictly numeric
+                pass
+    return available_cols
 
 
 def render_step_plot(steps_df: pd.DataFrame):
     """Render the Step-level plotting area"""
     st.subheader("Step-Level Data Visualization")
     
-    print(f"DEBUG: render_step_plot called with DataFrame shape: {steps_df.shape}")
-    print(f"DEBUG: steps_df columns: {steps_df.columns.tolist() if not steps_df.empty else 'Empty DataFrame'}")
-    
     if steps_df.empty:
         st.info("Select steps to enable plotting")
         return
     
-    # Plot configuration controls
     col1, col2, col3 = st.columns(3)
     
-    with col1:
-        numeric_columns = ['step_number', 'duration', 'voltage_start', 'voltage_end', 
+    numeric_candidates = ['step_number', 'duration', 'voltage_start', 'voltage_end', 
                           'current', 'capacity', 'energy', 'temperature', 'c_rate', 
                           'soc_start', 'soc_end']
-        available_x_cols = [col for col in numeric_columns if col in steps_df.columns and not steps_df[col].isna().all()]
-        x_axis = st.selectbox("X-axis", available_x_cols, index=0 if available_x_cols else None)
+    
+    with col1:
+        available_x_cols = get_available_numeric_columns(steps_df, numeric_candidates)
+        x_axis = st.selectbox("X-axis", available_x_cols, index=0 if available_x_cols else None, key="step_plot_x_axis")
     
     with col2:
-        available_y_cols = [col for col in numeric_columns if col in steps_df.columns and not steps_df[col].isna().all()]
+        available_y_cols = get_available_numeric_columns(steps_df, numeric_candidates)
+        # Ensure y_axis default is valid and different from x_axis if possible
+        y_default_index = 0
+        if available_y_cols:
+            if x_axis and x_axis in available_y_cols and len(available_y_cols) > 1:
+                y_default_index = 1 if available_y_cols[0] == x_axis else 0
+            # Try to find a different default y_axis
+            if x_axis and x_axis == available_y_cols[y_default_index] and len(available_y_cols) > y_default_index +1:
+                 y_default_index +=1
+            elif x_axis and x_axis == available_y_cols[y_default_index] and y_default_index > 0:
+                 y_default_index -=1
+
+
         y_axis = st.selectbox("Y-axis", available_y_cols, 
-                             index=1 if len(available_y_cols) > 1 else 0)
+                             index=y_default_index if available_y_cols else None, key="step_plot_y_axis")
     
     with col3:
         categorical_columns = ['step_type', 'experiment_name']
-        available_color_cols = ['None'] + [col for col in categorical_columns if col in steps_df.columns]
-        color_by = st.selectbox("Color/Group by", available_color_cols)
+        available_color_cols = ['None'] + [col for col in categorical_columns if col in steps_df.columns and steps_df[col].nunique() > 0]
+        color_by = st.selectbox("Color/Group by", available_color_cols, key="step_plot_color_by")
     
     if x_axis and y_axis:
         # Create the plot
@@ -389,7 +327,7 @@ def render_step_plot(steps_df: pd.DataFrame):
 def get_measurements_for_steps(step_ids: List[int]) -> pd.DataFrame:
     """Fetch measurement data for selected steps"""
     if not step_ids:
-        return pd.DataFrame()
+        return pd.DataFrame(columns=MEASUREMENT_DF_COLUMNS)
     
     try:
         with get_session() as session:
@@ -398,32 +336,30 @@ def get_measurements_for_steps(step_ids: List[int]) -> pd.DataFrame:
             ).all()
             
             if not measurements:
-                return pd.DataFrame()
+                return pd.DataFrame(columns=MEASUREMENT_DF_COLUMNS)
             
             data = []
             for measurement in measurements:
                 data.append({
                     'step_id': measurement.step_id,
-                    'timestamp': measurement.execution_time,  # Use execution_time instead of timestamp
+                    'execution_time': measurement.execution_time,  # 直接取用DB float欄位
                     'voltage': measurement.voltage,
                     'current': measurement.current,
                     'temperature': measurement.temperature,
                     'capacity': measurement.capacity,
                     'energy': measurement.energy,
-                    # Remove 'soc' field as it doesn't exist in the Measurement model
                 })
             
-            return pd.DataFrame(data)
+            df = pd.DataFrame(data)
+            return df
     except Exception as e:
         st.error(f"Error fetching measurements: {str(e)}")
-        return pd.DataFrame()
+        return pd.DataFrame(columns=MEASUREMENT_DF_COLUMNS)
 
 
 def render_detail_plot(selected_step_ids: List[int]):
-    """Render the Detail-level time-series plotting area"""
+    """Render the Detail-level time-series plotting area with selectable X and Y axes."""
     st.subheader("Detail-Level Time-Series Visualization")
-    
-    print(f"DEBUG: render_detail_plot called with step_ids: {selected_step_ids}")
     
     if not selected_step_ids:
         st.info("Select steps to enable time-series plotting")
@@ -431,87 +367,127 @@ def render_detail_plot(selected_step_ids: List[int]):
     
     measurements_df = get_measurements_for_steps(selected_step_ids)
     
-    print(f"DEBUG: measurements_df shape: {measurements_df.shape}")
-    print(f"DEBUG: measurements_df columns: {measurements_df.columns.tolist() if not measurements_df.empty else 'Empty DataFrame'}")
-    
     if measurements_df.empty:
-        st.warning("No measurement data available for selected steps")
+        st.warning("No measurement data available for selected steps or an error occurred.")
         return
     
-    # Plot configuration
-    col1, col2 = st.columns(2)
+    # Potential candidates for axes
+    # Ensure 'execution_time' is handled as a primary candidate for x-axis
+    # Other numeric columns can be candidates for both x and y axes.
+    all_plottable_columns = MEASUREMENT_DF_COLUMNS.copy()
+    if 'step_id' in all_plottable_columns:
+        all_plottable_columns.remove('step_id')
+
+    x_axis_options = []
+    if 'execution_time' in measurements_df.columns and not measurements_df['execution_time'].isna().all():
+        x_axis_options.append('execution_time')
     
+    numeric_cols_for_x = get_available_numeric_columns(measurements_df, [col for col in all_plottable_columns if col != 'execution_time'])
+    x_axis_options.extend(numeric_cols_for_x)
+
+    if not x_axis_options:
+        st.warning("No suitable columns available for X-axis in measurement data.")
+        return
+
+    col1, col2, col3 = st.columns(3)
+
     with col1:
-        y_metrics = ['voltage', 'current', 'temperature', 'capacity', 'energy']  # Removed 'soc'
-        available_metrics = [col for col in y_metrics if col in measurements_df.columns]
-        selected_metrics = st.multiselect("Select metrics to plot", available_metrics, 
-                                        default=available_metrics[:2] if available_metrics else [])
-    
+        x_axis_detail = st.selectbox("Select X-axis", x_axis_options, key="detail_plot_x_axis")
+
+    # Y-axis candidates should be numeric and different from the selected X-axis
+    y_axis_candidate_cols = [col for col in numeric_cols_for_x if col != x_axis_detail]
+
     with col2:
-        plot_type = st.radio("Plot type", ["Separate subplots", "Combined plot"])
+        available_y_metrics = get_available_numeric_columns(measurements_df, [col for col in all_plottable_columns if col != x_axis_detail])
+        
+        default_y_selection = []
+        if available_y_metrics:
+            default_y_selection = available_y_metrics[:2] if len(available_y_metrics) >= 2 else available_y_metrics[:1]
+        
+        selected_y_metrics = st.multiselect("Select Y-metrics", available_y_metrics, 
+                                            default=default_y_selection, key="detail_plot_y_metrics")
     
-    if selected_metrics:
+    with col3:
+        plot_type = st.radio("Plot type", ["Separate subplots", "Combined plot"], key="detail_plot_type")
+    
+    if x_axis_detail and selected_y_metrics:
         if plot_type == "Separate subplots":
-            # Create subplots
             from plotly.subplots import make_subplots
-            
+            if not selected_y_metrics:
+                st.info("Please select at least one Y-metric to plot.")
+                return
             fig = make_subplots(
-                rows=len(selected_metrics), 
+                rows=len(selected_y_metrics), 
                 cols=1,
-                subplot_titles=selected_metrics,
+                subplot_titles=[f"{metric} vs {x_axis_detail}" for metric in selected_y_metrics],
                 shared_xaxes=True
             )
             
-            for i, metric in enumerate(selected_metrics, 1):
-                for step_id in selected_step_ids:
-                    step_data = measurements_df[measurements_df['step_id'] == step_id]
-                    if not step_data.empty:
-                        fig.add_trace(
-                            go.Scatter(
-                                x=step_data['timestamp'],
-                                y=step_data[metric],
-                                mode='lines',
-                                name=f"Step {step_id}",
-                                showlegend=(i == 1)  # Only show legend for first subplot
-                            ),
-                            row=i, col=1
-                        )
-            
-            fig.update_layout(height=200 * len(selected_metrics), title="Time-Series Data")
-            
-        else:
-            # Combined plot with secondary y-axis if needed
-            fig = go.Figure()
-            
-            colors = px.colors.qualitative.Set1
-            
-            for i, metric in enumerate(selected_metrics):
-                color = colors[i % len(colors)]
-                
-                for step_id in selected_step_ids:
-                    step_data = measurements_df[measurements_df['step_id'] == step_id]
-                    if not step_data.empty:
-                        fig.add_trace(
-                            go.Scatter(
-                                x=step_data['timestamp'],
-                                y=step_data[metric],
-                                mode='lines',
-                                name=f"{metric} - Step {step_id}",
-                                line=dict(color=color),
-                                yaxis='y2' if i > 0 else 'y'
+            for i, metric in enumerate(selected_y_metrics, 1):
+                for step_id_val in selected_step_ids:
+                    step_data = measurements_df[measurements_df['step_id'] == step_id_val]
+                    if not step_data.empty and x_axis_detail in step_data.columns and metric in step_data.columns:
+                        if not step_data[x_axis_detail].isna().all() and not step_data[metric].isna().all():
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=step_data[x_axis_detail],
+                                    y=step_data[metric],
+                                    mode='lines',
+                                    name=f"Step {step_id_val}",
+                                    showlegend=(i == 1) 
+                                ),
+                                row=i, col=1
                             )
-                        )
             
-            # Configure layout for dual y-axis if multiple metrics
-            if len(selected_metrics) > 1:
-                fig.update_layout(
-                    yaxis=dict(title=selected_metrics[0], side='left'),
-                    yaxis2=dict(title=', '.join(selected_metrics[1:]), side='right', overlaying='y')
-                )
+            fig.update_layout(height=max(400, 200 * len(selected_y_metrics)), title_text=f"Time-Series Data: Metrics vs {x_axis_detail}")
+            fig.update_xaxes(title_text=x_axis_detail)
+
+        else: # Combined plot
+            fig = go.Figure()
+            colors = px.colors.qualitative.Plotly
             
-            fig.update_layout(height=500, title="Combined Time-Series Data")
-        
+            for i, metric in enumerate(selected_y_metrics):
+                color = colors[i % len(colors)]
+                for step_id_val in selected_step_ids:
+                    step_data = measurements_df[measurements_df['step_id'] == step_id_val]
+                    if not step_data.empty and x_axis_detail in step_data.columns and metric in step_data.columns:
+                        if not step_data[x_axis_detail].isna().all() and not step_data[metric].isna().all():
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=step_data[x_axis_detail],
+                                    y=step_data[metric],
+                                    mode='lines',
+                                    name=f"{metric} (Step {step_id_val})",
+                                    line=dict(color=color),
+                                    yaxis=f"y{i+1}" if len(selected_y_metrics) > 1 else "y"
+                                )
+                            )
+            
+            fig.update_layout(
+                height=500, 
+                title_text=f"Combined Time-Series: Metrics vs {x_axis_detail}",
+                xaxis_title=x_axis_detail
+            )
+
+            if len(selected_y_metrics) == 1:
+                 fig.update_layout(yaxis_title=selected_y_metrics[0])
+            elif len(selected_y_metrics) > 1:
+                fig.update_layout(yaxis_title=selected_y_metrics[0])
+                for i, metric_name in enumerate(selected_y_metrics[1:], start=1):
+                    fig.update_layout({
+                        f'yaxis{i+1}': {
+                            'title': metric_name,
+                            'overlaying': 'y',
+                            'side': 'right' if i % 2 == 0 else 'left',
+                            'position': 0.15 * i if i%2 !=0 else 1 - (0.15* (i-1)),
+                            'showgrid': False,
+                        }
+                    })
+                fig.update_layout(margin=dict(r=80 + (len(selected_y_metrics)-2)*60))
+
         st.plotly_chart(fig, use_container_width=True)
+    elif not selected_y_metrics:
+        st.info("Please select at least one Y-metric to plot.")
 
 
 def render_filtering_controls():
@@ -546,61 +522,54 @@ def render_filtering_controls():
 
 def apply_filters(df: pd.DataFrame, table_type: str) -> pd.DataFrame:
     """Apply filters to dataframe based on table type"""
-    filters = st.session_state.dashboard_filters
-    print(f"DEBUG: apply_filters called for {table_type}")
-    print(f"DEBUG: Current filters: {filters}")
-    print(f"DEBUG: Input DataFrame shape: {df.shape}")
-    
-    if table_type == "experiments" and not df.empty:
-        print(f"DEBUG: Available battery_types in df: {df['battery_type'].unique() if 'battery_type' in df.columns else 'No battery_type column'}")
-        print(f"DEBUG: Available nominal_capacity range: {df['nominal_capacity'].min()}-{df['nominal_capacity'].max() if 'nominal_capacity' in df.columns and not df['nominal_capacity'].isna().all() else 'No valid nominal_capacity'}")
+    filters = st.session_state.get('dashboard_filters', {})
+    if not filters or df.empty:
+        return df
+
+    original_shape = df.shape
+    filtered_df = df.copy()
+
+    if table_type == "experiments":
+        if 'battery_types' in filters and filters['battery_types']:
+            if 'battery_type' in filtered_df.columns:
+                filtered_df = filtered_df[filtered_df['battery_type'].isin(filters['battery_types'])]
         
-        if filters.get('battery_types'):
-            print(f"DEBUG: Filtering by battery_types: {filters['battery_types']}")
-            df = df[df['battery_type'].isin(filters['battery_types'])]
-            print(f"DEBUG: After battery_type filter: {len(df)} rows")
-        
-        if filters.get('capacity_range'):
+        if 'capacity_range' in filters:
             min_cap, max_cap = filters['capacity_range']
-            print(f"DEBUG: Filtering by capacity range: {min_cap}-{max_cap}")
-            df = df[(df['nominal_capacity'] >= min_cap) & (df['nominal_capacity'] <= max_cap)]
-            print(f"DEBUG: After capacity filter: {len(df)} rows")
-    
-    elif table_type == "steps" and not df.empty:
-        print(f"DEBUG: Available step_types in df: {df['step_type'].unique() if 'step_type' in df.columns else 'No step_type column'}")
-        print(f"DEBUG: Available c_rate range: {df['c_rate'].min()}-{df['c_rate'].max() if 'c_rate' in df.columns and not df['c_rate'].isna().all() else 'No valid c_rate'}")
+            if 'nominal_capacity' in filtered_df.columns:
+                if min_cap is not None:
+                    filtered_df = filtered_df[filtered_df['nominal_capacity'] >= min_cap]
+                if max_cap is not None:
+                    filtered_df = filtered_df[filtered_df['nominal_capacity'] <= max_cap]
+
+    elif table_type == "steps":
+        if 'step_types' in filters and filters['step_types']:
+            if 'step_type' in filtered_df.columns:
+                filtered_df = filtered_df[filtered_df['step_type'].isin(filters['step_types'])]
         
-        if filters.get('step_types'):
-            print(f"DEBUG: Filtering by step_types: {filters['step_types']}")
-            df = df[df['step_type'].isin(filters['step_types'])]
-            print(f"DEBUG: After step_type filter: {len(df)} rows")
-        
-        if filters.get('c_rate_range'):
-            min_rate, max_rate = filters['c_rate_range']
-            print(f"DEBUG: Filtering by c_rate range: {min_rate}-{max_rate}")
-            df = df[(df['c_rate'] >= min_rate) & (df['c_rate'] <= max_rate)]
-            print(f"DEBUG: After c_rate filter: {len(df)} rows")
+        if 'c_rate_range' in filters:
+            min_c, max_c = filters['c_rate_range']
+            if 'c_rate' in filtered_df.columns:
+                # Ensure c_rate is numeric and handle NAs before filtering
+                filtered_df['c_rate'] = pd.to_numeric(filtered_df['c_rate'], errors='coerce')
+                if min_c is not None:
+                    filtered_df = filtered_df[filtered_df['c_rate'] >= min_c]
+                if max_c is not None:
+                    filtered_df = filtered_df[filtered_df['c_rate'] <= max_c]
     
-    print(f"DEBUG: Final DataFrame shape: {df.shape}")
-    return df
+    return filtered_df
 
 
 def extract_selected_ids(selected_rows: List[Any], table_name: str) -> List[int]:
     """Extract IDs from selected rows, handling various formats including DataFrame"""
     selected_ids = []
     
-    print(f"DEBUG: extract_selected_ids for {table_name}")
-    print(f"DEBUG: Input selected_rows: {selected_rows}")
-    print(f"DEBUG: Input type: {type(selected_rows)}")
-    
     # Handle DataFrame case first
     if isinstance(selected_rows, pd.DataFrame):
-        print(f"DEBUG: selected_rows is DataFrame, empty: {selected_rows.empty}")
         if selected_rows.empty:
             return selected_ids
         # Convert DataFrame to list of dicts
         selected_rows = selected_rows.to_dict('records')
-        print(f"DEBUG: Converted DataFrame to list of dicts: {len(selected_rows)} rows")
     
     # Handle other empty cases
     if not selected_rows or (hasattr(selected_rows, '__len__') and len(selected_rows) == 0):
@@ -608,18 +577,14 @@ def extract_selected_ids(selected_rows: List[Any], table_name: str) -> List[int]
     
     for i, row in enumerate(selected_rows):
         try:
-            print(f"DEBUG: Processing row {i}: {row} (type: {type(row)})")
-            
             # Case 1: Row is a dictionary (expected format)
             if isinstance(row, dict):
                 if 'id' in row:
                     row_id = row['id']
                     if isinstance(row_id, (int, float)):
                         selected_ids.append(int(row_id))
-                        print(f"DEBUG: Extracted ID from dict: {int(row_id)}")
                     elif isinstance(row_id, str) and row_id.isdigit():
                         selected_ids.append(int(row_id))
-                        print(f"DEBUG: Extracted ID from string: {int(row_id)}")
                     else:
                         print(f"DEBUG: Invalid ID type in dict: {row_id} ({type(row_id)})")
                 else:
@@ -632,10 +597,8 @@ def extract_selected_ids(selected_rows: List[Any], table_name: str) -> List[int]
                     potential_id = row[0]
                     if isinstance(potential_id, (int, float)):
                         selected_ids.append(int(potential_id))
-                        print(f"DEBUG: Extracted ID from list first element: {int(potential_id)}")
                     elif isinstance(potential_id, str) and potential_id.isdigit():
                         selected_ids.append(int(potential_id))
-                        print(f"DEBUG: Extracted ID from list string: {int(potential_id)}")
                     else:
                         print(f"DEBUG: Invalid ID in list: {potential_id} ({type(potential_id)})")
                 else:
@@ -644,12 +607,10 @@ def extract_selected_ids(selected_rows: List[Any], table_name: str) -> List[int]
             # Case 3: Row is a single value (might be an ID)
             elif isinstance(row, (int, float)):
                 selected_ids.append(int(row))
-                print(f"DEBUG: Extracted ID from single value: {int(row)}")
             
             elif isinstance(row, str):
                 if row.isdigit():
                     selected_ids.append(int(row))
-                    print(f"DEBUG: Extracted ID from string value: {int(row)}")
                 else:
                     print(f"DEBUG: Non-numeric string value: {row}")
             
@@ -660,7 +621,6 @@ def extract_selected_ids(selected_rows: List[Any], table_name: str) -> List[int]
             print(f"DEBUG: Error processing row {i}: {e}, row: {row}")
             continue
     
-    print(f"DEBUG: Final extracted IDs for {table_name}: {selected_ids}")
     return selected_ids
 
 
@@ -892,7 +852,6 @@ def render_overview_tab():
                             max_temp = max_temp_val
                     except Exception:
                         pass
-            
             # Display metrics
             col1, col2, col3, col4 = st.columns(4)
             
@@ -911,7 +870,7 @@ def render_overview_tab():
             # Plot discharge capacity
             if discharge_steps:
                 # Use cycle_number if available, otherwise step_number
-                if hasattr(discharge_steps[0][0], 'cycle_number'):
+                if hasattr(discharge_steps[0], 'cycle_number'):
                     df_plot = pd.DataFrame([{
                         'Cycle': getattr(s, 'cycle_number', i+1),
                         'Discharge Capacity (Ah)': capacity
