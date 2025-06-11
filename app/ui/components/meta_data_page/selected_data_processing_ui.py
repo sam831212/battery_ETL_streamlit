@@ -328,11 +328,6 @@ def handle_selected_steps_save():
                 # Clear session state for processed data
                 st.session_state.pop("selected_steps", None)
 
-                # Provide navigation to the dashboard
-                if st.button("Go to Dashboard", type="primary"):
-                    st.session_state["current_page"] = "Dashboard"
-                    st.rerun()
-
         except Exception as e:
             st.error(f"Error saving data to database: {str(e)}")
             # Avoid explicit rollback here if session context manager handles it

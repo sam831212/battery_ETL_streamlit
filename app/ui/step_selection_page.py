@@ -297,7 +297,7 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         selected_reference_idx = None
       # Display section for database loading selection
     st.write("#### Select Steps for Database Loading")
-    st.caption("Review the steps below. Use the checkboxes in the '選擇載入資料庫' (Select for DB Load) column to mark steps for inclusion in the final dataset. You can also add comments in the 'data_meta' column - **remember to click 'Apply DB Selection Changes' to save your data_meta inputs**. Ensure you have selected a 'Full Discharge Reference Step' above for SOC calculation if it's not already correct, then click 'Update Selections'.")
+    st.caption("Review the steps below. Use the checkboxes in the '選擇載入資料庫' (Select for DB Load) column to mark steps for inclusion in the final dataset. You can also add comments in the 'data_meta' column - **remember to click 'Apply DB Selection Changes' to save your dataMeta inputs**. Ensure you have selected a 'Full Discharge Reference Step' above for SOC calculation if it's not already correct, then click 'Update Selections'.")
     
     # Add db_selection column to DataFrame if it doesn't exist
     if 'db_selection' not in filtered_df.columns:
@@ -502,10 +502,10 @@ def display_selected_steps_overview(filtered_df: pd.DataFrame, selected_indices:
             use_container_width=True,
             key="selected_steps_data_meta_editor"
         )
-        
         # 添加保存按鈕
-        save_data_meta = st.form_submit_button("Save Data Meta", type="secondary")
-    
+        form_col1, form_col2 = st.columns([3, 1])
+        with form_col2:
+            save_data_meta = st.form_submit_button("Save Data Meta", type="secondary")
     # 當按下保存按鈕時，將 data_meta 寫回 session_state
     if save_data_meta:
         for idx, row in edited_selected_df.iterrows():
@@ -648,7 +648,7 @@ def render_step_selection_page(steps_df: pd.DataFrame, details_df: pd.DataFrame)
                 full_discharge_step_idx=st.session_state.full_discharge_step_idx # Use the confirmed reference index
             )
             
-            # PRESERVE DATA_META: Add user-input data_meta to the recalculated dataframe
+            # PRESERVE DATA_META: Add user-input dataMeta to the recalculated dataframe
             if 'temp_data_meta_dict' in st.session_state and st.session_state.temp_data_meta_dict:
                 # Add data_meta column if it doesn't exist
                 if 'data_meta' not in steps_with_soc.columns:
