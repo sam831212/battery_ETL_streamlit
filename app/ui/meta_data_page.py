@@ -31,6 +31,9 @@ def render_meta_data_page():
     
     This function displays the experiment information components.
     """
+    # 顯示刷新提示
+    st.info("如需更新資料，請點擊左側側邊欄的『Meta Data』頁籤以重新載入。")
+    
     # Set up page
     st.title("Battery ETL Dashboard - Meta Data")
     st.caption("Manage your experimental metadata here. Use the tabs to navigate between Cell, Machine, and Meta Data.")

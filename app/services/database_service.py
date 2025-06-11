@@ -497,6 +497,7 @@ def save_steps_to_db(
             start_time = row_dict.get('start_time', None) # 保持原樣，因為它處理 datetime
             end_time = row_dict.get('end_time', None) # 保持原樣，因為它處理 datetime
             c_rate = safe_get_float_from_dict(row_dict, "c_rate", 0.0)
+            pre_test_rest_time = safe_get_optional_float_from_dict(row_dict, "pre_test_rest_time")
             
             # 注意：如果 start_time 或 end_time 為 None，則默認為當前時間 (datetime.now())。
             # 這意味著如果源數據中缺少這些時間，將記錄處理時間而非實際事件時間。
@@ -514,10 +515,10 @@ def save_steps_to_db(
                 capacity=capacity,
                 energy=energy,
                 temperature_start=temperature_start,
-                temperature_end=temperature_end,
-                c_rate=c_rate,
+                temperature_end=temperature_end,                c_rate=c_rate,
                 soc_start=soc_start,
                 soc_end=soc_end,
+                pre_test_rest_time=pre_test_rest_time,
                 data_meta=row_dict if isinstance(row_dict, dict) else {}
             )
 

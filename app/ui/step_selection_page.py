@@ -272,10 +272,16 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
             "None (Auto-detect)"
         )
         
+        # 修正 index 取得方式，避免 ValueError
+        if current_option in discharge_options.keys():
+            current_index = list(discharge_options.keys()).index(current_option)
+        else:
+            current_index = 0  # 預設選第一個
+
         selected_reference_option = st.radio(
             "Select a discharge step as 0% SOC reference:",
             options=list(discharge_options.keys()),
-            index=list(discharge_options.keys()).index(current_option),
+            index=current_index,
             key="reference_step_selector",
             help="Choose a discharge step that represents a fully discharged state (0% SOC). This selection is critical for accurate SOC calculation across all steps. Only the first 5 discharge steps are shown here for selection; if needed, filter steps first."
         )
@@ -289,10 +295,9 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
     else:
         st.info("No discharge steps available for reference selection. Include discharge steps in your filter.")
         selected_reference_idx = None
-    
-    # Display section for database loading selection
+      # Display section for database loading selection
     st.write("#### Select Steps for Database Loading")
-    st.caption("Review the steps below. Use the checkboxes in the '選擇載入資料庫' (Select for DB Load) column to mark steps for inclusion in the final dataset. Ensure you have selected a 'Full Discharge Reference Step' above for SOC calculation if it's not already correct, then click 'Update Selections'.")
+    st.caption("Review the steps below. Use the checkboxes in the '選擇載入資料庫' (Select for DB Load) column to mark steps for inclusion in the final dataset. You can also add comments in the 'data_meta' column - **remember to click 'Apply DB Selection Changes' to save your data_meta inputs**. Ensure you have selected a 'Full Discharge Reference Step' above for SOC calculation if it's not already correct, then click 'Update Selections'.")
     
     # Add db_selection column to DataFrame if it doesn't exist
     if 'db_selection' not in filtered_df.columns:
@@ -338,18 +343,18 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         # Get the original indices from filtered_df by using the index of selected_rows_in_edited_df
         # which corresponds to the row numbers in the displayed data_editor.
         # These row numbers can be used to get the original indices from filtered_df.
-        temp_selected_db_indices = [int(idx) for idx in filtered_df.index[selected_rows_in_edited_df.index].tolist()]
-        
-        # Capture data_meta changes from the data editor
-        for idx, row in edited_df.iterrows():
-            # original_idx = filtered_df.index[idx]  # Get the original dataframe index
-            original_idx = idx  # 直接用 idx 即可
-            st.session_state.temp_data_meta_dict[original_idx] = row.get('data_meta', "")
+        temp_selected_db_indices = [int(idx) for idx in filtered_df.index[selected_rows_in_edited_df.index].tolist()]        # Capture data_meta changes from the data editor
+        for row_position, row in edited_df.iterrows():
+            # 直接使用 row_position 作為 index，這對應到 filtered_df 的 index
+            st.session_state.temp_data_meta_dict[row_position] = row.get('data_meta', "")
         
         if set(temp_selected_db_indices) != set(st.session_state.temp_selected_steps_for_db):
             st.session_state.temp_selected_steps_for_db = temp_selected_db_indices
             st.session_state.update_needed = True # Indicate that "Update Selections" might be relevant if SOC needs recalc
             st.rerun() # Rerun to reflect checkbox changes immediately in "Selected Steps Overview"
+        
+        # 顯示成功訊息
+        st.success("✅ Step selections and data_meta comments saved successfully!")
         
     selected_db_indices = [int(idx) for idx in st.session_state.selected_steps_for_db] # This is the final confirmed list after "Update Selections"
     
@@ -469,29 +474,44 @@ def display_selected_steps_overview(filtered_df: pd.DataFrame, selected_indices:
         'temperature_range',  # 改為顯示溫度範圍
         'duration',
         'data_meta',   # 顯示 data_meta
-    ]
-    # 只允許 data_meta 欄位可編輯
-    edited_selected_df = st.data_editor(
-        selected_df[display_cols],
-        column_config={
-            "step_number": st.column_config.NumberColumn("工步編號", disabled=True),
-            "original_step_type": st.column_config.TextColumn("原始工步類型", disabled=True),
-            "step_type": st.column_config.TextColumn("工步動作", disabled=True),
-            "c_rate": st.column_config.TextColumn("充放電倍率", disabled=True),
-            "soc_range": st.column_config.TextColumn("SOC範圍", disabled=True),
-            "temperature_range": st.column_config.TextColumn("溫度範圍", help="起始溫度 → 截止溫度", disabled=True),
-            "duration": st.column_config.NumberColumn("工步執行時間(秒)", format="%.1f", disabled=True),
-            "data_meta": st.column_config.TextColumn("資料備註 (data_meta)", help="可選，為此工步輸入備註/說明，將一併存入資料庫。"),
-        },
-        hide_index=True,
-        use_container_width=True,
-        key="selected_steps_data_meta_editor"
-    )
-    # 將 data_meta 寫回 session_state
+    ]    # 先確保 session_state 有 temp_data_meta_dict
     if 'temp_data_meta_dict' not in st.session_state:
         st.session_state.temp_data_meta_dict = {}
-    for idx, row in edited_selected_df.iterrows():
-        st.session_state.temp_data_meta_dict[idx] = row.get('data_meta', "")
+    
+    # 在顯示前同步 session_state 中的 data_meta 到 DataFrame
+    for idx in selected_df.index:
+        if idx in st.session_state.temp_data_meta_dict:
+            selected_df.at[idx, 'data_meta'] = st.session_state.temp_data_meta_dict[idx]
+    
+    # 使用 st.form 包裝 data_editor 以避免即時 reload
+    with st.form(key="selected_steps_data_meta_form"):
+        # 只允許 data_meta 欄位可編輯
+        edited_selected_df = st.data_editor(
+            selected_df[display_cols],
+            column_config={
+                "step_number": st.column_config.NumberColumn("工步編號", disabled=True),
+                "original_step_type": st.column_config.TextColumn("原始工步類型", disabled=True),
+                "step_type": st.column_config.TextColumn("工步動作", disabled=True),
+                "c_rate": st.column_config.TextColumn("充放電倍率", disabled=True),
+                "soc_range": st.column_config.TextColumn("SOC範圍", disabled=True),
+                "temperature_range": st.column_config.TextColumn("溫度範圍", help="起始溫度 → 截止溫度", disabled=True),
+                "duration": st.column_config.NumberColumn("工步執行時間(秒)", format="%.1f", disabled=True),
+                "data_meta": st.column_config.TextColumn("資料備註 (data_meta)", help="可選，為此工步輸入備註/說明，將一併存入資料庫。"),
+            },
+            hide_index=True,
+            use_container_width=True,
+            key="selected_steps_data_meta_editor"
+        )
+        
+        # 添加保存按鈕
+        save_data_meta = st.form_submit_button("Save Data Meta", type="secondary")
+    
+    # 當按下保存按鈕時，將 data_meta 寫回 session_state
+    if save_data_meta:
+        for idx, row in edited_selected_df.iterrows():
+            st.session_state.temp_data_meta_dict[idx] = row.get('data_meta', "")
+        st.success("Data meta comments saved successfully!")
+        st.rerun()  # 重新運行以更新顯示
 
 
 def create_processing_controls():

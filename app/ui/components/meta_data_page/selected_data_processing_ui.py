@@ -50,11 +50,28 @@ def handle_selected_steps_save():
                 if "steps_df_transformed" in st.session_state and st.session_state["steps_df_transformed"] is not None:
                     # Get selected step numbers and use the transformed dataframe
                     selected_step_numbers = [step["step_number"] for step in st.session_state["selected_steps"]]
+                    print(f"[DEBUG] selected_step_numbers: {selected_step_numbers}")
 
                     # Map step numbers to indices in the transformed dataframe
                     transformed_df = st.session_state["steps_df_transformed"]
+                    print(f"[DEBUG] transformed_df 包含 {len(transformed_df)} 個工步")
+                    print(f"[DEBUG] transformed_df 工步編號: {sorted(transformed_df['step_number'].unique()) if 'step_number' in transformed_df.columns else 'No step_number column'}")
+                    
+                    # 檢查 pre_test_rest_time 欄位
+                    if 'pre_test_rest_time' in transformed_df.columns:
+                        non_null_count = transformed_df['pre_test_rest_time'].notna().sum()
+                        print(f"[DEBUG] transformed_df 中 pre_test_rest_time 欄位存在，{non_null_count}/{len(transformed_df)} 個工步有值")
+                        
+                        # 顯示前幾個工步的 pre_test_rest_time 值
+                        for _, row in transformed_df.head(10).iterrows():
+                            print(f"[DEBUG] 工步 {row['step_number']}: pre_test_rest_time = {row['pre_test_rest_time']}")
+                    else:
+                        print(f"[DEBUG] 警告：transformed_df 中沒有 pre_test_rest_time 欄位！")
+                        print(f"[DEBUG] transformed_df 欄位: {list(transformed_df.columns)}")
+                    
                     if "step_number" in transformed_df.columns:
                         steps_df_to_use = transformed_df[transformed_df["step_number"].isin(selected_step_numbers)].copy()
+                        print(f"[DEBUG] 過濾後的 steps_df_to_use 包含 {len(steps_df_to_use)} 個工步")
                         
                         # IMPORTANT: Merge data_meta from selected_steps into the transformed dataframe
                         # Create a mapping of step_number to data_meta from selected_steps
@@ -63,8 +80,10 @@ def handle_selected_steps_save():
                         # Add data_meta column to the transformed dataframe
                         steps_df_to_use["data_meta"] = steps_df_to_use["step_number"].map(data_meta_mapping).fillna("")
                     else:
+                        print(f"[DEBUG] 警告：transformed_df 中沒有 step_number 欄位，使用原始 selected_steps")
                         steps_df_to_use = pd.DataFrame(st.session_state["selected_steps"])
                 else:
+                    print(f"[DEBUG] 沒有 steps_df_transformed，使用原始 selected_steps")
                     steps_df_to_use = pd.DataFrame(st.session_state["selected_steps"])                # Calculate average temperature from transformed data
                 temperature = 25.0  # Default value
                 if "temperature" in steps_df_to_use.columns:
@@ -101,35 +120,62 @@ def handle_selected_steps_save():
                 # Process steps using transformed data
                 steps = []
 
-                for _, row in steps_df_to_use.iterrows():
+                print(f"[DEBUG] handle_selected_steps_save: 開始處理 {len(steps_df_to_use)} 個工步")
+                
+                for idx, row in steps_df_to_use.iterrows():
                     row_dict = convert_numpy_types(row.to_dict())
-
-                    # 轉換日期時間
-                    start_time = convert_datetime_to_python(row_dict.get("start_time"))
-                    end_time = convert_datetime_to_python(row_dict.get("end_time"))                    # Create Step with all the available data including SOC and temperature metrics
-                    step = Step(
-                        experiment_id=experiment.id,
-                        step_number=row_dict["step_number"],
-                        step_type=row_dict["step_type"],
-                        start_time=start_time,
-                        end_time=end_time,
-                        duration=row_dict.get("duration", 0.0),
-                        voltage_start=row_dict.get("voltage_start", 0.0),
-                        voltage_end=row_dict.get("voltage_end", 0.0),
-                        current=row_dict.get("current", 0.0),
-                        capacity=row_dict.get("capacity", 0.0),
-                        energy=row_dict.get("energy", 0.0),
-                        temperature=row_dict.get("temperature", 25.0),
-                        temperature_start=row_dict.get("temperature_start"),
-                        temperature_end=row_dict.get("temperature_end"),
-                        c_rate=row_dict.get("c_rate", 0.0),
-                        soc_start=row_dict.get("soc_start"),
-                        soc_end=row_dict.get("soc_end"),
-                        data_meta=row_dict.get("data_meta", {})
-                    )
+                    step_number = row_dict.get("step_number") if isinstance(row_dict, dict) else getattr(row, "step_number", None)
+                    pre_test_rest_time_value = row_dict.get("pre_test_rest_time") if isinstance(row_dict, dict) else getattr(row, "pre_test_rest_time", None)
+                    
+                    # DEBUG: 印出每個工步的 pre_test_rest_time 值
+                    print(f"[DEBUG] 工步 {step_number}: pre_test_rest_time = {pre_test_rest_time_value} (類型: {type(pre_test_rest_time_value)})")
+                    
+                    if isinstance(row_dict, dict):                        step = Step(
+                            experiment_id=experiment.id,
+                            step_number=row_dict.get("step_number"),
+                            step_type=row_dict.get("step_type"),
+                            start_time=convert_datetime_to_python(row_dict.get("start_time")),
+                            end_time=convert_datetime_to_python(row_dict.get("end_time")),
+                            duration=row_dict.get("duration", 0.0),
+                            voltage_start=row_dict.get("voltage_start", 0.0),
+                            voltage_end=row_dict.get("voltage_end", 0.0),
+                            current=row_dict.get("current", 0.0),
+                            capacity=row_dict.get("capacity", 0.0),
+                            energy=row_dict.get("energy", 0.0),
+                            temperature_start=row_dict.get("temperature_start"),
+                            temperature_end=row_dict.get("temperature_end"),
+                            c_rate=row_dict.get("c_rate", 0.0),
+                            soc_start=row_dict.get("soc_start"),
+                            soc_end=row_dict.get("soc_end"),
+                            pre_test_rest_time=row_dict.get("pre_test_rest_time"),
+                            data_meta=row_dict.get("data_meta", {})
+                        )
+                    else:                        step = Step(
+                            experiment_id=experiment.id,
+                            step_number=getattr(row, "step_number", None),
+                            step_type=getattr(row, "step_type", None),
+                            start_time=convert_datetime_to_python(getattr(row, "start_time", None)),
+                            end_time=convert_datetime_to_python(getattr(row, "end_time", None)),
+                            duration=getattr(row, "duration", 0.0),
+                            voltage_start=getattr(row, "voltage_start", 0.0),
+                            voltage_end=getattr(row, "voltage_end", 0.0),
+                            current=getattr(row, "current", 0.0),
+                            capacity=getattr(row, "capacity", 0.0),
+                            energy=getattr(row, "energy", 0.0),
+                            temperature_start=getattr(row, "temperature_start", None),
+                            temperature_end=getattr(row, "temperature_end", None),
+                            c_rate=getattr(row, "c_rate", 0.0),
+                            soc_start=getattr(row, "soc_start", None),
+                            soc_end=getattr(row, "soc_end", None),
+                            pre_test_rest_time=getattr(row, "pre_test_rest_time", None),
+                            data_meta=getattr(row, "data_meta", {})
+                        )
+                    
+                    # DEBUG: 印出 Step 物件建立後的 pre_test_rest_time 值
+                    print(f"[DEBUG] Step 物件 {step.step_number}: pre_test_rest_time = {step.pre_test_rest_time}")
+                    
                     session.add(step)
                     steps.append(step)
-
                 # Flush to ensure step IDs are assigned before creating mapping
                 session.flush()
                 

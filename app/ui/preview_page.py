@@ -60,22 +60,20 @@ def apply_transformations(step_df: pd.DataFrame, detail_df: pd.DataFrame, nomina
     
     with st.spinner("Applying transformations..."):
         try:
-            # First calculate C-rates
-            st.write("### C-rate Calculation")
+            # Import the transform_data function
+            from app.etl.transformation import transform_data
             
-            # Apply C-rate calculation
-            step_df['c_rate'] = step_df['current'].apply(
-                lambda current: calculate_c_rate(current, nominal_capacity)
-            )
-            detail_df['c_rate'] = detail_df['current'].apply(
-                lambda current: calculate_c_rate(current, nominal_capacity)
-            )
+            # Apply complete ETL transformations (includes C-rate, SOC, and pre_test_rest_time)
+            st.write("### Applying ETL Transformations")
             
+            # Use the complete transform_data function which includes all transformations
+            step_df_transformed, detail_df_transformed = transform_data(step_df, detail_df, nominal_capacity)
             # Display C-rate summary
+            st.write("### C-rate Calculation Results")
             c_rate_stats = {
-                'Min C-rate': step_df['c_rate'].min(),
-                'Max C-rate': step_df['c_rate'].max(),
-                'Average C-rate': step_df['c_rate'].mean()
+                'Min C-rate': step_df_transformed['c_rate'].min(),
+                'Max C-rate': step_df_transformed['c_rate'].max(),
+                'Average C-rate': step_df_transformed['c_rate'].mean()
             }
             
             c_rate_col1, c_rate_col2, c_rate_col3 = st.columns(3)
@@ -86,88 +84,28 @@ def apply_transformations(step_df: pd.DataFrame, detail_df: pd.DataFrame, nomina
             with c_rate_col3:
                 st.metric("Avg C-rate", f"{c_rate_stats['Average C-rate']:.2f}C")
             
-            # Try to calculate SOC with error handling
-            st.write("### SOC Calculation")
+            # Check if pre_test_rest_time was calculated
+            if 'pre_test_rest_time' in step_df_transformed.columns:
+                st.write("### Pre-test Rest Time Calculation Results")
+                non_null_count = step_df_transformed['pre_test_rest_time'].notna().sum()
+                st.success(f"Successfully calculated pre_test_rest_time for {non_null_count}/{len(step_df_transformed)} steps")
+                if non_null_count > 0:
+                    st.info(f"Pre-test rest time range: {step_df_transformed['pre_test_rest_time'].min():.1f}s - {step_df_transformed['pre_test_rest_time'].max():.1f}s")
             
-            try:
-                # First select discharge steps
-                discharge_steps = step_df[step_df['step_type'] == 'discharge']
-                
-                if len(discharge_steps) == 0:
-                    st.warning("No discharge steps found in the data. SOC calculation requires discharge steps.")
-                    return step_df, detail_df
+            # Display SOC calculation results
+            st.write("### SOC Calculation Results")
+            if 'soc_end' in step_df_transformed.columns:
+                soc_values = step_df_transformed['soc_end'].dropna()
+                if not soc_values.empty:
+                    st.success(f"Successfully calculated SOC for {len(soc_values)} steps")
+                    st.info(f"SOC range: {soc_values.min():.1f}% - {soc_values.max():.1f}%")
                 else:
-                    st.success(f"Found {len(discharge_steps)} discharge steps available for SOC reference.")
-                    
-                    # Check for total_capacity column
-                    if 'total_capacity' not in step_df.columns:
-                        st.error("No 'total_capacity' column found. The '總電壓(Ah)' column might be missing or misnamed in the Step.csv file.")
-                        return step_df, detail_df
-                    else:
-                        # Find the 2nd discharge step as reference by default
-                        discharge_steps_sorted = discharge_steps.sort_values('step_number')
-                        
-                        if len(discharge_steps_sorted) >= 2:
-                            reference_step_idx = discharge_steps_sorted.index[1]  # 2nd discharge step
-                            reference_step = discharge_steps_sorted.loc[reference_step_idx]
-                            default_reference = f"Step {reference_step['step_number']} ({reference_step['original_step_type']})"
-                        elif not discharge_steps_sorted.empty: # Handles if only one discharge step exists
-                            reference_step_idx = discharge_steps_sorted.index[0]  # 1st discharge step
-                            reference_step = discharge_steps_sorted.loc[reference_step_idx]
-                            default_reference = f"Step {reference_step['step_number']} ({reference_step['original_step_type']})"
-                        else: # Should not happen due to earlier check, but as a fallback
-                            st.warning("Could not determine a default reference step for SOC calculation.")
-                            return step_df, detail_df
-
-                        # Create a reference step selector
-                        discharge_steps_dict = {
-                            f"Step {row['step_number']} ({row['original_step_type']})": idx 
-                            for idx, row in discharge_steps_sorted.iterrows() # Use sorted steps
-                        }
-                        
-                        # Initialize session state for reference step if not exists
-                        if 'selected_reference_step' not in st.session_state or st.session_state.selected_reference_step not in discharge_steps_dict:
-                            st.session_state.selected_reference_step = default_reference
-                        
-                        # Define callback function for selectbox
-                        def on_reference_step_change():
-                            st.session_state.selected_reference_step = st.session_state.reference_step_selector # key of selectbox
-                        
-                        # Create selectbox with callback
-                        selected_reference_label = st.selectbox(
-                            "Select reference discharge step for 0% SOC:",
-                            options=list(discharge_steps_dict.keys()),
-                            index=list(discharge_steps_dict.keys()).index(st.session_state.selected_reference_step),
-                            key="reference_step_selector", # This key is used by the callback
-                            on_change=on_reference_step_change,
-                            help="Choose a discharge step that represents a fully discharged state (0% SOC). This is crucial for accurate SOC calculation."
-                        )
-                        
-                        selected_reference_idx = discharge_steps_dict[selected_reference_label]
-                        
-                        # Try SOC calculation with explicit reference
-                        steps_with_soc, details_with_soc = calculate_soc(
-                            step_df.copy(), 
-                            detail_df.copy(),
-                            full_discharge_step_idx=selected_reference_idx
-                        )
-                        
-                        # Check if SOC calculation was successful
-                        steps_with_soc_values = steps_with_soc.dropna(subset=['soc_end'])
-                        
-                        if not steps_with_soc_values.empty:
-                            # Success message
-                            st.success("Successfully calculated SOC for this dataset!")
-                            
-                            return steps_with_soc, details_with_soc
-                        else:
-                            st.warning("SOC calculation did not produce valid values. Please check the selected reference step and its data.")
-                            return step_df, detail_df
+                    st.warning("SOC calculation did not produce valid values.")
+            else:
+                st.warning("SOC calculation was not performed.")
             
-            except Exception as e:
-                st.error(f"An error occurred during SOC calculation. Please check your data and reference step. Details: {str(e)}")
-                st.info("Ensure the selected reference step has valid capacity data and is appropriate for defining 0% SOC.")
-                return step_df, detail_df
+            # Return the transformed data
+            return step_df_transformed, detail_df_transformed
                 
         except Exception as e:
             st.error(f"An error occurred during data transformation. Details: {str(e)}")

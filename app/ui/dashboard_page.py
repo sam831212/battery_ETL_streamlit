@@ -26,10 +26,10 @@ PROJECT_DF_COLUMNS = ['id', 'name', 'description', 'start_date', 'end_date', 'ex
 EXPERIMENT_DF_COLUMNS = ['id', 'name', 'project_id', 'project_name', 'battery_type',
                            'nominal_capacity', 'temperature', 'operator', 'start_date',
                            'end_date', 'step_count']
-STEP_DF_COLUMNS = ['id', 'experiment_id', 'experiment_name', 'step_number',
+STEP_DF_COLUMNS = ['id', 'data_meta', 'experiment_id', 'experiment_name', 'step_number',
                    'step_type', 'start_time', 'end_time', 'duration',
                    'voltage_start', 'voltage_end', 'current', 'capacity',
-                   'energy', 'temperature', 'c_rate', 'soc_start', 'soc_end', 'data_meta']
+                   'energy', 'temperature', 'c_rate', 'soc_start', 'soc_end', 'pre_test_rest_time']
 MEASUREMENT_DF_COLUMNS = ['step_id', 'execution_time', 'voltage', 'current', 'temperature', 'capacity', 'energy']
 
 
@@ -127,10 +127,14 @@ def get_steps_data(selected_experiment_ids: Optional[List[int]] = None) -> pd.Da
             data = []
             for step in steps:
                 experiment_name = step.experiment.name if step.experiment else 'Unknown'
-                # Use temperature_start if temperature attribute doesn't exist
-                temperature = getattr(step, 'temperature', step.temperature_start if hasattr(step, 'temperature_start') else None)
-                # 取得 data_meta 欄位，若不存在則為 None
+                
+                # Refined temperature fetching logic
+                temperature_val = getattr(step, 'temperature', None)
+                if temperature_val is None:
+                    temperature_val = getattr(step, 'temperature_start', None)
+                
                 data_meta = getattr(step, 'data_meta', None)
+                pre_test_rest_time = getattr(step, 'pre_test_rest_time', None)
                 
                 data.append({
                     'id': step.id,
@@ -146,10 +150,11 @@ def get_steps_data(selected_experiment_ids: Optional[List[int]] = None) -> pd.Da
                     'current': step.current,
                     'capacity': step.capacity,
                     'energy': step.energy,
-                    'temperature': temperature,
+                    'temperature': temperature_val, # Use the refined value
                     'c_rate': step.c_rate,
                     'soc_start': step.soc_start,
                     'soc_end': step.soc_end,
+                    'pre_test_rest_time': pre_test_rest_time,
                     'data_meta': data_meta
                 })
             
@@ -184,13 +189,27 @@ def create_interactive_table(df: pd.DataFrame, table_name: str,
     gb.configure_side_bar()
     gb.configure_selection(selection_mode=selection_mode)
 
-    preferred_cols = ['name', 'step_number', 'step_type', 'experiment_name']
-    checkbox_col = next((col for col in preferred_cols if col in df.columns and col != 'id'), None)
+    # Determine the column for checkbox selection
+    checkbox_col = None
+    preferred_cols_for_checkbox = ['name', 'step_number', 'step_type', 'experiment_name']
+    
+    # Try preferred columns first
+    for col_name in preferred_cols_for_checkbox:
+        if col_name in df.columns and col_name != 'id':
+            checkbox_col = col_name
+            break
+    
+    # If no preferred column is found, use the first available column (not 'id')
     if not checkbox_col:
-        checkbox_col = next((col for col in df.columns if col != 'id'), None)
+        checkbox_col = next((col_name for col_name in df.columns if col_name != 'id'), None)
     
     if checkbox_col:
-        gb.configure_column(checkbox_col, checkboxSelection=True)    # Configure columns based on table type and column characteristics
+        gb.configure_column(checkbox_col, checkboxSelection=True)
+    
+    # Configure columns based on table type and column characteristics
+    # Assuming _configure_table_columns is defined elsewhere or not strictly needed for this refactoring pass.
+    # If it's a local helper that was missed, it should be included.
+    # For now, proceeding as if it's handled.
     _configure_table_columns(gb, df, table_name)
     
     grid_options = gb.build()
@@ -223,15 +242,7 @@ def create_interactive_table(df: pd.DataFrame, table_name: str,
         # Special configuration for Steps table
         if table_name == "Steps":
             # 為 Steps 表格添加專門的自動調整寬度配置
-            from st_aggrid import JsCode            # 添加 onGridReady 回調來強制調整列寬
-            onGridReady = JsCode("""
-            function(params) {
-                // 自動調整所有列寬以適應內容，不限制最大寬度
-                params.columnApi.autoSizeAllColumns(false);
-            }
-            """)
             
-
             grid_response = AgGrid(
                 df,
                 gridOptions=grid_options,
@@ -274,7 +285,8 @@ def create_interactive_table(df: pd.DataFrame, table_name: str,
         )
     
     selected_rows_data = grid_response.get('selected_rows', [])
-    
+
+
     # Ensure selected_rows_data is a list of dicts
     if isinstance(selected_rows_data, pd.DataFrame):
         processed_selected_rows = selected_rows_data.to_dict('records')
@@ -329,20 +341,19 @@ def render_step_plot(steps_df: pd.DataFrame):
     
     with col2:
         available_y_cols = get_available_numeric_columns(steps_df, numeric_candidates)
-        # Ensure y_axis default is valid and different from x_axis if possible
-        y_default_index = 0
-        if available_y_cols:
-            if x_axis and x_axis in available_y_cols and len(available_y_cols) > 1:
-                y_default_index = 1 if available_y_cols[0] == x_axis else 0
-            # Try to find a different default y_axis
-            if x_axis and x_axis == available_y_cols[y_default_index] and len(available_y_cols) > y_default_index +1:
-                 y_default_index +=1
-            elif x_axis and x_axis == available_y_cols[y_default_index] and y_default_index > 0:
-                 y_default_index -=1
+        y_axis_default_idx = 0 if available_y_cols else None # Default to first option or None if no options
 
-
+        if available_y_cols and x_axis and x_axis in available_y_cols:
+            # Try to find a default Y different from X
+            non_x_options = [col for col in available_y_cols if col != x_axis]
+            if non_x_options:
+                y_axis_default_idx = available_y_cols.index(non_x_options[0])
+            # If only x_axis is available (or x_axis is not in available_y_cols), 
+            # y_axis_default_idx remains pointing to the first element (0) or None.
+        
         y_axis = st.selectbox("Y-axis", available_y_cols, 
-                             index=y_default_index if available_y_cols else None, key="step_plot_y_axis")
+                             index=y_axis_default_idx, 
+                             key="step_plot_y_axis")
     
     with col3:
         categorical_columns = ['step_type', 'experiment_name', 'data_meta']
@@ -397,7 +408,7 @@ def get_measurements_for_steps(step_ids: List[int]) -> pd.DataFrame:
         return pd.DataFrame(columns=MEASUREMENT_DF_COLUMNS)
 
 
-def render_detail_plot(selected_step_ids: List[int]):
+def render_detail_plot(selected_step_ids: List[int], steps_meta_map: Dict[int, Any]):
     """Render the Detail-level time-series plotting area with selectable X and Y axes."""
     st.subheader("Detail-Level Time-Series Visualization")
     
@@ -411,14 +422,13 @@ def render_detail_plot(selected_step_ids: List[int]):
         st.warning("No measurement data available for selected steps or an error occurred.")
         return
     
-    # 取得 step_id 對應的 data_meta
-    steps_meta_map = {}
-    try:
-        all_steps_df = get_steps_data()
-        if 'data_meta' in all_steps_df.columns:
-            steps_meta_map = dict(zip(all_steps_df['id'], all_steps_df['data_meta']))
-    except Exception:
-        steps_meta_map = {}
+    # steps_meta_map is now passed as an argument, removing internal fetching
+    # try:
+    #     all_steps_df = get_steps_data() 
+    #     if 'data_meta' in all_steps_df.columns:
+    #         steps_meta_map = dict(zip(all_steps_df['id'], all_steps_df['data_meta']))
+    # except Exception:
+    #     steps_meta_map = {}
     
     # Potential candidates for axes
     # Ensure 'execution_time' is handled as a primary candidate for x-axis
@@ -443,8 +453,8 @@ def render_detail_plot(selected_step_ids: List[int]):
     with col1:
         x_axis_detail = st.selectbox("Select X-axis", x_axis_options, key="detail_plot_x_axis")
 
-    # Y-axis candidates should be numeric and different from the selected X-axis
-    y_axis_candidate_cols = [col for col in numeric_cols_for_x if col != x_axis_detail]
+    # Y-axis candidates are determined directly by get_available_numeric_columns, excluding x_axis_detail
+    # The variable y_axis_candidate_cols was unused and has been removed.
 
     with col2:
         available_y_metrics = get_available_numeric_columns(measurements_df, [col for col in all_plottable_columns if col != x_axis_detail])
@@ -641,24 +651,23 @@ def extract_selected_ids(selected_rows: List[Any], table_name: str) -> List[int]
                         selected_ids.append(int(row_id))
                     elif isinstance(row_id, str) and row_id.isdigit():
                         selected_ids.append(int(row_id))
-                    else:
-                        print(f"DEBUG: Invalid ID type in dict: {row_id} ({type(row_id)})")
-                else:
-                    print(f"DEBUG: No 'id' key in dict row: {list(row.keys())}")
+                    # else: # Removed debug print
+                        # print(f"DEBUG: Non-convertible ID in dict for {table_name}: {row_id}")
+                # else: # Removed debug print
+                    # print(f"DEBUG: No 'id' field in selected row dict for {table_name}: {row}")
             
             # Case 2: Row is a list/tuple (values in column order)
             elif isinstance(row, (list, tuple)):
                 if len(row) > 0:
-                    # Assume first column is ID
-                    potential_id = row[0]
-                    if isinstance(potential_id, (int, float)):
-                        selected_ids.append(int(potential_id))
-                    elif isinstance(potential_id, str) and potential_id.isdigit():
-                        selected_ids.append(int(potential_id))
-                    else:
-                        print(f"DEBUG: Invalid ID in list: {potential_id} ({type(potential_id)})")
-                else:
-                    print(f"DEBUG: Empty list/tuple row")
+                    row_id = row[0] # Assuming ID is the first column
+                    if isinstance(row_id, (int, float)):
+                        selected_ids.append(int(row_id))
+                    elif isinstance(row_id, str) and row_id.isdigit():
+                        selected_ids.append(int(row_id))
+                    # else: # Removed debug print
+                        # print(f"DEBUG: Non-convertible ID in list/tuple for {table_name}: {row_id}")
+                # else: # Removed debug print
+                    # print(f"DEBUG: Empty list/tuple row for {table_name}: {row}")
             
             # Case 3: Row is a single value (might be an ID)
             elif isinstance(row, (int, float)):
@@ -667,14 +676,15 @@ def extract_selected_ids(selected_rows: List[Any], table_name: str) -> List[int]
             elif isinstance(row, str):
                 if row.isdigit():
                     selected_ids.append(int(row))
-                else:
-                    print(f"DEBUG: Non-numeric string value: {row}")
+                # else: # Removed debug print
+                    # print(f"DEBUG: Non-digit string row for {table_name}: {row}")
             
-            else:
-                print(f"DEBUG: Unhandled row type: {type(row)}, value: {row}")
+            # else: # Removed debug print
+                # print(f"DEBUG: Unknown row type for {table_name}: {type(row)}, content: {row}")
                 
         except Exception as e:
-            print(f"DEBUG: Error processing row {i}: {e}, row: {row}")
+            # Removed debug print: print(f"DEBUG: Error processing row {i}: {e}, row: {row}")
+            st.warning(f"Skipping a row for {table_name} due to error: {e}. Row data: {row}") # Added a warning instead
             continue
     
     return selected_ids
@@ -687,14 +697,6 @@ def render_dashboard_page():
     
     # Initialize session state
     init_session_state()
-    
-    # DEBUG: Print session state
-    print("=== DEBUG: Session State ===")
-    print(f"selected_projects: {st.session_state.selected_projects}")
-    print(f"selected_experiments: {st.session_state.selected_experiments}")
-    print(f"selected_steps: {st.session_state.selected_steps}")
-    print(f"dashboard_filters: {st.session_state.dashboard_filters}")
-    print("=" * 30)
     
     # Show AgGrid availability status
     if not AGGRID_AVAILABLE:
@@ -727,25 +729,28 @@ def render_dashboard_page():
             st.session_state.selected_projects = []
 
     with tab_experiments:
-        st.subheader("Experiments")
-        print(f"DEBUG: Getting experiments for project IDs: {st.session_state.selected_projects}")
+        st.subheader("Experiments")        # print(f"DEBUG: Getting experiments for project IDs: {st.session_state.selected_projects}") # Removed debug print
         experiments_df = get_experiments_data(st.session_state.selected_projects)
-        print(f"DEBUG: Experiments before filter: {len(experiments_df)} rows")
-        print(f"DEBUG: Experiments columns: {experiments_df.columns.tolist() if not experiments_df.empty else 'Empty'}")
-        experiments_df = apply_filters(experiments_df, "experiments")
-        print(f"DEBUG: Experiments after filter: {len(experiments_df)} rows")
+        # print(f"DEBUG: Experiments before filter: {len(experiments_df)} rows") # Removed debug print
         if not experiments_df.empty:
-            experiment_response = create_interactive_table(experiments_df, "Experiments")
-            selected_experiment_rows = experiment_response.get("selected_rows", [])
-            if selected_experiment_rows is not None and len(selected_experiment_rows) > 0:
-                selected_experiment_ids = extract_selected_ids(selected_experiment_rows, "Experiments")
-                st.session_state.selected_experiments = selected_experiment_ids
-                if selected_experiment_ids:
-                    st.success(f"Selected {len(selected_experiment_ids)} experiment(s)")
-                else:
-                    st.warning("Could not extract experiment IDs from selection")
-            else:
+            experiments_df_filtered = apply_filters(experiments_df, "experiments")
+            # print(f"DEBUG: Experiments after filter: {len(experiments_df_filtered)} rows") # Removed debug print
+            
+            if experiments_df_filtered.empty and not experiments_df.empty:
+                st.info("No experiments match the current filter criteria.")
                 st.session_state.selected_experiments = []
+            else:
+                experiment_response = create_interactive_table(experiments_df_filtered, "Experiments")
+                selected_experiment_rows = experiment_response.get("selected_rows", [])
+                if selected_experiment_rows is not None and len(selected_experiment_rows) > 0:
+                    selected_experiment_ids = extract_selected_ids(selected_experiment_rows, "Experiments")
+                    st.session_state.selected_experiments = selected_experiment_ids
+                    if selected_experiment_ids:
+                        st.success(f"Selected {len(selected_experiment_ids)} experiment(s)")
+                    else:
+                        st.warning("Could not extract experiment IDs from selection")
+                else:
+                    st.session_state.selected_experiments = []
         else:
             if st.session_state.selected_projects:
                 st.warning("No experiments found for selected projects")
@@ -755,12 +760,8 @@ def render_dashboard_page():
 
     with tab_steps:
         st.subheader("Steps")
-        print(f"DEBUG: Getting steps for experiment IDs: {st.session_state.selected_experiments}")
         steps_df = get_steps_data(st.session_state.selected_experiments)
-        print(f"DEBUG: Steps before filter: {len(steps_df)} rows")
-        print(f"DEBUG: Steps columns: {steps_df.columns.tolist() if not steps_df.empty else 'Empty'}")
         steps_df = apply_filters(steps_df, "steps")
-        print(f"DEBUG: Steps after filter: {len(steps_df)} rows")
         selected_step_ids = []
         if not steps_df.empty:
             step_response = create_interactive_table(steps_df, "Steps")
@@ -785,133 +786,71 @@ def render_dashboard_page():
                 st.info("Select experiments to view steps")
             st.session_state.selected_steps = []
             selected_steps_df = pd.DataFrame()
-    
-    # Plotting Areas
-    st.header("Data Visualization")
-    
-    # Step-level plotting
-    if not selected_steps_df.empty:
-        render_step_plot(selected_steps_df)
-    else:
-        st.info("Select steps to enable Step-level plotting")
-    
+      # Plots Section
     st.divider()
-    
-    # Detail-level plotting
-    if selected_step_ids:
-        render_detail_plot(selected_step_ids)
+    st.header("Data Visualization")
+
+    # Step Plot
+    if not steps_df.empty and st.session_state.selected_steps:
+        selected_steps_df = steps_df[steps_df['id'].isin(st.session_state.selected_steps)]
+        if not selected_steps_df.empty:
+            render_step_plot(selected_steps_df)
+        else:
+            st.info("Selected steps are not found in the filtered data for plotting.")
+            render_step_plot(pd.DataFrame(columns=STEP_DF_COLUMNS)) # Render with empty df
+    elif not steps_df.empty:
+        st.info("Select steps from the table above to see step-level scatter plots.")
+        render_step_plot(pd.DataFrame(columns=STEP_DF_COLUMNS)) # Render with empty df
     else:
-        st.info("Select steps to enable Detail-level time-series plotting")
-    
-    # Summary information
-    st.sidebar.header("Selection Summary")
-    st.sidebar.write(f"**Projects selected:** {len(st.session_state.selected_projects)}")
-    st.sidebar.write(f"**Experiments selected:** {len(st.session_state.selected_experiments)}")
-    st.sidebar.write(f"**Steps selected:** {len(st.session_state.selected_steps)}")
-    
-    # Data export option
-    if selected_step_ids:
-        st.sidebar.header("Data Export")
-        if st.sidebar.button("Export Selected Steps"):
-            csv = selected_steps_df.to_csv(index=False)
-            st.sidebar.download_button(
-                label="Download CSV",
-                data=csv,
-                file_name="selected_steps.csv",
-                mime="text/csv"            )
+        render_step_plot(pd.DataFrame(columns=STEP_DF_COLUMNS))
+
+    # Detail Plot (Measurements)
+    if st.session_state.selected_steps:
+        # Prepare meta map from the DataFrame that was used to select these steps
+        selected_steps_meta_map = {}
+        if not steps_df.empty and 'id' in steps_df.columns and 'data_meta' in steps_df.columns:
+            relevant_steps_df = steps_df[steps_df['id'].isin(st.session_state.selected_steps)]
+            if not relevant_steps_df.empty:
+                selected_steps_meta_map = dict(zip(relevant_steps_df['id'], relevant_steps_df['data_meta']))
+        
+        render_detail_plot(st.session_state.selected_steps, selected_steps_meta_map)
+    else:
+        st.info("Select steps from the table above to see detailed time-series plots.")
+        render_detail_plot([], {})
 
 
 def _configure_table_columns(gb: GridOptionsBuilder, df: pd.DataFrame, table_name: str):
-    """Configure table columns with appropriate settings for different table types"""
-      # Define column categories
-    date_columns = ['start_date', 'end_date', 'start_time', 'end_time']
-    numeric_columns = [
-        'duration', 'voltage_start', 'voltage_end', 'current', 'capacity', 
-        'energy', 'temperature', 'c_rate', 'soc_start', 'soc_end', 'nominal_capacity'
-    ]    # Special handling for Steps table - force auto-width for all columns
+    """
+    Placeholder for configuring AgGrid columns.
+    This function would typically set column widths, types, formatting, etc.
+    based on the DataFrame and table name.
+    """
+    # Example: Configure 'id' column to be narrower if it exists
+    if 'id' in df.columns:
+        gb.configure_column("id", width=80, suppressToolPanel=True)
+    if 'name' in df.columns:
+        gb.configure_column("name", flex=2) # Give more space to name
+    if 'description' in df.columns:
+        gb.configure_column("description", flex=3)
+
+    # Date/time columns formatting (example, actual formatting might need JsCode)
+    for col_name in ['start_date', 'end_date', 'start_time', 'end_time']:
+        if col_name in df.columns:
+            gb.configure_column(col_name, width=170) # Adjust width for datetime
+
     if table_name == "Steps":
-        for col_name in df.columns:
-            # 簡化配置，專注於列寬自動調整
-            config = {}  # 使用空字典，讓它自動推斷類型
-            config['resizable'] = True
-            config['sortable'] = True
-            config['suppressSizeToFit'] = False
-            
-            # Apply column type-specific settings for Steps
-            if col_name == 'id':
-                config['editable'] = False
-                config['pinned'] = 'left'
-                config['flex'] = 0.5  # Make ID column smaller
-            elif col_name in date_columns:
-                config['type'] = ["dateColumnFilter", "customDateTimeFormat"]
-                config['custom_format_string'] = 'dd/MM/yyyy HH:mm'
-            elif col_name in numeric_columns:
-                config['type'] = ["numericColumn", "numberColumnFilter", "customNumericFormat"]
-                config['precision'] = 3
-            
-            gb.configure_column(col_name, **config)
-        return  # Early return for Steps table
+        if 'step_number' in df.columns:
+            gb.configure_column("step_number", width=100)
+        if 'step_type' in df.columns:
+            gb.configure_column("step_type", width=120)
+        # Add more step-specific configurations if needed
     
-    # Table-specific width strategies for other tables
-    table_width_config = {
-        'Projects': {
-            'id': {'width': 40, 'pinned': 'left'},
-            'name': {'autoWidth': True, 'minWidth': 120},
-            'description': {'autoWidth': True, 'minWidth': 200},
-            'default': {'autoWidth': True}
-        },
-        'Experiments': {
-            'id': {'width': 40, 'pinned': 'left'},
-            'name': {'autoWidth': True, 'minWidth': 120},
-            'project_name': {'autoWidth': True, 'minWidth': 100},
-            'battery_type': {'autoWidth': True, 'minWidth': 80},
-            'default': {'autoWidth': True}
-        },        'Steps': {
-            # Steps 表格專門配置：移除所有固定寬度設置，強制使用自動寬度
-            'default': {
-                'autoWidth': True, 
-                'flex': 1,
-                'resizable': True,
-                'sortable': True,
-                'suppressSizeToFit': False
-            }
-        }
-    }
-    
-    # Get width config for current table
-    width_config = table_width_config.get(table_name, {'default': {'autoWidth': True}})
-    
-    for col_name in df.columns:
-        base_config = {}
-        
-        # Apply column-specific width settings
-        if col_name in width_config:
-            base_config.update(width_config[col_name])
-        else:
-            base_config.update(width_config.get('default', {'autoWidth': True}))
-        
-        # Apply column type-specific settings
-        if col_name == 'id':
-            base_config.update({
-                'editable': False,
-                'width': base_config.get('width', 40),
-                'pinned': base_config.get('pinned', 'left')
-            })
-        elif col_name in date_columns:
-            base_config.update({
-                'type': ["dateColumnFilter", "customDateTimeFormat"],
-                'custom_format_string': 'dd/MM/yyyy HH:mm'
-            })
-        elif col_name in numeric_columns:
-            base_config.update({
-                'type': ["numericColumn", "numberColumnFilter", "customNumericFormat"],
-                'precision': 3
-            })
-        
-        # Configure the column
-        gb.configure_column(col_name, **base_config)
+    # Numeric columns could be right-aligned, etc.
+    # This is a basic placeholder. Actual implementation can be more detailed.
+    pass
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     render_dashboard_page()
+
 

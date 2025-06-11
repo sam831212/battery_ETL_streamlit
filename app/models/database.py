@@ -137,7 +137,7 @@ class Step(BaseModel, table=True):
     soc_start: Optional[float] = Field(default=None)  # %
     soc_end: Optional[float] = Field(default=None)  # %
     data_meta: dict = Field(default={}, sa_column=Column(JSON))
-    # pre_test_rest_time: Optional[float] = Field(default=None, nullable=True)  # Duration of previous step, set automatically
+    pre_test_rest_time: Optional[float] = Field(default=None, nullable=True)  # Duration of previous step, set automatically
     
     # Relationships
     experiment: "Experiment" = Relationship(back_populates="steps", sa_relationship_kwargs={"lazy": "selectin"})

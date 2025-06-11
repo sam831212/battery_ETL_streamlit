@@ -111,11 +111,14 @@ def render_entity_management(
             else:
                 # Display as a table
                 for entity in entities:
-                    # 顯示 cell/machine name，若無則 fallback 為 #id
+                    # 顯示 cell/machine/project name，若無則 fallback 為 #id
                     if entity_type == "cell":
                         display_title = getattr(entity, 'name', None) or f"#{entity.id}"
                         expander_title = f"{entity_type.capitalize()}: {display_title}"
                     elif entity_type == "machine":
+                        display_title = getattr(entity, 'name', None) or f"#{entity.id}"
+                        expander_title = f"{entity_type.capitalize()}: {display_title}"
+                    elif entity_type == "project":
                         display_title = getattr(entity, 'name', None) or f"#{entity.id}"
                         expander_title = f"{entity_type.capitalize()}: {display_title}"
                     else:
@@ -136,6 +139,53 @@ def render_entity_management(
 
                             st.write(f"**{display_name}:** {value}")
 
+                        # 編輯功能
+                        edit_key = f"edit_{entity_type}_{entity.id}"
+                        if st.button(f"Edit {entity_type.capitalize()}", key=edit_key):
+                            st.session_state[f"editing_{entity_type}_{entity.id}"] = True
+                        if st.session_state.get(f"editing_{entity_type}_{entity.id}", False):
+                            with st.form(f"edit_{entity_type}_form_{entity.id}"):
+                                edit_values = {}
+                                for field in form_fields:
+                                    field_name = field["name"]
+                                    field_type = field.get("type", "text")
+                                    field_label = field.get("label", field_name.replace("_", " ").capitalize())
+                                    field_options = field.get("options", None)
+                                    # 取得現有值
+                                    current_value = getattr(entity, field_name, None)
+                                    if field_type == "text":
+                                        edit_values[field_name] = st.text_input(field_label, value=current_value or "")
+                                    elif field_type == "number":
+                                        edit_values[field_name] = st.number_input(field_label, value=current_value or 0.0)
+                                    elif field_type == "select":
+                                        options = field_options or []
+                                        index = options.index(current_value) if current_value in options else 0
+                                        edit_values[field_name] = st.selectbox(field_label, options=options, index=index)
+                                    elif field_type == "date":
+                                        edit_values[field_name] = st.date_input(field_label, value=current_value)
+                                    elif field_type == "textarea":
+                                        edit_values[field_name] = st.text_area(field_label, value=current_value or "")
+                                save_button = st.form_submit_button("Save")
+                            if save_button:
+                                try:
+                                    for field in form_fields:
+                                        field_name = field["name"]
+                                        value = edit_values[field_name]
+                                        if isinstance(value, str) and value.strip() == "":
+                                            value = None
+                                        setattr(entity, field_name, value)
+                                    # Cell 特殊欄位處理
+                                    if entity_type == "cell":
+                                        if "nominal_capacity" in edit_values:
+                                            entity.capacity = edit_values["nominal_capacity"]
+                                        if "form_factor" in edit_values:
+                                            entity.form = CellFormFactor(edit_values["form_factor"])
+                                    session.commit()
+                                    st.success(f"{entity_type.capitalize()} updated successfully!")
+                                    st.session_state[f"editing_{entity_type}_{entity.id}"] = False
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error updating {entity_type}: {str(e)}")
                         # Add delete button
                         if st.button(f"Delete {entity_type.capitalize()}", key=f"delete_{entity_type}_{entity.id}"):
                             # Check if entity can be deleted
@@ -226,20 +276,14 @@ def render_machine_management():
     """Render machine management UI"""
     form_fields = [
         {"name": "name", "type": "text", "label": "Machine Name"},
-        {"name": "manufacturer", "type": "text", "label": "Manufacturer"},
-        {"name": "model", "type": "text", "label": "Model"},
-        {"name": "serial_number", "type": "text", "label": "Serial Number"},
-        {"name": "firmware_version", "type": "text", "label": "Firmware Version", "default": ""},
-        {"name": "calibration_date", "type": "date", "label": "Last Calibration Date"}
+        {"name": "description", "type": "textarea", "label": "Description", "default": ""},
+        {"name": "model_number", "type": "text", "label": "Model Number", "default": ""}
     ]
 
     display_fields = [
         {"attr": "name", "display": "Name"},
-        {"attr": "manufacturer", "display": "Manufacturer"},
-        {"attr": "model", "display": "Model"},
-        {"attr": "serial_number", "display": "Serial Number"},
-        {"attr": "firmware_version", "display": "Firmware Version"},
-        {"attr": "calibration_date", "display": "Last Calibration Date"},
+        {"attr": "description", "display": "Description"},
+        {"attr": "model_number", "display": "Model Number"}
     ]
 
     render_entity_management(
