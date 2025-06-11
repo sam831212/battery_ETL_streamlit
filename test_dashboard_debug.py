@@ -29,7 +29,8 @@ class MockStreamlit:
 sys.modules['streamlit'] = MockStreamlit()
 
 # Import our functions
-from app.ui.dashboard_page import extract_selected_ids, create_interactive_table
+from app.ui.components.dashboard_page.dashboard_components import create_interactive_table
+from app.utils.dashboard_utils import extract_selected_ids
 
 def test_extract_selected_ids():
     """Test the extract_selected_ids function with various input formats"""

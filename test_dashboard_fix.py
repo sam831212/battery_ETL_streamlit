@@ -10,7 +10,8 @@ import os
 # 添加項目根目錄到 Python 路徑
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from app.ui.dashboard_page import create_interactive_table, extract_selected_ids
+from app.ui.components.dashboard_page.dashboard_components import create_interactive_table
+from app.utils.dashboard_utils import extract_selected_ids
 
 def test_extract_selected_ids():
     """測試 extract_selected_ids 函數"""
