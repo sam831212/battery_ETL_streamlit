@@ -125,7 +125,7 @@ def display_validation_results(
         st.error("Please provide valid files with the required headers before processing.")
 
 
-def display_validation_summary(
+
     validation_status: bool,
     step_validation_report: Dict[str, Any],
     detail_validation_report: Dict[str, Any]

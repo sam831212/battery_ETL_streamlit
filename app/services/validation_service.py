@@ -136,12 +136,4 @@ def generate_validation_results(
     else:
         detail_report["time_range_valid"] = False
 
-    # Overall validation status
-    validation_status = (
-        step_report.get("has_required_columns", False) and
-        detail_report.get("has_required_columns", False) and
-        step_report.get("row_count", 0) > 0 and
-        detail_report.get("row_count", 0) > 0
-    )
-
-    return validation_status, step_report, detail_report
+    return step_report, detail_report

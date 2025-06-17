@@ -9,9 +9,8 @@ import streamlit as st
 
 from app.etl import convert_numpy_types, load_and_preprocess_files
 from app.models import Cell
-from app.services.database_service import check_file_already_processed, save_experiment_to_db,save_measurements_to_db, save_processed_files_to_db, update_experiment_end_date
+from app.services.database_service import save_experiment_to_db,save_measurements_to_db
 from app.services.validation_service import generate_validation_results
-from app.ui.components.meta_data_page.data_display_ui import display_validation_summary
 from app.services.database_service import save_steps_to_db
 from app.utils.database import get_session as get_db_session
 from app.utils.temp_files import calculate_file_hash, calculate_file_hash_from_memory, create_session_temp_file
@@ -151,10 +150,6 @@ file_data：包含來自 get_file_data_and_metadata 的檔案資料和元資料�
         is_uploaded_file = file_data['is_uploaded_file']
         is_example_file = not is_uploaded_file
 
-        # Check if files have already been processed
-        if check_file_already_processed(step_file_hash) or check_file_already_processed(detail_file_hash):
-            st.warning("One or both files have already been processed. Skipping...")
-            return False
 
         # Get selected step numbers from user selection
         selected_step_numbers = [step["step_number"] for step in st.session_state["selected_steps"]]
@@ -257,25 +252,15 @@ file_data：包含來自 get_file_data_and_metadata 的檔案資料和元資料�
             print(f"Detail DataFrame 第一行數據: {first_row}")
             print(f"First row of detail_df: {first_row}")
 
-        # Generate validation reports
-        validation_status, step_validation_report, detail_validation_report = generate_validation_results(
-            step_df, detail_df
-        )
+
 
         # Combine validation results
         combined_validation_report = {
-            'valid': validation_status,
             'step_validation': step_validation_report,
             'detail_validation': detail_validation_report,
             'timestamp': datetime.utcnow().isoformat()
         }
 
-        # Display validation summary
-        display_validation_summary(
-            validation_status,
-            step_validation_report,
-            detail_validation_report
-        )
 
         # Get battery type from cell
         with get_db_session() as cell_session:
@@ -425,27 +410,8 @@ file_data：包含來自 get_file_data_and_metadata 的檔案資料和元資料�
                 print("✓ 優化的測量數據保存完成")
             except Exception as e:
                 st.error(f"Error saving measurements: {str(e)}")
-                return False            # Save processed file records
-            if experiment.id is not None:
-                save_processed_files_to_db(
-                    experiment_id=experiment.id,
-                    step_filename=step_filename,
-                    detail_filename=detail_filename,
-                    step_file_hash=step_file_hash,
-                    detail_file_hash=detail_file_hash,
-                    step_df_len=len(step_df),
-                    detail_df_len=len(detail_df),
-                    step_metadata=metadata.get('step_file', {}),
-                    detail_metadata=metadata.get('detail_file', {})
-                )
+                return False            
 
-                # Update experiment end date based on the last measurement
-                if 'DateTime' in detail_df.columns and not detail_df.empty:
-                    try:
-                        last_datetime = pd.to_datetime(detail_df['DateTime'].iloc[-1])
-                        update_experiment_end_date(experiment.id, last_datetime)
-                    except (ValueError, TypeError) as e:
-                        st.warning(f"Could not parse end date: {e}")
 
         if experiment.id is not None:
             st.success(f"Files processed successfully! Experiment ID: {experiment.id}")

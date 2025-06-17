@@ -2,10 +2,10 @@
 DataFrame column constants for dashboard and DB fetch service
 """
 
-PROJECT_DF_COLUMNS = ['id', 'name', 'description', 'start_date', 'end_date', 'experiment_count']
+PROJECT_DF_COLUMNS = ['id', 'name', 'description', 'start_date', 'experiment_count']
 EXPERIMENT_DF_COLUMNS = ['id', 'name', 'project_id', 'project_name', 'battery_type',
                          'nominal_capacity', 'temperature', 'operator', 'start_date',
-                         'end_date', 'step_count']
+                         'step_count']
 STEP_DF_COLUMNS = ['id', 'data_meta', 'experiment_id', 'experiment_name', 'step_number',
                    'step_type', 'start_time', 'end_time', 'duration',
                    'voltage_start', 'voltage_end', 'current', 'capacity',

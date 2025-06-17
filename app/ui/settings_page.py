@@ -34,28 +34,6 @@ def render_settings_page():
             except Exception as e:
                 st.error(f"An error occurred while testing database connection. Details: {str(e)}")
     
-    # Add a button to initialize database
-    if st.button("Initialize Database", help="Create database tables if they don't already exist. Safe to run on an existing database."):
-        with st.spinner("Initializing database..."):
-            try:
-                from scripts.init_db import init_database # Local import
-                init_database()
-                st.success("Database initialized successfully!")
-            except Exception as e:
-                st.error(f"An error occurred during database initialization. Details: {str(e)}")
-    
-    # Add a button to reset database
-    if st.button("Reset Database", type="secondary", help="Warning: Deletes all existing data and recreates the database schema."):
-        if st.checkbox("I understand this will delete all data", help="This is a destructive operation. Ensure you have backups if needed."):
-            with st.spinner("Resetting database..."):
-                try:
-                    from scripts.init_db import reset_database # Local import
-                    reset_database()
-                    st.success("Database reset successfully!")
-                except Exception as e:
-                    st.error(f"An error occurred while resetting the database. Details: {str(e)}")
-
-
 def render_file_format_settings():
     """Render file format settings"""
     st.header("File Format Settings")
@@ -177,8 +155,7 @@ def render_cell_management():
                     "Name": cell.name or "N/A",
                     "Chemistry": cell.chemistry.value,
                     "Capacity (Ah)": cell.capacity,
-                    "Form Factor": cell.form.value,
-                    "Created": cell.created_at.strftime("%Y-%m-%d")
+                    "Form Factor": cell.form.value
                 })
             
             st.dataframe(cell_data, use_container_width=True)
@@ -304,8 +281,7 @@ def render_machine_management():
                     "ID": machine.id,
                     "Name": machine.name,
                     "Model": machine.model_number or "N/A",
-                    "Description": machine.description or "N/A",
-                    "Created": machine.created_at.strftime("%Y-%m-%d")
+                    "Description": machine.description or "N/A"
                 })
             
             st.dataframe(machine_data, use_container_width=True)

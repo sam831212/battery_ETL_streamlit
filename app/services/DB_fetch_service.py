@@ -26,7 +26,6 @@ def get_projects_data() -> pd.DataFrame:
                     'name': project.name,
                     'description': project.description or '',
                     'start_date': project.start_date,
-                    'end_date': project.end_date,
                     'experiment_count': experiment_count
                 })
 
@@ -66,7 +65,7 @@ def get_experiments_data(selected_project_ids: Optional[List[int]] = None, selec
                     'temperature': experiment.temperature,
                     'operator': getattr(experiment, 'operator', None),  # Safe access to operator field
                     'start_date': experiment.start_date,
-                    'end_date': experiment.end_date,
+                    
                     'step_count': step_count
                 })
 

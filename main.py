@@ -110,8 +110,7 @@ menu_items = {
     "Step Selection": "✅",
     "Meta Data": "📝",
     "Dashboard": "📈",
-    "Settings": "⚙️",
-    "Delete Experiment": "🗑️"
+    "Settings": "⚙️"
 }
 
 # Create buttons styled as menu items
@@ -197,5 +196,3 @@ elif st.session_state['current_page'] == "Settings":
     from app.ui.settings_page import render_settings_page
     render_settings_page()
     
-elif st.session_state['current_page'] == "Delete Experiment":
-    from app.ui.delete_experiment_page import *

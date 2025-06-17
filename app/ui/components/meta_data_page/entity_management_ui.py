@@ -301,15 +301,14 @@ def render_project_management():
     form_fields = [
         {"name": "name", "type": "text", "label": "Project Name"},
         {"name": "description", "type": "textarea", "label": "Description", "default": ""},
-        {"name": "start_date", "type": "date", "label": "Start Date"},
-        {"name": "end_date", "type": "date", "label": "End Date"}
+        {"name": "start_date", "type": "date", "label": "Start Date"}
     ]
 
     display_fields = [
         {"attr": "name", "display": "Name"},
         {"attr": "description", "display": "Description"},
-        {"attr": "start_date", "display": "Start Date"},
-        {"attr": "end_date", "display": "End Date"}
+        {"attr": "start_date", "display": "Start Date"}
+        
     ]
 
     render_entity_management(

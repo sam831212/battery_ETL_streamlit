@@ -15,8 +15,6 @@ if TYPE_CHECKING:
 
 class BaseModel(SQLModel):
     """Base model with common fields and methods"""
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)  # Changed to datetime.now(UTC)
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)  # Changed to datetime.now(UTC)
 
 
 class CellChemistry(str, Enum):
@@ -78,7 +76,6 @@ class Project(BaseModel, table=True):
     name: str = Field(nullable=False, index=True)
     description: Optional[str] = Field(default=None)
     start_date: Optional[datetime] = Field(default=None)
-    end_date: Optional[datetime] = Field(default=None)
     # Relationships
     experiments: List["Experiment"] = Relationship(back_populates="project", sa_relationship_kwargs={"lazy": "selectin"})
 
@@ -95,7 +92,6 @@ class Experiment(BaseModel, table=True):
     temperature: Optional[float] = Field(default=None)  # Average test temperature in Celsius
     operator: Optional[str] = Field(default=None)
     start_date: datetime = Field(nullable=False)
-    end_date: Optional[datetime] = Field(default=None)
     
     # 新增 Project 外鍵
     project_id: Optional[int] = Field(default=None, foreign_key="project.id")
@@ -104,9 +100,6 @@ class Experiment(BaseModel, table=True):
     cell_id: Optional[int] = Field(default=None, foreign_key="cell.id")
     machine_id: Optional[int] = Field(default=None, foreign_key="machine.id")
     
-    # Validation results
-    validation_status: Optional[bool] = Field(default=None)  # True if validation passed, False if issues found
-    validation_report: Optional[dict] = Field(default=None, sa_column=Column(JSON))  # Validation report details
     
     # Relationships
     steps: List["Step"] = Relationship(back_populates="experiment", sa_relationship_kwargs={"lazy": "selectin"})
@@ -122,6 +115,7 @@ class Step(BaseModel, table=True):
     
     id: Optional[int] = Field(default=None, primary_key=True)
     experiment_id: int = Field(foreign_key="experiment.id", nullable=False)
+    data_meta: dict = Field(default={}, sa_column=Column(JSON))
     step_number: int = Field(nullable=False)
     step_type: str = Field(nullable=False)  # charge, discharge, rest
     start_time: datetime = Field(nullable=False)
@@ -137,7 +131,6 @@ class Step(BaseModel, table=True):
     c_rate: float  # C
     soc_start: Optional[float] = Field(default=None)  # %
     soc_end: Optional[float] = Field(default=None)  # %
-    data_meta: dict = Field(default={}, sa_column=Column(JSON))
     pre_test_rest_time: Optional[float] = Field(default=None, nullable=True)  # Duration of previous step, set automatically
     
     # Relationships
@@ -162,33 +155,6 @@ class Measurement(BaseModel, table=True):
     step: "Step" = Relationship(back_populates="measurements", sa_relationship_kwargs={"lazy": "selectin"})
 
 
-class ProcessedFile(BaseModel, table=True):
-    """Model to track processed files to prevent duplicates"""
-    __table_args__ = {'extend_existing': True}
-    
-    id: Optional[int] = Field(default=None, primary_key=True)
-    experiment_id: int = Field(foreign_key="experiment.id", nullable=False)
-    filename: str = Field(nullable=False)
-    file_type: str = Field(nullable=False)  # step, detail
-    file_hash: str = Field(nullable=False, unique=True)
-    processed_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)  # Changed to datetime.now(UTC)
-    row_count: int = Field(nullable=False)
-    data_meta: dict = Field(default={}, sa_column=Column(JSON))
-    
-    # Relationship
-    experiment: "Experiment" = Relationship(sa_relationship_kwargs={"lazy": "selectin"})
-
-
-class SavedView(BaseModel, table=True):
-    """Model representing a saved dashboard configuration"""
-    __table_args__ = {'extend_existing': True}
-    
-    id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(nullable=False, index=True)
-    description: Optional[str] = Field(default=None)
-    view_config: dict = Field(default={}, sa_column=Column(JSON))  # Dashboard configuration stored as JSON
-
-
 # Update forward references
 Project.model_rebuild()
 Experiment.model_rebuild()
@@ -196,5 +162,3 @@ Step.model_rebuild()
 Measurement.model_rebuild()
 Cell.model_rebuild()
 Machine.model_rebuild()
-ProcessedFile.model_rebuild()
-SavedView.model_rebuild()

@@ -11,7 +11,7 @@ import os
 import pandas as pd
 from sqlmodel import select, func, Session, delete
 from app.etl import convert_numpy_types
-from app.models import Experiment, Measurement, ProcessedFile, Step
+from app.models import Experiment, Measurement, Step
 from app.utils.data_helpers import convert_datetime_to_python
 from app.utils.database import get_session as get_db_session
 from sqlalchemy import create_engine
@@ -168,28 +168,6 @@ def calculate_c_rate(current: float, nominal_capacity: float) -> float:
 
 # 主要功能函數
 @retry_on_failure(max_attempts=config.max_retry_attempts)
-def check_file_already_processed(file_hash: str) -> bool:
-    """
-    檢查文件是否已經處理過
-    
-    Args:
-        file_hash: 文件的雜湊值
-        
-    Returns:
-        True 如果已處理，False 否則
-    """
-    if not file_hash:
-        return False
-
-    try:
-        with safe_session() as session:
-            existing_file = session.exec(
-                select(ProcessedFile).where(ProcessedFile.file_hash == file_hash)
-            ).first()
-            return existing_file is not None
-    except Exception as e:
-        logger.error(f"檢查文件處理狀態時發生錯誤: {str(e)}")
-        return False
 
 def save_experiment_to_db(
     experiment_metadata: Dict[str, Any],
@@ -222,9 +200,6 @@ def save_experiment_to_db(
         temperature=temperature,
         operator=experiment_metadata.get('operator', ''),
         start_date=experiment_metadata['start_date'],
-        end_date=None,
-        validation_status=validation_report['valid'],
-        validation_report=validation_report,
         cell_id=cell_id,
         machine_id=machine_id,
         project_id=project_id
@@ -551,117 +526,3 @@ def save_steps_to_db(
             session_context.__exit__(None, None, None)
             
     return steps
-
-def save_processed_files_to_db(
-    experiment_id: int,
-    step_filename: str,
-    detail_filename: str,
-    step_file_hash: str,
-    detail_file_hash: str,
-    step_df_len: int,
-    detail_df_len: int,
-    step_metadata: Dict[str, Any],
-    detail_metadata: Dict[str, Any]
-) -> None:
-    """
-    保存已處理文件記錄到資料庫
-    
-    Args:
-        experiment_id: 實驗ID
-        step_filename: 步驟文件名
-        detail_filename: 詳細文件名
-        step_file_hash: 步驟文件雜湊
-        detail_file_hash: 詳細文件雜湊
-        step_df_len: 步驟數據框行數
-        detail_df_len: 詳細數據框行數
-        step_metadata: 步驟文件元數據
-        detail_metadata: 詳細文件元數據
-    """
-    try:
-        with safe_session() as session:
-            session.add(ProcessedFile(
-                experiment_id=experiment_id,
-                filename=step_filename,
-                file_type=FILE_TYPE_STEP,  # 使用常量
-                file_hash=step_file_hash,
-                row_count=step_df_len,
-                data_meta=step_metadata
-            ))
-
-            session.add(ProcessedFile(
-                experiment_id=experiment_id,
-                filename=detail_filename,
-                file_type=FILE_TYPE_DETAIL,  # 使用常量
-                file_hash=detail_file_hash,
-                row_count=detail_df_len,
-                data_meta=detail_metadata
-            ))
-
-            session.commit()
-    except Exception as e:
-        raise DatabaseError(f"保存已處理文件記錄失敗: {str(e)}")
-
-def update_experiment_end_date(experiment_id: int, end_time: datetime) -> None:
-    """
-    更新實驗的結束日期
-    
-    Args:
-        experiment_id: 實驗ID
-        end_time: 結束時間
-    """
-    try:
-        with safe_session() as session:
-            experiment = session.get(Experiment, experiment_id)
-            if experiment:
-                experiment.end_date = end_time
-                session.add(experiment)
-                session.commit()
-            else:
-                raise ValidationError(f"找不到 ID 為 {experiment_id} 的實驗")
-    except Exception as e:
-        raise DatabaseError(f"更新實驗結束日期失敗: {str(e)}")
-
-def delete_experiment_and_related(experiment_id: int) -> None:
-    """
-    [測試用 - 空操作] 刪除指定實驗及其相關的 step 和 measurement。
-    Args:
-        experiment_id: 要刪除的實驗 ID
-    Raises:
-        DatabaseError: 刪除過程中發生錯誤
-    """
-    logger.info(f"🔍 DEBUG (NO-OP): 請求刪除實驗 ID: {experiment_id}")
-
-    # 模擬檢查實驗是否存在
-    # try:
-    #     with safe_session() as session:
-    #         experiment = session.get(Experiment, experiment_id)
-    #         if not experiment:
-    #             logger.warning(f"🔍 DEBUG (NO-OP): 實驗 ID {experiment_id} 若實際執行則找不到")
-    #             # raise DatabaseError(f"實驗 ID {experiment_id} 不存在") # 在空操作中不拋出
-    #         else:
-    #             logger.info(f"🔍 DEBUG (NO-OP): 若實際執行，將刪除實驗: {experiment.name}")
-    # except Exception as e:
-    #     logger.error(f"🔍 DEBUG (NO-OP): 模擬檢查實驗時發生錯誤: {e}")
-
-    logger.info(f"🔍 DEBUG (NO-OP): 模擬查找相關的 steps for experiment_id: {experiment_id}")
-    # step_ids = [] # 模擬
-    logger.info(f"🔍 DEBUG (NO-OP): 模擬找到 0 個 steps")
-
-    # measurement_count = 0 # 模擬
-    logger.info(f"🔍 DEBUG (NO-OP): 模擬找到 0 個 measurements 需要刪除")
-
-    logger.info("🔍 DEBUG (NO-OP): 模擬分批刪除 measurements (實際未執行)")
-    # deleted_count = 0
-    # logger.info(f"🔍 DEBUG (NO-OP): 模擬已刪除 {deleted_count}/{measurement_count} 個 measurements")
-
-    logger.info("🔍 DEBUG (NO-OP): 模擬刪除 steps (實際未執行)")
-    # logger.info(f"🔍 DEBUG (NO-OP): 模擬準備刪除 0 個 steps")
-
-    logger.info("🔍 DEBUG (NO-OP): 模擬刪除 ProcessedFile 記錄 (實際未執行)")
-    # logger.info(f"🔍 DEBUG (NO-OP): 模擬準備刪除 0 個 ProcessedFile 記錄")
-            
-    logger.info("🔍 DEBUG (NO-OP): 模擬刪除 experiment (實際未執行)")
-    # logger.info(f"🔍 DEBUG (NO-OP): 模擬準備刪除 experiment")
-            
-    logger.info("🔍 DEBUG (NO-OP): 模擬提交事務 (實際未執行)")
-    logger.info(f"🔍 DEBUG (NO-OP): 實驗 ID {experiment_id} 的刪除操作已記錄 (未實際執行資料庫操作)")

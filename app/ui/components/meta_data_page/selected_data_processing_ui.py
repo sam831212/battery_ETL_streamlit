@@ -6,7 +6,7 @@ from datetime import datetime
 import traceback
 
 from app.etl import convert_numpy_types
-from app.models import Cell, Experiment, Machine, Measurement, ProcessedFile, Step
+from app.models import Cell, Experiment, Machine, Measurement, Step
 from app.utils.data_helpers import convert_datetime_to_python
 from app.utils.database import get_session as get_db_session
 from app.services.database_service import save_measurements_to_db
@@ -276,35 +276,8 @@ def handle_selected_steps_save():
                 step_file_hash = f"selected_steps_{timestamp_str}"
                 detail_file_hash = f"selected_details_{timestamp_str}"
 
-                # Save processed file records with unique hashes
-                # These will be part of a new transaction in the outer session
-                session.add(ProcessedFile(
-                    experiment_id=experiment.id,
-                    filename="Selected steps from session",
-                    file_type="step",
-                    file_hash=step_file_hash,
-                    row_count=len(steps),
-                    data_meta={"source": "selected_steps", "timestamp": timestamp_str}
-                ))
 
-                if "selected_steps_details_df" in st.session_state and st.session_state["selected_steps_details_df"] is not None:
-                    detail_df_len = len(st.session_state["selected_steps_details_df"])
-                    session.add(ProcessedFile(
-                        experiment_id=experiment.id,
-                        filename="Selected details from session",
-                        file_type="detail",
-                        file_hash=detail_file_hash,
-                        row_count=detail_df_len,
-                        data_meta={"source": "selected_details", "timestamp": timestamp_str}
-                    ))                # Update experiment end time based on the last measurement
-                if len(steps) > 0:
-                    last_step_query = select(Step).where(
-                        Step.experiment_id == experiment.id
-                    ).order_by(desc(Step.end_time))
-                    last_step = session.exec(last_step_query).first()
-
-                    if last_step and last_step.end_time:
-                        experiment.end_date = last_step.end_time                # Update experiment temperature based on all measurements
+                # Update experiment temperature based on all measurements
                 # For now, skip the temperature average calculation to avoid join complexity
                 # It will be calculated based on step data instead
                 if len(steps) > 0:
@@ -316,7 +289,7 @@ def handle_selected_steps_save():
                             step_temps.append(step.temperature_end)
                     if step_temps:
                         experiment.temperature = sum(step_temps) / len(step_temps)
-                # Commit the changes (ProcessedFiles, Experiment end_date/temp_avg updates)
+                # Commit the changes (temp_avg updates)
                 session.commit()
 
                 st.success(f"""

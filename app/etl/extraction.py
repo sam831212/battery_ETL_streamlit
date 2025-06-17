@@ -220,23 +220,6 @@ def map_step_types(df: pd.DataFrame,
     return df
 
 
-def calculate_file_hash(file_path: str) -> str:
-    """
-    Calculate MD5 hash of a file for tracking processed files.
-
-    Args:
-        file_path: Path to the file
-
-    Returns:
-        MD5 hash as a hexadecimal string
-    """
-    hash_md5 = hashlib.md5()
-    with open(file_path, "rb") as f:
-        # Read file in chunks to handle large files
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return hash_md5.hexdigest()
-
 
 def parse_step_csv(file_path: str) -> pd.DataFrame:
     """
@@ -424,9 +407,6 @@ def load_and_preprocess_files(
     if not os.path.exists(detail_file_path):
         raise FileNotFoundError(f"Detail file not found: {detail_file_path}")
 
-    # Calculate file hashes for tracking
-    step_file_hash = calculate_file_hash(step_file_path)
-    detail_file_hash = calculate_file_hash(detail_file_path)
 
     # Parse files
     step_df = parse_step_csv(step_file_path)

@@ -10,7 +10,6 @@ from app.models.database import (
     Experiment,
     Cell,
     Machine,
-    SavedView
 )
 
 

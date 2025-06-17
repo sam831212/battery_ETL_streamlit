@@ -35,7 +35,6 @@ Battery ETL Dashboard 現在支持直接在 UI 中編輯資料庫中的數值。
 - `name` - 專案名稱
 - `description` - 專案描述
 - `start_date` - 開始日期
-- `end_date` - 結束日期
 
 ### Cells (電池)
 - `name` - 電池名稱
@@ -56,7 +55,7 @@ Battery ETL Dashboard 現在支持直接在 UI 中編輯資料庫中的數值。
 - `temperature` - 溫度 (°C)
 - `operator` - 操作員
 - `start_date` - 開始日期
-- `end_date` - 結束日期
+
 
 ### Steps (步驟)
 - `step_type` - 步驟類型 (charge/discharge/rest)

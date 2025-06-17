@@ -26,7 +26,6 @@ def update_project(project_id: int, updates: Dict[str, Any]) -> bool:
                 if hasattr(project, field):
                     setattr(project, field, value)
             
-            project.updated_at = datetime.now(UTC)
             session.add(project)
             session.commit()
             session.refresh(project)
@@ -50,7 +49,6 @@ def update_cell(cell_id: int, updates: Dict[str, Any]) -> bool:
                 if hasattr(cell, field):
                     setattr(cell, field, value)
             
-            cell.updated_at = datetime.now(UTC)
             session.add(cell)
             session.commit()
             session.refresh(cell)
@@ -74,7 +72,6 @@ def update_experiment(experiment_id: int, updates: Dict[str, Any]) -> bool:
                 if hasattr(experiment, field):
                     setattr(experiment, field, value)
             
-            experiment.updated_at = datetime.now(UTC)
             session.add(experiment)
             session.commit()
             session.refresh(experiment)
@@ -98,7 +95,6 @@ def update_step(step_id: int, updates: Dict[str, Any]) -> bool:
                 if hasattr(step, field):
                     setattr(step, field, value)
             
-            step.updated_at = datetime.now(UTC)
             session.add(step)
             session.commit()
             session.refresh(step)
@@ -122,7 +118,6 @@ def update_measurement(measurement_id: int, updates: Dict[str, Any]) -> bool:
                 if hasattr(measurement, field):
                     setattr(measurement, field, value)
             
-            measurement.updated_at = datetime.now(UTC)
             session.add(measurement)
             session.commit()
             session.refresh(measurement)
@@ -135,11 +130,11 @@ def update_measurement(measurement_id: int, updates: Dict[str, Any]) -> bool:
 def get_editable_fields(table_name: str) -> List[str]:
     """Get list of editable fields for each table"""
     editable_fields = {
-        "projects": ["name", "description", "start_date", "end_date"],
+        "projects": ["name", "description", "start_date"],
         "cells": ["name", "manufacturer", "chemistry", "nominal_capacity", "nominal_voltage", 
                  "form_factor", "serial_number", "date_received", "notes"],
         "experiments": ["name", "description", "battery_type", "nominal_capacity", 
-                       "temperature", "operator", "start_date", "end_date"],
+                       "temperature", "operator", "start_date"],
         "steps": ["step_type", "voltage_start", "voltage_end", "current", "capacity", 
                  "energy", "temperature_start", "temperature_end", "c_rate", 
                  "soc_start", "soc_end", "pre_test_rest_time"],
@@ -157,7 +152,7 @@ def get_field_type(field_name: str) -> str:
         "voltage", "execution_time"
     ]
     
-    datetime_fields = ["start_date", "end_date", "date_received"]
+    datetime_fields = ["start_date", "date_received"]
     
     if field_name in numeric_fields:
         return "numeric"
