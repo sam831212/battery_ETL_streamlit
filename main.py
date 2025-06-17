@@ -110,7 +110,8 @@ menu_items = {
     "Step Selection": "✅",
     "Meta Data": "📝",
     "Dashboard": "📈",
-    "Settings": "⚙️"
+    "Settings": "⚙️",
+    "Delete Experiment": "🗑️"
 }
 
 # Create buttons styled as menu items
@@ -195,17 +196,6 @@ elif st.session_state['current_page'] == "Dashboard":
 elif st.session_state['current_page'] == "Settings":
     from app.ui.settings_page import render_settings_page
     render_settings_page()
-
-# def _open_browser():
-#     import time
-#     # webbrowser is imported at the top of the file
-#     time.sleep(1)  # 等待 Streamlit server 啟動
-#     webbrowser.open("http://localhost:5000")
-
-# if __name__ == "__main__":
-#     # This block now executes when running 'streamlit run main.py'.
-#     # Streamlit is configured with STREAMLIT_BROWSER_OPEN_BROWSER="true",
-#     # which should ideally handle opening the browser.
-#     # This explicit call acts as a direct method if Streamlit's default isn't working.
-#     thread = threading.Thread(target=_open_browser, daemon=True)
-#     thread.start()
+    
+elif st.session_state['current_page'] == "Delete Experiment":
+    from app.ui.delete_experiment_page import *
