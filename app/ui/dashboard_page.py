@@ -18,6 +18,7 @@ from app.ui.components.dashboard_page.dashboard_components import create_interac
 from app.ui.components.dashboard_page.dashboard_components import render_step_plot
 from app.ui.components.dashboard_page.dashboard_components import render_detail_plot
 from app.ui.components.dashboard_page.dashboard_components import render_filtering_controls
+from app.ui.components.dashboard_page.edit_components import render_edit_button_and_modal
 from app.utils.dashboard_utils import apply_filters
 from app.utils.dashboard_utils import extract_selected_ids
 from app.utils.dashboard_constants import PROJECT_DF_COLUMNS, EXPERIMENT_DF_COLUMNS, STEP_DF_COLUMNS, MEASUREMENT_DF_COLUMNS, CELL_DF_COLUMNS  # 新增 CELL_DF_COLUMNS
@@ -55,7 +56,6 @@ def render_dashboard_page():
     
     # Render filtering controls
     render_filtering_controls()
-    
     # Create tabs for the hierarchical tables
     st.header("Data Selection")
     tab_projects, tab_cells, tab_experiments, tab_steps = st.tabs(["Projects", "Cells", "Experiments", "Steps"])
@@ -71,6 +71,8 @@ def render_dashboard_page():
                 st.session_state.selected_projects = selected_project_ids
                 if selected_project_ids:
                     st.success(f"Selected {len(selected_project_ids)} project(s)")
+                    # Add edit functionality
+                    render_edit_button_and_modal("Projects", selected_project_rows)                
                 else:
                     st.warning("Could not extract project IDs from selection")
             else:
@@ -92,6 +94,8 @@ def render_dashboard_page():
                 st.session_state.selected_cells = selected_cell_ids
                 if selected_cell_ids:
                     st.success(f"Selected {len(selected_cell_ids)} cell(s)")
+                    # Add edit functionality
+                    render_edit_button_and_modal("Cells", selected_cell_rows)
                 else:
                     st.warning("Could not extract cell IDs from selection")            
             else:
@@ -119,6 +123,8 @@ def render_dashboard_page():
                     st.session_state.selected_experiments = selected_experiment_ids
                     if selected_experiment_ids:
                         st.success(f"Selected {len(selected_experiment_ids)} experiment(s)")
+                        # Add edit functionality
+                        render_edit_button_and_modal("Experiments", selected_experiment_rows)
                     else:
                         st.warning("Could not extract experiment IDs from selection")
                 else:
@@ -153,6 +159,8 @@ def render_dashboard_page():
                 st.session_state.selected_steps = selected_step_ids
                 if selected_step_ids:
                     st.success(f"Selected {len(selected_step_ids)} step(s)")
+                    # Add edit functionality
+                    render_edit_button_and_modal("Steps", selected_step_rows)
                     # Create filtered dataframe for plotting
                     selected_steps_df = steps_df[steps_df['id'].isin(selected_step_ids)]
                 else:
