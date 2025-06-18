@@ -55,7 +55,7 @@ target_metadata = SQLModel.metadata
 
 ```powershell
 # 生成包含所有表格的初始遷移
-alembic revision --autogenerate -m "Initial migration with pre_test_rest_time"
+alembic revision --autogenerate -m "Initial migration"
 ```
 
 ### 5. 修復遷移檔案中的導入問題 (Fix Import Issues in Migration)

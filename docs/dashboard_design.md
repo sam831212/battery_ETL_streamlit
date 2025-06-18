@@ -74,3 +74,14 @@ This dashboard is part of a battery data ETL project. It will:
   selected_projects = df_project[df_project["selected"]]["project_id"]
   df_experiment = df_experiment[df_experiment["project_id"].isin(selected_projects)]
   ...
+## Bonus Features (Future Extensions)
+    Save plot configurations as presets
+
+    Export filtered data as CSV
+
+    Add chart faceting or "group by" features
+
+    Add tab layout or sidebar config for advanced options
+
+## Summary
+    This dashboard provides a structured way for users to explore and visualize experiment data across hierarchical levels. The final product will rely on Plotly for consistent, high-quality visuals, and AgGrid for intuitive selection and filtering.

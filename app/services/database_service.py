@@ -456,9 +456,9 @@ def save_steps_to_db(
     try:
         for _, row in steps_df.iterrows():
             row_dict = convert_numpy_types(row.to_dict())
-            
             step_number = safe_get_float_from_dict(row_dict, "step_number", 0.0)
             step_type = safe_get_str_from_dict(row_dict, "step_type", "unknown")
+            original_step_type = safe_get_str_from_dict(row_dict, "original_step_type", None)
             duration = safe_get_float_from_dict(row_dict, "duration", 0.0)
             voltage_start = safe_get_float_from_dict(row_dict, "voltage_start", 0.0)
             voltage_end = safe_get_float_from_dict(row_dict, "voltage_end", 0.0)
@@ -476,11 +476,13 @@ def save_steps_to_db(
             
             # 注意：如果 start_time 或 end_time 為 None，則默認為當前時間 (datetime.now())。
             # 這意味著如果源數據中缺少這些時間，將記錄處理時間而非實際事件時間。
-            # 如果需要實際事件時間且不應為 None，則應在此處添加驗證或修改 Step 模型以允許 None。
-            step = Step(
+            # 如果需要實際事件時間且不應為 None，則應在此處添加驗證或修改 Step 模型以允許 None。            
+           
+            step=step(
                 experiment_id=experiment_id,
                 step_number=int(step_number),
                 step_type=step_type,
+                original_step_type=original_step_type,
                 start_time=start_time if start_time is not None else datetime.now(),
                 end_time=end_time if end_time is not None else datetime.now(),
                 duration=duration,
@@ -490,7 +492,8 @@ def save_steps_to_db(
                 capacity=capacity,
                 energy=energy,
                 temperature_start=temperature_start,
-                temperature_end=temperature_end,                c_rate=c_rate,
+                temperature_end=temperature_end,                
+                c_rate=c_rate,
                 soc_start=soc_start,
                 soc_end=soc_end,
                 pre_test_rest_time=pre_test_rest_time,

@@ -115,9 +115,10 @@ class Step(BaseModel, table=True):
     
     id: Optional[int] = Field(default=None, primary_key=True)
     experiment_id: int = Field(foreign_key="experiment.id", nullable=False)
-    data_meta: dict = Field(default={}, sa_column=Column(JSON))
+    data_meta: dict = Field(default={}, sa_column=Column(JSON))    
     step_number: int = Field(nullable=False)
     step_type: str = Field(nullable=False)  # charge, discharge, rest
+    original_step_type: Optional[str] = Field(default=None, nullable=True)  # Original Chinese step type (CC-CV充電, CP放電, etc.)
     start_time: datetime = Field(nullable=False)
     end_time: Optional[datetime] = Field(default=None)
     duration: float  # seconds

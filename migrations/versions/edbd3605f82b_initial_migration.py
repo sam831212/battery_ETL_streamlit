@@ -1,8 +1,8 @@
-"""Initial clean migration
+"""Initial migration
 
-Revision ID: 8cdbda6ea5fa
+Revision ID: edbd3605f82b
 Revises: 
-Create Date: 2025-06-17 16:06:29.905553
+Create Date: 2025-06-18 22:23:39.109882
 
 """
 from typing import Sequence, Union
@@ -13,7 +13,7 @@ import sqlmodel.sql.sqltypes
 
 
 # revision identifiers, used by Alembic.
-revision: str = '8cdbda6ea5fa'
+revision: str = 'edbd3605f82b'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -76,6 +76,7 @@ def upgrade() -> None:
     sa.Column('data_meta', sa.JSON(), nullable=True),
     sa.Column('step_number', sa.Integer(), nullable=False),
     sa.Column('step_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('original_step_type', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('start_time', sa.DateTime(), nullable=False),
     sa.Column('end_time', sa.DateTime(), nullable=True),
     sa.Column('duration', sa.Float(), nullable=False),
