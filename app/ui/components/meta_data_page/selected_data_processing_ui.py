@@ -300,18 +300,7 @@ def handle_selected_steps_save():
                 detail_file_hash = f"selected_details_{timestamp_str}"
 
 
-                # Update experiment temperature based on all measurements
-                # For now, skip the temperature average calculation to avoid join complexity
-                # It will be calculated based on step data instead
-                if len(steps) > 0:
-                    step_temps = []
-                    for step in steps:
-                        if hasattr(step, 'temperature_start') and step.temperature_start is not None:
-                            step_temps.append(step.temperature_start)
-                        if hasattr(step, 'temperature_end') and step.temperature_end is not None:
-                            step_temps.append(step.temperature_end)
-                    if step_temps:
-                        experiment.temperature = sum(step_temps) / len(step_temps)
+
                 # Commit the changes (temp_avg updates)
                 session.commit()
 
