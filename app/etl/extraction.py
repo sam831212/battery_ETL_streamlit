@@ -257,16 +257,7 @@ def parse_step_csv(file_path: str) -> pd.DataFrame:
         df_filtered = df_renamed[standardized_columns].copy()
 
         # Process date/time fields - ChromaLex format has date as string
-        if 'start_time' in df_filtered.columns:
-            df_filtered['start_time'] = pd.to_datetime(
-                df_filtered['start_time'])
-
-        # Check if we have end_time or need to calculate it from start_time and duration
-        if 'end_time' not in df_filtered.columns and 'duration' in df_filtered.columns:
-            # Calculate end_time from start_time + duration
-            df_filtered[
-                'end_time'] = df_filtered['start_time'] + pd.to_timedelta(
-                    df_filtered['duration'], unit='s')
+        # 已移除 start_time/end_time 處理
 
         # If we miss voltage_start, add it from previous step's voltage_end
         if 'voltage_start' not in df_filtered.columns:
@@ -285,10 +276,7 @@ def parse_step_csv(file_path: str) -> pd.DataFrame:
                                        prev_idx, 'voltage_end']
 
         # Calculate duration if it's not already present
-        if 'duration' not in df_filtered.columns and 'start_time' in df_filtered.columns and 'end_time' in df_filtered.columns:
-            df_filtered['duration'] = (
-                df_filtered['end_time'] -
-                df_filtered['start_time']).dt.total_seconds()
+        # 已移除 duration 依賴 start_time/end_time 的計算
 
         # Map step types to standardized categories if step_type column exists
         if 'step_type' in df_filtered.columns:
@@ -446,11 +434,7 @@ def load_and_preprocess_files(
             'total_steps':
             int(step_df['step_number'].nunique()),
             'step_types':
-            convert_numpy_types(step_df['step_type'].value_counts().to_dict()),
-            'start_time':
-            step_df['start_time'].min().isoformat(),
-            'end_time':
-            step_df['end_time'].max().isoformat(),
+            convert_numpy_types(step_df['step_type'].value_counts().to_dict())
         }
     }
 

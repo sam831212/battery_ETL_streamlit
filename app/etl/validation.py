@@ -570,8 +570,6 @@ def generate_summary_table(selected_steps: pd.DataFrame,
         if 'timestamp' in group_df.columns:
             timestamps = group_df['timestamp'].sort_values()
             row_data['duration_seconds'] = (timestamps.iloc[-1] - timestamps.iloc[0]).total_seconds()
-            row_data['start_time'] = timestamps.iloc[0]
-            row_data['end_time'] = timestamps.iloc[-1]
         
         # Add validation status if requested
         if include_validation:

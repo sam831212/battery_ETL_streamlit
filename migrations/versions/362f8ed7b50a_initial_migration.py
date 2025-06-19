@@ -1,8 +1,8 @@
-"""empty message
+"""Initial migration
 
-Revision ID: 09254bacbd66
+Revision ID: 362f8ed7b50a
 Revises: 
-Create Date: 2025-06-19 10:28:34.201491
+Create Date: 2025-06-19 14:20:32.078295
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 import sqlmodel.sql.sqltypes
 
 # revision identifiers, used by Alembic.
-revision: str = '09254bacbd66'
+revision: str = '362f8ed7b50a'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -57,7 +57,6 @@ def upgrade() -> None:
     sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('battery_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('nominal_capacity', sa.Float(), nullable=False),
-    sa.Column('temperature', sa.Float(), nullable=True),
     sa.Column('operator', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('start_date', sa.DateTime(), nullable=False),
     sa.Column('project_id', sa.Integer(), nullable=True),
@@ -76,8 +75,6 @@ def upgrade() -> None:
     sa.Column('step_number', sa.Integer(), nullable=False),
     sa.Column('step_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('original_step_type', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('start_time', sa.DateTime(), nullable=False),
-    sa.Column('end_time', sa.DateTime(), nullable=True),
     sa.Column('duration', sa.Float(), nullable=False),
     sa.Column('voltage_start', sa.Float(), nullable=True),
     sa.Column('voltage_end', sa.Float(), nullable=False),

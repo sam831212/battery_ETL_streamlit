@@ -59,7 +59,7 @@ def validate_files(
 def generate_validation_results(
     step_df: pd.DataFrame,
     detail_df: pd.DataFrame
-) -> Tuple[bool, Dict[str, Any], Dict[str, Any]]:
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
     Generate validation reports for step and detail data.
 
@@ -69,7 +69,6 @@ def generate_validation_results(
 
     Returns:
         Tuple containing:
-        - Overall validation status
         - Step validation report
         - Detail validation report
     """
@@ -91,17 +90,6 @@ def generate_validation_results(
         step_report["step_types"] = step_df["Step_Type"].value_counts().to_dict()
     else:
         step_report["step_types"] = {}
-
-    # Time range check
-    if "Date_Time" in step_df.columns:
-        try:
-            step_report["start_time"] = step_df["Date_Time"].min()
-            step_report["end_time"] = step_df["Date_Time"].max()
-            step_report["time_range_valid"] = True
-        except Exception:
-            step_report["time_range_valid"] = False
-    else:
-        step_report["time_range_valid"] = False
 
     # Detail validation
     detail_report["row_count"] = len(detail_df)
@@ -125,15 +113,5 @@ def generate_validation_results(
         else:
             detail_report[f"{col}_valid"] = False
 
-    # Time range check for detail file
-    if "Date_Time" in detail_df.columns:
-        try:
-            detail_report["start_time"] = detail_df["Date_Time"].min()
-            detail_report["end_time"] = detail_df["Date_Time"].max()
-            detail_report["time_range_valid"] = True
-        except Exception:
-            detail_report["time_range_valid"] = False
-    else:
-        detail_report["time_range_valid"] = False
 
     return step_report, detail_report

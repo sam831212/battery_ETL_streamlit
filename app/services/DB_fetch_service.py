@@ -62,10 +62,8 @@ def get_experiments_data(selected_project_ids: Optional[List[int]] = None, selec
                     'project_name': project_name,
                     'battery_type': experiment.battery_type,
                     'nominal_capacity': experiment.nominal_capacity,
-                    'temperature': experiment.temperature,
                     'operator': getattr(experiment, 'operator', None),  # Safe access to operator field
                     'start_date': experiment.start_date,
-                    
                     'step_count': step_count
                 })
 
@@ -103,13 +101,12 @@ def get_steps_data(selected_experiment_ids: Optional[List[int]] = None) -> pd.Da
 
                 data.append({
                     'id': step.id,
+                    'data_meta': data_meta,
+                    'original_step_type': step.original_step_type,
                     'step_number': step.step_number,
                     'experiment_id': step.experiment_id,
                     'experiment_name': experiment_name,
                     'step_type': step.step_type,
-                    'original_step_type': step.original_step_type,
-                    'start_time': step.start_time,
-                    'end_time': step.end_time,
                     'duration': step.duration,
                     'voltage_start': step.voltage_start,
                     'voltage_end': step.voltage_end,
@@ -120,8 +117,7 @@ def get_steps_data(selected_experiment_ids: Optional[List[int]] = None) -> pd.Da
                     'c_rate': step.c_rate,
                     'soc_start': step.soc_start,
                     'soc_end': step.soc_end,
-                    'pre_test_rest_time': pre_test_rest_time,
-                    'data_meta': data_meta
+                    'pre_test_rest_time': pre_test_rest_time
                 })
 
             return pd.DataFrame(data)

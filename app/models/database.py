@@ -89,7 +89,6 @@ class Experiment(BaseModel, table=True):
     description: Optional[str] = Field(default=None)
     battery_type: str = Field(nullable=False)
     nominal_capacity: float = Field(nullable=False)  # Ah
-    temperature: Optional[float] = Field(default=None)  # Average test temperature in Celsius
     operator: Optional[str] = Field(default=None)
     start_date: datetime = Field(nullable=False)
     
@@ -115,13 +114,10 @@ class Step(BaseModel, table=True):
     
     id: Optional[int] = Field(default=None, primary_key=True)
     experiment_id: int = Field(foreign_key="experiment.id", nullable=False)
-    # 將 data_meta 型別從 dict/JSON 改為 string
     data_meta: Optional[str] = Field(default=None, nullable=True)
     step_number: int = Field(nullable=False)
     step_type: str = Field(nullable=False)  # charge, discharge, rest
     original_step_type: Optional[str] = Field(default=None, nullable=True)  # Original Chinese step type (CC-CV充電, CP放電, etc.)
-    start_time: datetime = Field(nullable=False)
-    end_time: Optional[datetime] = Field(default=None)
     duration: float  # seconds
     voltage_start: Optional[float] = Field(default=None, nullable=True)  # V
     voltage_end: float  # V

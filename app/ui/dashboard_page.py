@@ -17,9 +17,7 @@ from app.services.DB_fetch_service import get_cells_data  # 新增：取得 cell
 from app.ui.components.dashboard_page.dashboard_components import create_interactive_table
 from app.ui.components.dashboard_page.dashboard_components import render_step_plot
 from app.ui.components.dashboard_page.dashboard_components import render_detail_plot
-from app.ui.components.dashboard_page.dashboard_components import render_filtering_controls
 from app.ui.components.dashboard_page.edit_components import render_edit_button_and_modal
-from app.utils.dashboard_utils import apply_filters
 from app.utils.dashboard_utils import extract_selected_ids
 from app.utils.dashboard_constants import PROJECT_DF_COLUMNS, EXPERIMENT_DF_COLUMNS, STEP_DF_COLUMNS, MEASUREMENT_DF_COLUMNS, CELL_DF_COLUMNS  # 新增 CELL_DF_COLUMNS
 
@@ -54,8 +52,7 @@ def render_dashboard_page():
     if not AGGRID_AVAILABLE:
         st.warning("st_aggrid 尚未安裝。將使用備用表格。完整功能請安裝：pip install streamlit-aggrid")
     
-    # Render filtering controls
-    render_filtering_controls()
+
     # Create tabs for the hierarchical tables
     st.header("資料選擇")
     tab_projects, tab_cells, tab_experiments, tab_steps = st.tabs(["Project", "Cell", "Experiment", "Step"])
@@ -85,8 +82,7 @@ def render_dashboard_page():
         st.subheader("Cell")
         cells_df = get_cells_data()  # 從 DB 取得 cell table
         if not cells_df.empty:
-            # Apply cell filters
-            cells_df = apply_filters(cells_df, "cells")
+            # 直接使用 cells_df，不再 apply_filters
             cell_response = create_interactive_table(cells_df, "Cells")
             selected_cell_rows = cell_response.get("selected_rows", [])
             if selected_cell_rows is not None and len(selected_cell_rows) > 0:
@@ -109,7 +105,8 @@ def render_dashboard_page():
         experiments_df = get_experiments_data(st.session_state.selected_projects, st.session_state.selected_cells)
         # print(f"DEBUG: Experiments before filter: {len(experiments_df)} rows") # Removed debug print
         if not experiments_df.empty:
-            experiments_df_filtered = apply_filters(experiments_df, "experiments")
+            # 直接使用 experiments_df，不再 apply_filters
+            experiments_df_filtered = experiments_df
             # print(f"DEBUG: Experiments after filter: {len(experiments_df_filtered)} rows") # Removed debug print
             
             if experiments_df_filtered.empty and not experiments_df.empty:
@@ -124,7 +121,7 @@ def render_dashboard_page():
                     if selected_experiment_ids:
                         st.success(f"已選取 {len(selected_experiment_ids)} 個實驗")
                         # Add edit functionality
-                        render_edit_button_and_modal("Experiments", selected_experiment_rows)
+                        render_edit_button_and_modal("Experiments", selected_experiment_rows)                    
                     else:
                         st.warning("無法從選取項目中取得實驗 ID")
                 else:
@@ -139,50 +136,26 @@ def render_dashboard_page():
     with tab_steps:
         st.subheader("Step")
         steps_df = get_steps_data(st.session_state.selected_experiments)
-        steps_df = apply_filters(steps_df, "steps")
-        # 將 data_meta 欄位移到 id 和 step_number 之間
-        # 將 data_meta 和 original_step_type 欄位移到合適位置
-        if not steps_df.empty:
-            cols = list(steps_df.columns)
-            # 先處理 data_meta
-            if 'data_meta' in cols and 'id' in cols and 'step_number' in cols:
-                cols.remove('data_meta')
-                id_idx = cols.index('id')
-                step_number_idx = cols.index('step_number')
-                insert_idx = id_idx + 1 if step_number_idx > id_idx else step_number_idx
-                cols.insert(insert_idx, 'data_meta')
-            # 再處理 original_step_type
-            if 'original_step_type' in cols and 'step_type' in cols:
-                cols.remove('original_step_type')
-                step_type_idx = cols.index('step_type')
-                cols.insert(step_type_idx + 1, 'original_step_type')
-            steps_df = steps_df[cols]
-        selected_step_ids = []
+        # 直接使用 steps_df，不再 apply_filters
         if not steps_df.empty:
             step_response = create_interactive_table(steps_df, "Steps")
             selected_step_rows = step_response.get("selected_rows", [])
-            if selected_step_rows is not None and len(selected_step_rows) > 0:
+            if selected_step_rows and len(selected_step_rows) > 0:
                 selected_step_ids = extract_selected_ids(selected_step_rows, "Steps")
                 st.session_state.selected_steps = selected_step_ids
                 if selected_step_ids:
                     st.success(f"已選取 {len(selected_step_ids)} 個步驟")
-                    # Add edit functionality
                     render_edit_button_and_modal("Steps", selected_step_rows)
-                    # Create filtered dataframe for plotting
-                    selected_steps_df = steps_df[steps_df['id'].isin(selected_step_ids)]
                 else:
                     st.warning("無法從選取項目中取得步驟 ID")
-                    selected_steps_df = pd.DataFrame()
             else:
                 st.session_state.selected_steps = []
-                selected_steps_df = pd.DataFrame()
         else:
             if st.session_state.selected_experiments:
                 st.warning("所選實驗下找不到步驟")
             else:
                 st.info("請先選擇實驗以檢視步驟")
             st.session_state.selected_steps = []
-            selected_steps_df = pd.DataFrame()
       # Plots Section
     st.divider()
     st.header("資料視覺化")

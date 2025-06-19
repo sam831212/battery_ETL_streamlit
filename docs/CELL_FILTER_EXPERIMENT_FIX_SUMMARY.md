@@ -9,7 +9,6 @@
 ## 根本原因分析
 通過代碼分析發現主要問題在於：
 
-1. **UI 控制項缺失**：`render_filtering_controls()` 函數缺少 cell 相關的篩選控制項
 2. **Cell 篩選邏輯未啟用**：Cell table 的篩選邏輯存在但被註解掉
 3. **關鍵缺失**：`get_experiments_data()` 函數只接受 project IDs 參數，不支援 cell IDs 篩選
 
@@ -18,7 +17,7 @@
 ### 1. 修復 UI 篩選控制項
 **檔案**: `c:\Users\sam2_chen\DB0609\B\app\ui\components\dashboard_page\dashboard_components.py`
 
-**修改函數**: `render_filtering_controls()`
+
 
 **變更內容**:
 ```python
@@ -133,7 +132,7 @@ Dashboard Page 渲染流程:
 │
 ├── render_dashboard_page()
 │   │
-│   ├── render_filtering_controls()           # UI 篩選控制項
+│   ├──          # UI 篩選控制項
 │   │   └── 更新 st.session_state.dashboard_filters
 │   │
 │   ├── tab_projects                          # Projects Tab
@@ -182,7 +181,7 @@ Cell → Experiment → Step → Measurement
 
 ## 篩選功能執行順序
 
-1. **UI 控制項設定** → `render_filtering_controls()` 設定篩選參數
+
 2. **Cell 表格篩選** → `apply_filters(cells_df, "cells")` 根據 UI 參數篩選 cells
 3. **Cell 選擇** → 用戶在篩選後的 cell table 中選擇特定 cells
 4. **Experiment 查詢** → `get_experiments_data()` 根據選中的 cells 和 projects 查詢 experiments

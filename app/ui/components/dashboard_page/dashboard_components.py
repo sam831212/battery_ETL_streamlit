@@ -46,8 +46,7 @@ def create_interactive_table(df: pd.DataFrame, table_name: str,
     gb.configure_selection(selection_mode=selection_mode)
 
     # Determine the column for checkbox selection
-    checkbox_col = None
-    # Always use 'id' column for checkbox if present
+    checkbox_col = None    # Always use 'id' column for checkbox if present
     if 'id' in df.columns:
         checkbox_col = 'id'
     else:
@@ -57,29 +56,49 @@ def create_interactive_table(df: pd.DataFrame, table_name: str,
     if checkbox_col:
         gb.configure_column(checkbox_col, checkboxSelection=True)
 
-    grid_options = gb.build()  # <--- 修正：build grid_options
+    # 移除針對特定表格的固定寬度設定，所有表格統一使用自動寬度調整
+    
+    grid_options = gb.build()
 
+    # Enhanced grid options for better autowidth handling
     grid_options.update({
         'skipHeaderOnAutoSize': False,
         'suppressColumnVirtualisation': False,
-        'enableColResize': True
-    })
-
-    # JSCode: 自動根據內容調整所有欄寬
+        'enableColResize': True,
+        'suppressSizeToFit': False,
+        'autoSizeStrategy': {
+            'type': 'fitCellContents'
+        }
+    })    # 增強的 JSCode 用於自動寬度調整 - 避免使用可能導致欄位收縮的 sizeColumnsToFit
+    # 專注使用 autoSizeColumns 根據內容調整欄位寬度，類似 Excel 的雙擊自動調整功能
     auto_size_js = JsCode("""
     function(e) {
-        setTimeout(function() {
-            var allColumnIds = [];
-            e.columnApi.getAllColumns().forEach(function(column) {
-                allColumnIds.push(column.colId);
-            });
-            e.api.autoSizeColumns(allColumnIds, false);
-        }, 100);
+        // 多次嘗試以確保自動調整大小能正常運作
+        function autoSizeAllColumns() {
+            try {
+                var allColumnIds = [];
+                e.columnApi.getAllColumns().forEach(function(column) {
+                    allColumnIds.push(column.colId);
+                });
+                
+                // 根據內容和標頭自動調整欄位大小，類似 Excel 的自動調整欄寬功能
+                e.columnApi.autoSizeColumns(allColumnIds, false);
+                
+            } catch (error) {
+                console.log('AutoSize error:', error);
+            }
+        }
+        
+        // 在網格準備好後以及延遲後執行自動調整大小以確保穩定性
+        setTimeout(autoSizeAllColumns, 50);
+        setTimeout(autoSizeAllColumns, 200);
     }
-    """)
-
-    # Define aggrid_key outside the conditional blocks
+    """)    # Define aggrid_key outside the conditional blocks
     aggrid_key = f"aggrid_{table_name.lower()}_{str(st.session_state.dashboard_filters)}"
+
+    # 為所有表格啟用自動調整大小以確保 UI 穩定性
+    fit_columns_on_grid_load = True
+    column_auto_size_enabled = True
 
     if AgGrid is None:
         st.error("st_aggrid is not installed. Please install it to use interactive tables.")
@@ -96,6 +115,8 @@ def create_interactive_table(df: pd.DataFrame, table_name: str,
             key=aggrid_key,
             allow_unsafe_jscode=True,
             theme='streamlit',
+            fit_columns_on_grid_load=fit_columns_on_grid_load,
+            columns_auto_size_mode=1 if column_auto_size_enabled else 0,
             onGridReady=auto_size_js
         )
     except Exception:
@@ -109,6 +130,8 @@ def create_interactive_table(df: pd.DataFrame, table_name: str,
             width='100%',
             key=f"{aggrid_key}_fallback",
             allow_unsafe_jscode=True,
+            fit_columns_on_grid_load=fit_columns_on_grid_load,
+            columns_auto_size_mode=1 if column_auto_size_enabled else 0,
             onGridReady=auto_size_js
         )
 
@@ -227,15 +250,26 @@ def render_detail_plot(selected_step_ids: List[int], steps_meta_map: Dict[int, A
     # The variable y_axis_candidate_cols was unused and has been removed.
 
     with col2:
-        available_y_metrics = get_available_numeric_columns(measurements_df, [col for col in all_plottable_columns if col != x_axis_detail])
+        available_y_metrics = get_available_numeric_columns(
+            measurements_df,
+            [col for col in all_plottable_columns if col != x_axis_detail]
+        )
 
+        # 預設 Y 軸不包含 X 軸（特別是 execution_time）
         default_y_selection = []
         if available_y_metrics:
-            default_y_selection = available_y_metrics[:2] if len(available_y_metrics) >= 2 else available_y_metrics[:1]
+            filtered_y_metrics = [col for col in available_y_metrics if col != x_axis_detail]
+            if filtered_y_metrics:
+                default_y_selection = filtered_y_metrics[:2] if len(filtered_y_metrics) >= 2 else filtered_y_metrics[:1]
+            else:
+                default_y_selection = available_y_metrics[:1]
 
-        selected_y_metrics = st.multiselect("Select Y-metrics", available_y_metrics,
-                                            default=default_y_selection, key="detail_plot_y_metrics")
-
+        selected_y_metrics = st.multiselect(
+            "Select Y-metrics",
+            available_y_metrics,
+            default=default_y_selection,
+            key=f"detail_plot_y_metrics_{x_axis_detail}"
+        )
     with col3:
         plot_type = st.radio("Plot type", ["Separate subplots", "Combined plot"], key="detail_plot_type")
 
@@ -259,8 +293,13 @@ def render_detail_plot(selected_step_ids: List[int], steps_meta_map: Dict[int, A
                 shared_xaxes=True
             )
 
+            # 為每個 step_id 分配固定顏色
+            unique_step_ids = list(dict.fromkeys(selected_step_ids))
+            colors = px.colors.qualitative.Plotly
+            step_id_color_map = {step_id: colors[i % len(colors)] for i, step_id in enumerate(unique_step_ids)}
+
             for i, metric in enumerate(selected_y_metrics, 1):
-                for step_id_val in selected_step_ids:
+                for j, step_id_val in enumerate(unique_step_ids):
                     step_data = measurements_df[measurements_df['step_id'] == step_id_val]
                     if not step_data.empty and x_axis_detail in step_data.columns and metric in step_data.columns:
                         if not step_data[x_axis_detail].isna().all() and not step_data[metric].isna().all():
@@ -270,7 +309,8 @@ def render_detail_plot(selected_step_ids: List[int], steps_meta_map: Dict[int, A
                                     y=step_data[metric],
                                     mode='lines',
                                     name=get_legend_label(step_id_val),
-                                    showlegend=(i == 1)
+                                    line=dict(color=step_id_color_map[step_id_val]),
+                                    showlegend=(i == 1)  # 只在第一個 subplot 顯示 legend
                                 ),
                                 row=i, col=1
                             )
@@ -280,11 +320,13 @@ def render_detail_plot(selected_step_ids: List[int], steps_meta_map: Dict[int, A
 
         else: # Combined plot
             fig = go.Figure()
+            # 為每個 step_id 分配固定顏色
+            unique_step_ids = list(dict.fromkeys(selected_step_ids))
             colors = px.colors.qualitative.Plotly
+            step_id_color_map = {step_id: colors[i % len(colors)] for i, step_id in enumerate(unique_step_ids)}
 
-            for i, metric in enumerate(selected_y_metrics):
-                color = colors[i % len(colors)]
-                for step_id_val in selected_step_ids:
+            for j, step_id_val in enumerate(unique_step_ids):
+                for i, metric in enumerate(selected_y_metrics):
                     step_data = measurements_df[measurements_df['step_id'] == step_id_val]
                     if not step_data.empty and x_axis_detail in step_data.columns and metric in step_data.columns:
                         if not step_data[x_axis_detail].isna().all() and not step_data[metric].isna().all():
@@ -294,8 +336,9 @@ def render_detail_plot(selected_step_ids: List[int], steps_meta_map: Dict[int, A
                                     y=step_data[metric],
                                     mode='lines',
                                     name=f"{metric} (" + get_legend_label(step_id_val) + ")",
-                                    line=dict(color=color),
-                                    yaxis=f"y{i+1}" if len(selected_y_metrics) > 1 else "y"
+                                    line=dict(color=step_id_color_map[step_id_val]),
+                                    yaxis=f"y{i+1}" if len(selected_y_metrics) > 1 else "y",
+                                    showlegend=(i == 0)  # 只在第一個 y-metric 顯示 legend
                                 )
                             )
 
@@ -324,48 +367,3 @@ def render_detail_plot(selected_step_ids: List[int], steps_meta_map: Dict[int, A
         st.plotly_chart(fig, use_container_width=True)
     elif not selected_y_metrics:
         st.info("Please select at least one Y-metric to plot.")
-
-
-def render_filtering_controls():
-    """Render additional filtering controls"""
-    with st.expander("Advanced Filters"):
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.subheader("Step Filters")
-            step_types = st.multiselect("Step Types",
-                                      ["charge", "discharge", "rest"],
-                                      default=[])
-
-            c_rate_range = st.slider("C-Rate Range", 0.0, 30.0 , (0.0, 30.0), step=0.1)
-
-        with col2:
-            st.subheader("Experiment Filters")
-            battery_types = st.multiselect("Battery Types",
-                                         ["Li-ion", "NMC", "LFP", "LTO"],
-                                         default=[])
-
-            capacity_range = st.slider("Nominal Capacity Range (Ah)", 0.0, 100.0, (0.0, 100.0), step=0.1)
-
-        with col3:
-            st.subheader("Cell Filters")
-            cell_chemistries = st.multiselect("Cell Chemistries",
-                                            ["NMC", "LFP", "LTO", "SIB"],
-                                            default=[])
-
-            cell_capacity_range = st.slider("Cell Capacity Range (Ah)", 0.0, 500.0, (0.0, 500.0), step=0.1)
-            
-            cell_form_factors = st.multiselect("Cell Form Factors",
-                                             ["Cylindrical", "Prismatic", "Pouch"],
-                                             default=[])
-
-        # Store filters in session state
-        st.session_state.dashboard_filters = {
-            'step_types': step_types,
-            'c_rate_range': c_rate_range,
-            'battery_types': battery_types,
-            'capacity_range': capacity_range,
-            'cell_chemistries': cell_chemistries,
-            'cell_capacity_range': cell_capacity_range,
-            'cell_form_factors': cell_form_factors
-        }

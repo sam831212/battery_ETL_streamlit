@@ -294,6 +294,8 @@ def process_measurements_batch(
         
         if measurement is None:
             step_number = int(row.get('step_number', -1))
+            # 新增 debug log
+            logger.warning(f"Skipped step_number: {step_number}, step_mapping keys: {[k for k in step_mapping.keys()]}")
             if step_number not in step_mapping:
                 skipped_count += 1
             else:
@@ -360,6 +362,12 @@ def save_measurements_to_db(
     if details_df.empty:
         logger.warning("沒有測量數據需要保存")
         return
+
+    # 強制型別一致，避免 np.int64/float 導致 dict lookup 失敗
+    details_df['step_number'] = details_df['step_number'].astype(int)
+    step_mapping = {int(k): v for k, v in step_mapping.items()}
+    # 新增：log 每個 step_number 的資料行數
+    logger.info("step_number value counts: " + str(details_df['step_number'].value_counts().to_dict()))
 
     batch_size = batch_size or config.default_batch_size
     
@@ -445,6 +453,9 @@ def save_steps_to_db(
     """
     if experiment_id is None:
         raise ValueError("experiment_id 不能為 None")
+    logger.info(f"開始保存步驟數據：實驗ID={experiment_id}, 步驟數量={len(steps_df)}")
+    logger.info(f"步驟數據框列名: {list(steps_df.columns)}")
+    logger.info(f"步驟編號: {steps_df['step_number'].tolist() if 'step_number' in steps_df.columns else 'step_number 欄位不存在'}")
     
     steps = []
     own_session = session is None
@@ -453,12 +464,23 @@ def save_steps_to_db(
         session_context = safe_session()
         session = session_context.__enter__()
     
+    # 確保 session 不為 None
+    if session is None:
+        raise ValueError("無法獲取有效的資料庫會話")
+    
     try:
-        for _, row in steps_df.iterrows():
+        for idx, (_, row) in enumerate(steps_df.iterrows()):
+            logger.info(f"處理第 {idx + 1} 個步驟，step_number={row.get('step_number', 'N/A')}")
+            
             row_dict = convert_numpy_types(row.to_dict())
+            # 確保 row_dict 是字典類型
+            if not isinstance(row_dict, dict):
+                logger.error(f"convert_numpy_types 返回的不是字典類型: {type(row_dict)}")
+                row_dict = row.to_dict()  # 退回到原始字典
+            
             step_number = safe_get_float_from_dict(row_dict, "step_number", 0.0)
             step_type = safe_get_str_from_dict(row_dict, "step_type", "unknown")
-            original_step_type = safe_get_str_from_dict(row_dict, "original_step_type", None)
+            original_step_type = safe_get_str_from_dict(row_dict, "original_step_type", "")
             duration = safe_get_float_from_dict(row_dict, "duration", 0.0)
             voltage_start = safe_get_float_from_dict(row_dict, "voltage_start", 0.0)
             voltage_end = safe_get_float_from_dict(row_dict, "voltage_end", 0.0)
@@ -469,22 +491,25 @@ def save_steps_to_db(
             temperature_end = safe_get_float_from_dict(row_dict, "temperature_end", config.default_temperature)
             soc_start = safe_get_optional_float_from_dict(row_dict, "soc_start")
             soc_end = safe_get_optional_float_from_dict(row_dict, "soc_end")
-            start_time = row_dict.get('start_time', None) # 保持原樣，因為它處理 datetime
-            end_time = row_dict.get('end_time', None) # 保持原樣，因為它處理 datetime
+            
             c_rate = safe_get_float_from_dict(row_dict, "c_rate", 0.0)
             pre_test_rest_time = safe_get_optional_float_from_dict(row_dict, "pre_test_rest_time")
             
-            # 注意：如果 start_time 或 end_time 為 None，則默認為當前時間 (datetime.now())。
-            # 這意味著如果源數據中缺少這些時間，將記錄處理時間而非實際事件時間。
-            # 如果需要實際事件時間且不應為 None，則應在此處添加驗證或修改 Step 模型以允許 None。            
+            # 將 data_meta 轉換為 JSON 字符串
+            data_meta_str = None
+            if isinstance(row_dict, dict):
+                try:
+                    import json
+                    data_meta_str = json.dumps(row_dict, default=str, ensure_ascii=False)
+                except Exception as e:
+                    logger.warning(f"無法序列化 data_meta: {e}")
+                    data_meta_str = str(row_dict)
            
-            step=step(
+            step = Step(
                 experiment_id=experiment_id,
                 step_number=int(step_number),
                 step_type=step_type,
                 original_step_type=original_step_type,
-                start_time=start_time if start_time is not None else datetime.now(),
-                end_time=end_time if end_time is not None else datetime.now(),
                 duration=duration,
                 voltage_start=voltage_start,
                 voltage_end=voltage_end,
@@ -497,30 +522,41 @@ def save_steps_to_db(
                 soc_start=soc_start,
                 soc_end=soc_end,
                 pre_test_rest_time=pre_test_rest_time,
-                data_meta=row_dict if isinstance(row_dict, dict) else {}
+                data_meta=data_meta_str
             )
 
             session.add(step)
             steps.append(step)
+            logger.info(f"成功創建步驟對象：step_number={int(step_number)}, step_type={step_type}")
 
+        logger.info(f"總共創建了 {len(steps)} 個步驟對象")
+        
         # 獲取自動生成的 ID
         session.flush()
+        logger.info("完成 session.flush()")
         
         for step in steps:
             session.refresh(step)
         
+        logger.info(f"完成 refresh，步驟 ID: {[step.id for step in steps]}")
+        
         # 驗證所有步驟都有有效的 ID
         invalid_steps = [step for step in steps if step.id is None]
         if invalid_steps:
+            logger.error(f"發現 {len(invalid_steps)} 個無效的步驟 ID")
             raise DatabaseError(f"無法獲取 {len(invalid_steps)} 個步驟的有效 ID")
         
         if own_session:
             session.commit()
+            logger.info("完成 session.commit()")
             for step in steps:
                 session.expunge(step)
                 
+        logger.info(f"成功保存 {len(steps)} 個步驟到資料庫")
+                
     except Exception as e:
         logger.error(f"保存步驟數據時發生錯誤: {e}")
+        logger.exception("詳細錯誤信息:")
         if own_session:
             session.rollback()
         raise DatabaseError(f"保存步驟數據失敗: {str(e)}")

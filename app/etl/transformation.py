@@ -197,24 +197,8 @@ def transform_data(steps_df: pd.DataFrame, details_df: pd.DataFrame,
     
     # 2. Calculate SOC
     steps, details = calculate_soc(steps, details)
-      # 3. Calculate pre_test_rest_time
-    print(f"[DEBUG] transform_data: 開始計算 pre_test_rest_time")
-    print(f"[DEBUG] 工步資料排序前 step_number: {steps['step_number'].tolist()}")
-    steps = calculate_pre_test_rest_time(steps)
     
-    # DEBUG: 檢查 pre_test_rest_time 欄位是否存在且有值
-    if 'pre_test_rest_time' in steps.columns:
-        non_null_count = steps['pre_test_rest_time'].notna().sum()
-        print(f"[DEBUG] transform_data 完成: pre_test_rest_time 欄位存在, {non_null_count}/{len(steps)} 個工步有值")
-        if non_null_count > 0:
-            print(f"[DEBUG] pre_test_rest_time 值範例: {steps['pre_test_rest_time'].dropna().head(3).tolist()}")
-        
-        # 顯示每個工步的詳細資訊
-        print(f"[DEBUG] 每個工步的 pre_test_rest_time 詳細資訊:")
-        for _, row in steps.iterrows():
-            print(f"[DEBUG]   工步 {row['step_number']}: duration={row['duration']}, pre_test_rest_time={row['pre_test_rest_time']}")
-    else:
-        print(f"[DEBUG] transform_data 警告: pre_test_rest_time 欄位不存在！")
+    steps = calculate_pre_test_rest_time(steps)
     
     return steps, details
 
@@ -238,10 +222,7 @@ def calculate_pre_test_rest_time(steps_df: pd.DataFrame) -> pd.DataFrame:
     # 初始化 pre_test_rest_time 欄位為 None
     steps['pre_test_rest_time'] = None
     
-    # DEBUG: 印出輸入資料的基本信息
-    print(f"[DEBUG] calculate_pre_test_rest_time: 輸入 {len(steps)} 個工步")
-    print(f"[DEBUG] 工步編號範圍: {steps['step_number'].min()} - {steps['step_number'].max()}")
-    
+
     # 檢查必要的欄位是否存在
     if 'step_number' not in steps.columns:
         raise ValueError("步驟資料中缺少 'step_number' 欄位")
@@ -262,18 +243,11 @@ def calculate_pre_test_rest_time(steps_df: pd.DataFrame) -> pd.DataFrame:
             # 確保 duration 是有效的數值
             if pd.notna(previous_duration) and previous_duration is not None:
                 steps.at[i, 'pre_test_rest_time'] = previous_duration
-                print(f"[DEBUG] 工步 {current_step_number}: pre_test_rest_time = {previous_duration} (來自工步 {previous_step_number})")
-            else:
-                print(f"[DEBUG] 工步 {current_step_number}: pre_test_rest_time = None (前一工步 {previous_step_number} 的 duration 無效: {previous_duration})")
+                
         except (ValueError, TypeError, IndexError) as e:
             # 如果出現任何錯誤，保持為 None
-            print(f"[DEBUG] 工步 {current_step_number}: 計算 pre_test_rest_time 時發生錯誤: {e}")
+
             continue
-    
-    # DEBUG: 印出最終結果摘要
-    non_null_count = steps['pre_test_rest_time'].notna().sum()
-    print(f"[DEBUG] calculate_pre_test_rest_time 完成: {non_null_count}/{len(steps)} 個工步有 pre_test_rest_time 值")
-    if non_null_count > 0:
-        print(f"[DEBUG] pre_test_rest_time 範圍: {steps['pre_test_rest_time'].min()} - {steps['pre_test_rest_time'].max()}")
-    
+     
+
     return steps
