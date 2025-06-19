@@ -141,14 +141,21 @@ def render_dashboard_page():
         steps_df = get_steps_data(st.session_state.selected_experiments)
         steps_df = apply_filters(steps_df, "steps")
         # 將 data_meta 欄位移到 id 和 step_number 之間
-        if not steps_df.empty and 'data_meta' in steps_df.columns and 'id' in steps_df.columns and 'step_number' in steps_df.columns:
+        # 將 data_meta 和 original_step_type 欄位移到合適位置
+        if not steps_df.empty:
             cols = list(steps_df.columns)
-            cols.remove('data_meta')
-            id_idx = cols.index('id')
-            step_number_idx = cols.index('step_number')
-            # 插入到 id 之後、step_number 之前
-            insert_idx = id_idx + 1 if step_number_idx > id_idx else step_number_idx
-            cols.insert(insert_idx, 'data_meta')
+            # 先處理 data_meta
+            if 'data_meta' in cols and 'id' in cols and 'step_number' in cols:
+                cols.remove('data_meta')
+                id_idx = cols.index('id')
+                step_number_idx = cols.index('step_number')
+                insert_idx = id_idx + 1 if step_number_idx > id_idx else step_number_idx
+                cols.insert(insert_idx, 'data_meta')
+            # 再處理 original_step_type
+            if 'original_step_type' in cols and 'step_type' in cols:
+                cols.remove('original_step_type')
+                step_type_idx = cols.index('step_type')
+                cols.insert(step_type_idx + 1, 'original_step_type')
             steps_df = steps_df[cols]
         selected_step_ids = []
         if not steps_df.empty:

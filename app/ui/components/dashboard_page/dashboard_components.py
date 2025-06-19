@@ -59,16 +59,6 @@ def create_interactive_table(df: pd.DataFrame, table_name: str,
 
     grid_options = gb.build()  # <--- 修正：build grid_options
 
-    #  resizable, sortable, filter
-    for col_def in grid_options.get('columnDefs', []):
-        col_def['resizable'] = True
-        col_def['sortable'] = True
-        col_def['filter'] = True
-        col_def.pop('width', None)
-        col_def.pop('minWidth', None)
-        col_def.pop('maxWidth', None)
-        col_def.pop('flex', None)
-
     grid_options.update({
         'skipHeaderOnAutoSize': False,
         'suppressColumnVirtualisation': False,
@@ -209,14 +199,6 @@ def render_detail_plot(selected_step_ids: List[int], steps_meta_map: Dict[int, A
     if measurements_df.empty:
         st.warning("No measurement data available for selected steps or an error occurred.")
         return
-
-    # steps_meta_map is now passed as an argument, removing internal fetching
-    # try:
-    #     all_steps_df = get_steps_data() 
-    #     if 'data_meta' in all_steps_df.columns:
-    #         steps_meta_map = dict(zip(all_steps_df['id'], all_steps_df['data_meta']))
-    # except Exception:
-    #     steps_meta_map = {}
 
     # Potential candidates for axes
     # Ensure 'execution_time' is handled as a primary candidate for x-axis

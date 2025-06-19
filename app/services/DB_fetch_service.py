@@ -107,6 +107,7 @@ def get_steps_data(selected_experiment_ids: Optional[List[int]] = None) -> pd.Da
                     'experiment_id': step.experiment_id,
                     'experiment_name': experiment_name,
                     'step_type': step.step_type,
+                    'original_step_type': step.original_step_type,
                     'start_time': step.start_time,
                     'end_time': step.end_time,
                     'duration': step.duration,
