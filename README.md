@@ -83,12 +83,7 @@ The Battery ETL Dashboard is designed to help battery researchers and engineers 
    ```
 3. Create a `.env` file with the following environment variables:
    ```
-   PGHOST=localhost
-   PGPORT=5432
-   PGDATABASE=battery_db
-   PGUSER=postgres
-   PGPASSWORD=your_password
-   DEBUG=False
+
    ```
 4. Run the application:
    ```

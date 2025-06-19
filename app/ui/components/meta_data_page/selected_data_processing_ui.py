@@ -65,9 +65,6 @@ def handle_selected_steps_save():
                         # 顯示前幾個工步的 pre_test_rest_time 值
                         for _, row in transformed_df.head(10).iterrows():
                             print(f"[DEBUG] 工步 {row['step_number']}: pre_test_rest_time = {row['pre_test_rest_time']}")
-                    else:
-                        print(f"[DEBUG] 警告：transformed_df 中沒有 pre_test_rest_time 欄位！")
-                        print(f"[DEBUG] transformed_df 欄位: {list(transformed_df.columns)}")
                     
                     if "step_number" in transformed_df.columns:
                         steps_df_to_use = transformed_df[transformed_df["step_number"].isin(selected_step_numbers)].copy()
@@ -155,8 +152,6 @@ def handle_selected_steps_save():
                             step_number=safe_int(row_dict.get("step_number")),
                             step_type=safe_str(row_dict.get("step_type")),
                             original_step_type=safe_str(row_dict.get("original_step_type")),
-                            start_time=safe_datetime(row_dict.get("start_time")),
-                            end_time=safe_datetime(row_dict.get("end_time")),
                             duration=safe_float(row_dict.get("duration", 0.0)),
                             voltage_start=safe_float(row_dict.get("voltage_start", 0.0)),
                             voltage_end=safe_float(row_dict.get("voltage_end", 0.0)),
@@ -177,8 +172,6 @@ def handle_selected_steps_save():
                             step_number=safe_int(getattr(row, "step_number", 0)),
                             step_type=safe_str(getattr(row, "step_type", "")),
                             original_step_type=safe_str(getattr(row, "original_step_type", "")),
-                            start_time=safe_datetime(getattr(row, "start_time", None)),
-                            end_time=safe_datetime(getattr(row, "end_time", None)),
                             duration=safe_float(getattr(row, "duration", 0.0)),
                             voltage_start=safe_float(getattr(row, "voltage_start", 0.0)),
                             voltage_end=safe_float(getattr(row, "voltage_end", 0.0)),
@@ -194,9 +187,7 @@ def handle_selected_steps_save():
                             data_meta=safe_str(getattr(row, "data_meta", ""))
                         )
                     
-                    # DEBUG: 印出 Step 物件建立後的 pre_test_rest_time 值
-                    print(f"[DEBUG] Step 物件 {step.step_number}: pre_test_rest_time = {step.pre_test_rest_time}")
-                    
+                
                     session.add(step)
                     steps.append(step)
                 # Flush to ensure step IDs are assigned before creating mapping
@@ -240,7 +231,7 @@ def handle_selected_steps_save():
                     print(f"DEBUG: About to save {len(details_df)} measurements using save_measurements_to_db")
                     print(f"DEBUG: Step mapping: {step_mapping}")
                     print(f"DEBUG: Available step numbers in details: {sorted(details_df['step_number'].unique()) if 'step_number' in details_df.columns else 'No step_number column'}")
-                      # Import and use the proven save_measurements_to_db function
+                    # Import and use the proven save_measurements_to_db function
                     # from app.services.database_service import save_measurements_to_db # Moved to top
                     # from sqlmodel import select, func # Moved to top
                     

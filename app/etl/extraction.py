@@ -145,10 +145,6 @@ def validate_csv_format(
         df_headers = pd.read_csv(file_path, nrows=0)
         headers = df_headers.columns.tolist()
         
-        # Print headers for debugging
-        print(f"Found headers: {headers}")
-        print(f"Expected headers: {expected_headers}")
-        
         # Try alternate validation method - check if all required fields exist by prefix/semantic meaning
         # rather than exact match, to handle encoding issues
         critical_missing = []
@@ -326,9 +322,6 @@ def parse_detail_csv(file_path: str) -> pd.DataFrame:
         df = pd.read_csv(file_path)
         headers = df.columns.tolist()
         
-        print(f"===== DEBUG: parse_detail_csv =====")
-        print(f"Original headers: {headers}")
-    
         # Use ChromaLex mappings
         column_mapping = DETAIL_COLUMN_MAPPING
         expected_headers = DETAIL_REQUIRED_HEADERS

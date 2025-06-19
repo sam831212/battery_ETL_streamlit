@@ -101,13 +101,11 @@ def render_dashboard_page():
             st.session_state.selected_cells = []
 
     with tab_experiments:
-        st.subheader("Experiment")        # print(f"DEBUG: Getting experiments for project IDs: {st.session_state.selected_projects}") # Removed debug print
+        st.subheader("Experiment")
         experiments_df = get_experiments_data(st.session_state.selected_projects, st.session_state.selected_cells)
-        # print(f"DEBUG: Experiments before filter: {len(experiments_df)} rows") # Removed debug print
         if not experiments_df.empty:
             # 直接使用 experiments_df，不再 apply_filters
             experiments_df_filtered = experiments_df
-            # print(f"DEBUG: Experiments after filter: {len(experiments_df_filtered)} rows") # Removed debug print
             
             if experiments_df_filtered.empty and not experiments_df.empty:
                 st.info("目前的篩選條件下沒有符合的實驗。")
