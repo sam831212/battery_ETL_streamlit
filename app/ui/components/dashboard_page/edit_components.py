@@ -33,8 +33,8 @@ def render_edit_form(table_name: str, record_data: Dict[str, Any], record_id: in
                 current_value = record_data[field]
                 field_type = get_field_type(field)
                 new_value = None
-                
-                # Render appropriate input widget based on field type
+
+                # 直接依型別處理，不再特別處理 data_meta
                 if field_type == "numeric":
                     if current_value is not None:
                         new_value = st.number_input(
@@ -50,7 +50,6 @@ def render_edit_form(table_name: str, record_data: Dict[str, Any], record_id: in
                             key=f"{field}_{record_id}",
                             format="%.6f"
                         )
-                        
                 elif field_type == "datetime":
                     if current_value is not None:
                         if isinstance(current_value, str):
@@ -65,29 +64,23 @@ def render_edit_form(table_name: str, record_data: Dict[str, Any], record_id: in
                             current_date = date.today()
                     else:
                         current_date = date.today()
-                    
                     date_input = st.date_input(
                         f"{field}:",
                         value=current_date,
                         key=f"{field}_{record_id}"
                     )
-                    
                     time_input = st.time_input(
                         f"{field} time:",
                         value=datetime.now().time(),
                         key=f"{field}_time_{record_id}"
                     )
-                    
-                    # Combine date and time
                     new_value = datetime.combine(date_input, time_input)
-                    
-                else:  # text field
+                else:  # text field (包含 data_meta)
                     new_value = st.text_input(
                         f"{field}:",
                         value=str(current_value) if current_value is not None else "",
                         key=f"{field}_{record_id}"
                     )
-                
                 # Only include in updates if value has changed
                 if new_value != current_value:
                     updates[field] = new_value

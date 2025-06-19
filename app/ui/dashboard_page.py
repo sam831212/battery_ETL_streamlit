@@ -44,24 +44,24 @@ def init_session_state():
 
 def render_dashboard_page():
     """Main function to render the dashboard page"""
-    st.title("Battery ETL Dashboard")
-    st.markdown("Explore and visualize battery test data across projects, experiments, and steps.")
+    st.title("電池 ETL 儀表板")
+    st.markdown("探索並視覺化專案、實驗與步驟層級的電池測試資料。")
     
     # Initialize session state
     init_session_state()
     
     # Show AgGrid availability status
     if not AGGRID_AVAILABLE:
-        st.warning("st_aggrid not available. Using fallback tables. For full functionality, install with: pip install streamlit-aggrid")
+        st.warning("st_aggrid 尚未安裝。將使用備用表格。完整功能請安裝：pip install streamlit-aggrid")
     
     # Render filtering controls
     render_filtering_controls()
     # Create tabs for the hierarchical tables
-    st.header("Data Selection")
-    tab_projects, tab_cells, tab_experiments, tab_steps = st.tabs(["Projects", "Cells", "Experiments", "Steps"])
+    st.header("資料選擇")
+    tab_projects, tab_cells, tab_experiments, tab_steps = st.tabs(["Project", "Cell", "Experiment", "Step"])
 
     with tab_projects:
-        st.subheader("Projects")
+        st.subheader("Project")
         projects_df = get_projects_data()
         if not projects_df.empty:
             project_response = create_interactive_table(projects_df, "Projects")
@@ -70,19 +70,19 @@ def render_dashboard_page():
                 selected_project_ids = extract_selected_ids(selected_project_rows, "Projects")
                 st.session_state.selected_projects = selected_project_ids
                 if selected_project_ids:
-                    st.success(f"Selected {len(selected_project_ids)} project(s)")
+                    st.success(f"已選取 {len(selected_project_ids)} 個專案")
                     # Add edit functionality
                     render_edit_button_and_modal("Projects", selected_project_rows)                
                 else:
-                    st.warning("Could not extract project IDs from selection")
+                    st.warning("無法從選取項目中取得專案 ID")
             else:
                 st.session_state.selected_projects = []
         else:
-            st.warning("No projects found in database")
+            st.warning("資料庫中找不到專案")
             st.session_state.selected_projects = []
 
     with tab_cells:
-        st.subheader("Cells")
+        st.subheader("Cell")
         cells_df = get_cells_data()  # 從 DB 取得 cell table
         if not cells_df.empty:
             # Apply cell filters
@@ -93,19 +93,19 @@ def render_dashboard_page():
                 selected_cell_ids = extract_selected_ids(selected_cell_rows, "Cells")
                 st.session_state.selected_cells = selected_cell_ids
                 if selected_cell_ids:
-                    st.success(f"Selected {len(selected_cell_ids)} cell(s)")
+                    st.success(f"已選取 {len(selected_cell_ids)} 顆電池")
                     # Add edit functionality
                     render_edit_button_and_modal("Cells", selected_cell_rows)
                 else:
-                    st.warning("Could not extract cell IDs from selection")            
+                    st.warning("無法從選取項目中取得電池 ID")            
             else:
                 st.session_state.selected_cells = []
         else:
-            st.warning("No cells found in database")
+            st.warning("資料庫中找不到電池")
             st.session_state.selected_cells = []
 
     with tab_experiments:
-        st.subheader("Experiments")        # print(f"DEBUG: Getting experiments for project IDs: {st.session_state.selected_projects}") # Removed debug print
+        st.subheader("Experiment")        # print(f"DEBUG: Getting experiments for project IDs: {st.session_state.selected_projects}") # Removed debug print
         experiments_df = get_experiments_data(st.session_state.selected_projects, st.session_state.selected_cells)
         # print(f"DEBUG: Experiments before filter: {len(experiments_df)} rows") # Removed debug print
         if not experiments_df.empty:
@@ -113,7 +113,7 @@ def render_dashboard_page():
             # print(f"DEBUG: Experiments after filter: {len(experiments_df_filtered)} rows") # Removed debug print
             
             if experiments_df_filtered.empty and not experiments_df.empty:
-                st.info("No experiments match the current filter criteria.")
+                st.info("目前的篩選條件下沒有符合的實驗。")
                 st.session_state.selected_experiments = []
             else:
                 experiment_response = create_interactive_table(experiments_df_filtered, "Experiments")
@@ -122,22 +122,22 @@ def render_dashboard_page():
                     selected_experiment_ids = extract_selected_ids(selected_experiment_rows, "Experiments")
                     st.session_state.selected_experiments = selected_experiment_ids
                     if selected_experiment_ids:
-                        st.success(f"Selected {len(selected_experiment_ids)} experiment(s)")
+                        st.success(f"已選取 {len(selected_experiment_ids)} 個實驗")
                         # Add edit functionality
                         render_edit_button_and_modal("Experiments", selected_experiment_rows)
                     else:
-                        st.warning("Could not extract experiment IDs from selection")
+                        st.warning("無法從選取項目中取得實驗 ID")
                 else:
                     st.session_state.selected_experiments = []
         else:
             if st.session_state.selected_projects:
-                st.warning("No experiments found for selected projects")
+                st.warning("所選專案下找不到實驗")
             else:
-                st.info("Select projects to view experiments")
+                st.info("請先選擇專案以檢視實驗")
             st.session_state.selected_experiments = []
 
     with tab_steps:
-        st.subheader("Steps")
+        st.subheader("Step")
         steps_df = get_steps_data(st.session_state.selected_experiments)
         steps_df = apply_filters(steps_df, "steps")
         # 將 data_meta 欄位移到 id 和 step_number 之間
@@ -158,27 +158,27 @@ def render_dashboard_page():
                 selected_step_ids = extract_selected_ids(selected_step_rows, "Steps")
                 st.session_state.selected_steps = selected_step_ids
                 if selected_step_ids:
-                    st.success(f"Selected {len(selected_step_ids)} step(s)")
+                    st.success(f"已選取 {len(selected_step_ids)} 個步驟")
                     # Add edit functionality
                     render_edit_button_and_modal("Steps", selected_step_rows)
                     # Create filtered dataframe for plotting
                     selected_steps_df = steps_df[steps_df['id'].isin(selected_step_ids)]
                 else:
-                    st.warning("Could not extract step IDs from selection")
+                    st.warning("無法從選取項目中取得步驟 ID")
                     selected_steps_df = pd.DataFrame()
             else:
                 st.session_state.selected_steps = []
                 selected_steps_df = pd.DataFrame()
         else:
             if st.session_state.selected_experiments:
-                st.warning("No steps found for selected experiments")
+                st.warning("所選實驗下找不到步驟")
             else:
-                st.info("Select experiments to view steps")
+                st.info("請先選擇實驗以檢視步驟")
             st.session_state.selected_steps = []
             selected_steps_df = pd.DataFrame()
       # Plots Section
     st.divider()
-    st.header("Data Visualization")
+    st.header("資料視覺化")
 
     # Step Plot
     if not steps_df.empty and st.session_state.selected_steps:
@@ -186,10 +186,10 @@ def render_dashboard_page():
         if not selected_steps_df.empty:
             render_step_plot(selected_steps_df)
         else:
-            st.info("Selected steps are not found in the filtered data for plotting.")
+            st.info("所選步驟在篩選後的資料中找不到，無法繪圖。")
             render_step_plot(pd.DataFrame(columns=STEP_DF_COLUMNS)) # Render with empty df
     elif not steps_df.empty:
-        st.info("Select steps from the table above to see step-level scatter plots.")
+        st.info("請從上方表格選擇步驟以檢視步驟層級的散佈圖。")
         render_step_plot(pd.DataFrame(columns=STEP_DF_COLUMNS)) # Render with empty df
     else:
         render_step_plot(pd.DataFrame(columns=STEP_DF_COLUMNS))
@@ -205,7 +205,7 @@ def render_dashboard_page():
         
         render_detail_plot(st.session_state.selected_steps, selected_steps_meta_map)
     else:
-        st.info("Select steps from the table above to see detailed time-series plots.")
+        st.info("請從上方表格選擇步驟以檢視詳細時序圖。")
         render_detail_plot([], {})
 
 if __name__ == '__main__':

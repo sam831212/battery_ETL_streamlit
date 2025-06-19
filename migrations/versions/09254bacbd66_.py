@@ -1,8 +1,8 @@
-"""Initial migration
+"""empty message
 
-Revision ID: edbd3605f82b
+Revision ID: 09254bacbd66
 Revises: 
-Create Date: 2025-06-18 22:23:39.109882
+Create Date: 2025-06-19 10:28:34.201491
 
 """
 from typing import Sequence, Union
@@ -11,9 +11,8 @@ from alembic import op
 import sqlalchemy as sa
 import sqlmodel.sql.sqltypes
 
-
 # revision identifiers, used by Alembic.
-revision: str = 'edbd3605f82b'
+revision: str = '09254bacbd66'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -73,7 +72,7 @@ def upgrade() -> None:
     op.create_table('step',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('experiment_id', sa.Integer(), nullable=False),
-    sa.Column('data_meta', sa.JSON(), nullable=True),
+    sa.Column('data_meta', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('step_number', sa.Integer(), nullable=False),
     sa.Column('step_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('original_step_type', sqlmodel.sql.sqltypes.AutoString(), nullable=True),

@@ -35,8 +35,8 @@ def render_meta_data_page():
     st.info("如需更新資料，請點擊左側側邊欄的『Meta Data』頁籤以重新載入。")
     
     # Set up page
-    st.title("Battery ETL Dashboard - Meta Data")
-    st.caption("Manage your experimental metadata here. Use the tabs to navigate between Cell, Machine, and Meta Data.")
+    st.title("電池 ETL 儀表板 - 基本資料")
+    st.caption("在此管理您的實驗基本資料。請使用上方分頁切換 Cell、Machine 與 Meta Data。")
     
     # Get database entities for references
     # Try to get cells and machines with connection retry logic
@@ -47,15 +47,15 @@ def render_meta_data_page():
             projects = session.query(Project).order_by(Project.name).all()
     except Exception as e:
         # If first attempt fails, try resetting the connection pool
-        st.warning("Database connection issue detected. Attempting to reconnect...")
+        st.warning("偵測到資料庫連線問題，正在嘗試重新連線...")
         try:
             with get_db_session() as session:
                 cells = session.query(Cell).order_by(Cell.name).all()
                 machines = session.query(Machine).order_by(Machine.name).all()
                 projects = session.query(Project).order_by(Project.name).all()
         except Exception as retry_error:
-            st.error(f"Failed to connect to the database after retry. Please check your database configuration or contact support. Details: {str(retry_error)}")
-            st.info("Please try refreshing the page. If the issue persists, contact support.")
+            st.error(f"重試後仍無法連線資料庫，請檢查資料庫設定或聯絡管理員。詳細資訊：{str(retry_error)}")
+            st.info("請嘗試重新整理頁面，若問題持續發生請聯絡管理員。")
             cells = []
             machines = []
             projects = []

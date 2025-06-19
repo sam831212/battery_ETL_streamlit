@@ -1,8 +1,8 @@
 """
-Step Selection UI components for the Battery ETL Dashboard
+步驟選擇 UI 元件 - Battery ETL 儀表板
 
-This module provides UI components for selecting and filtering battery test steps
-for analysis and database loading.
+此模組提供選擇與過濾電池測試步驟的 UI 元件
+以便進行分析與資料庫載入。
 """
 import streamlit as st
 import pandas as pd
@@ -14,15 +14,15 @@ from app.etl.transformation import calculate_soc
 
 def format_range(start: float, end: float, format_str: str = "{:.2f}") -> str:
     """
-    Format a range of values as a string.
+    格式化一段數值範圍為字串。
     
-    Args:
-        start: Start value of the range
-        end: End value of the range
-        format_str: Format string for the values
+    參數:
+        start: 範圍的起始值
+        end: 範圍的結束值
+        format_str: 數值的格式字串
         
-    Returns:
-        String representation of the range
+    回傳:
+        範圍的字串表示
     """
     if pd.isna(start) or pd.isna(end):
         return "N/A"
@@ -35,7 +35,7 @@ def format_range(start: float, end: float, format_str: str = "{:.2f}") -> str:
 
 def init_step_selection_state():
     """
-    Initialize session state variables for step selection.
+    初始化步驟選擇的會話狀態變數。
     """
     if 'full_discharge_step_idx' not in st.session_state:
         st.session_state.full_discharge_step_idx = None
@@ -43,7 +43,7 @@ def init_step_selection_state():
     if 'selected_steps_for_db' not in st.session_state:
         st.session_state.selected_steps_for_db = []
         
-    # Temporary storage for DB selections before update
+    # 暫存的 DB 選擇，供更新前使用
     if 'temp_selected_steps_for_db' not in st.session_state:
         st.session_state.temp_selected_steps_for_db = []
         
@@ -56,15 +56,15 @@ def init_step_selection_state():
     if 'filtered_step_types' not in st.session_state:
         st.session_state.filtered_step_types = ["charge", "discharge", "rest", "waveform"]
         
-    # Temporary storage for selected reference step before update
+    # 暫存的參考步驟，供更新前使用
     if 'temp_reference_step_idx' not in st.session_state:
         st.session_state.temp_reference_step_idx = None
         
-    # Flag to track if update is needed
+    # 標記是否需要更新
     if 'update_needed' not in st.session_state:
         st.session_state.update_needed = False
         
-    # Store the last used steps dataframe for SOC calculations
+    # 儲存最後使用的步驟資料框，以便 SOC 計算
     if 'current_steps_df' not in st.session_state:
         st.session_state.current_steps_df = None
 
@@ -72,37 +72,37 @@ def init_step_selection_state():
 @st.cache_data
 def calculate_step_ranges(steps_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Calculate range values for step data.
+    計算步驟資料的範圍值。
     
-    Args:
-        steps_df: DataFrame containing step data
+    參數:
+        steps_df: 包含步驟資料的資料框
         
-    Returns:
-        DataFrame with additional range columns
+    回傳:
+        具有額外範圍欄位的資料框
     """
-    # Make a copy to avoid modifying the original
+    # 建立副本以避免修改原始資料
     df = steps_df.copy()
     
-    # Add SOC range column if SOC columns exist
+    # 如果存在 SOC 欄位，則新增 SOC 範圍欄位
     if 'soc_start' in df.columns and 'soc_end' in df.columns:
         mask = pd.notna(df['soc_start']) & pd.notna(df['soc_end'])
-        # Format string for SOC values is "{:.1f}%"
+        # SOC 值的格式字串為 "{:.1f}%"
         soc_start_formatted = df['soc_start'].apply(lambda x: "{:.1f}%".format(x) if pd.notna(x) else "")
         soc_end_formatted = df['soc_end'].apply(lambda x: "{:.1f}%".format(x) if pd.notna(x) else "")
         df['soc_range'] = np.where(mask, soc_start_formatted + " → " + soc_end_formatted, "N/A")
     else:
         df['soc_range'] = "N/A"
     
-    # Add C-rate range column if c_rate column exists
+    # 如果存在 C-rate 欄位，則格式化並新增 C-rate 範圍欄位
     if 'c_rate' in df.columns:
         mask = pd.notna(df['c_rate'])
-        # Format string for C-rate is "{:.2f}C"
+        # C-rate 的格式字串為 "{:.2f}C"
         c_rate_formatted = df['c_rate'].apply(lambda x: "{:.2f}C".format(x) if pd.notna(x) else "N/A")
         df['c_rate'] = c_rate_formatted
     else:
         df['c_rate'] = "N/A"
     
-    # Add temperature_range column: 顯示 temperature_start → temperature_end
+    # 如果存在溫度欄位，則新增溫度範圍欄位：顯示 temperature_start → temperature_end
     if 'temperature_start' in df.columns and 'temperature_end' in df.columns:
         mask = pd.notna(df['temperature_start']) & pd.notna(df['temperature_end'])
         temp_start_formatted = df['temperature_start'].apply(lambda x: "{:.1f}".format(x) if pd.notna(x) else "")
@@ -116,32 +116,32 @@ def calculate_step_ranges(steps_df: pd.DataFrame) -> pd.DataFrame:
 
 def filter_steps_by_type(steps_df: pd.DataFrame, step_types: List[str]) -> pd.DataFrame:
     """
-    Filter steps by step type.
+    根據步驟類型過濾步驟。
     
-    Args:
-        steps_df: DataFrame containing step data
-        step_types: List of step types to include
+    參數:
+        steps_df: 包含步驟資料的資料框
+        step_types: 要包含的步驟類型列表
         
-    Returns:
-        Filtered DataFrame
+    回傳:
+        過濾後的資料框
     """
     return steps_df[steps_df['step_type'].isin(step_types)]
 
 
 def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[int], List[int]]:
     """
-    Display a table of steps with selection functionality.
+    顯示步驟的表格，並提供選擇功能。
     
-    Args:
-        steps_df: DataFrame containing step data
+    參數:
+        steps_df: 包含步驟資料的資料框
         
-    Returns:
-        Tuple containing:
-        - Filtered DataFrame
-        - Selected full discharge step index (or None)
-        - List of selected step indices for database loading
+    回傳:
+        Tuple，包含:
+        - 過濾後的資料框
+        - 選擇的全放電步驟索引（或 None）
+        - 要載入資料庫的選擇步驟索引列表
     """
-    # Initialize session state if needed
+    # 初始化會話狀態（如果需要的話）
     init_step_selection_state()
     
     # --- 決定顯示用的 DataFrame ---
@@ -154,43 +154,43 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
     # 讓 filtered_df 也指向最新的 display_df，確保後續顯示與選擇都用最新資料
     filtered_df = display_df.copy()
 
-    # Filter step types
-    st.subheader("Filter Steps")
+    # 根據步驟類型過濾
+    st.subheader("工步篩選")
     
-    # Allow user to select which step types to display
+    # 讓使用者選擇要顯示的步驟類型
     available_step_types = sorted(display_df['step_type'].unique().tolist())
     
-    # Filter default step types to only include available ones
-    # Use a set for faster lookups if available_step_types can be large
+    # 只篩選可用的預設步驟類型
+    # 如果 available_step_types 可能很大，則使用集合進行更快的查找
     available_step_types_set = set(available_step_types)
     filtered_defaults = [step_type for step_type in st.session_state.filtered_step_types 
                         if step_type in available_step_types_set]
     
     selected_step_types = st.multiselect(
-        "Select step types to display:",
+        "選擇要顯示的工步類型：",
         options=available_step_types,
         default=filtered_defaults,
         key="step_type_filter",
-        help="Filter the list of steps shown below by their type (e.g., charge, discharge)."
+        help="依工步類型（如充電、放電）篩選下方顯示的工步。"
     )
     
-    # Update session state with selected step types
+    # 更新會話狀態中的選擇的步驟類型
     st.session_state.filtered_step_types = selected_step_types
     
-    # Filter based on selected step types
+    # 根據選擇的步驟類型過濾
     if selected_step_types:
         filtered_df = filter_steps_by_type(display_df, selected_step_types)
     else:
         filtered_df = display_df
         
-    # Check if there are discharge steps for reference selection
+    # 檢查是否有放電步驟可供參考選擇
     discharge_steps = filtered_df[filtered_df['step_type'] == 'discharge']
     has_discharge_steps = not discharge_steps.empty
     
     if not has_discharge_steps:
-        st.warning("No discharge steps available for reference selection. Please include discharge steps in your filter.")
+        st.warning("目前篩選條件下沒有可用的放電工步，請調整篩選條件以包含放電工步。")
     
-    # Prepare columns for display    # Create a new DataFrame for display to avoid modifying the filtered one
+    # 準備顯示用的欄位    # 建立一個新的資料框以顯示，避免修改過濾後的資料
     display_cols = [
         'step_number', 
         'original_step_type', 
@@ -201,10 +201,10 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         'temperature_range',  # 改為顯示溫度範圍
     ]
     
-    # Add full_discharge_reference column for selection
+    # 新增 full_discharge_reference 欄位以供選擇
     filtered_df['full_discharge_reference'] = False
     
-    # Add db_selection column for selection
+    # 新增 db_selection 欄位以供選擇
     filtered_df['db_selection'] = False
     
     # 新增 data_meta 欄位（如不存在）
@@ -217,40 +217,40 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         if idx in st.session_state.temp_data_meta_dict:
             filtered_df.at[idx, 'data_meta'] = st.session_state.temp_data_meta_dict[idx]
 
-    # Update based on session state
+    # 根據會話狀態更新
     if st.session_state.full_discharge_step_idx is not None:
         if st.session_state.full_discharge_step_idx in filtered_df.index:
             filtered_df.loc[st.session_state.full_discharge_step_idx, 'full_discharge_reference'] = True
     
-    # Initialize temp_selected_steps_for_db with selected_steps_for_db if empty
+    # 如果暫存的選擇是空的，則用已選擇的步驟初始化
     if not st.session_state.temp_selected_steps_for_db and st.session_state.selected_steps_for_db:
         st.session_state.temp_selected_steps_for_db = st.session_state.selected_steps_for_db.copy()
     
-    # Use the temporary selections for display in the data editor
-    # This ensures the UI shows the most recent checkbox selections
+    # 在資料編輯器中顯示暫時的選擇
+    # 這確保了 UI 顯示最新的核取方塊選擇
     for idx in st.session_state.temp_selected_steps_for_db:
         if idx in filtered_df.index:
             filtered_df.loc[idx, 'db_selection'] = True
     
-    # Create two sections: one for reference selection, one for DB selection
-    st.subheader("Step Selection")
+    # 建立兩個區塊：一個用於參考選擇，一個用於資料庫選擇
+    st.subheader("工步選擇")
     
-    # Display the steps table
-    st.write("#### Select Full Discharge Reference Step (for SOC calculation)")
+    # 顯示步驟表格
+    st.write("#### 選擇全放電參考工步（用於 SOC 計算）")
     discharge_only = filtered_df[filtered_df['step_type'] == 'discharge'].copy()
     
-    # Only show discharge steps for reference selection
+    # 只顯示放電步驟以供參考選擇
     if not discharge_only.empty:
-        # Create a radio button for selecting the reference discharge step
+        # 為選擇參考放電步驟建立單選按鈕
         # 只取前 5 個放電工步
         discharge_options = {
             f"Step {row['step_number']} ({row['original_step_type']})": idx 
-            for idx, row in discharge_only.head(5).iterrows() # Display first 5 for selection
+            for idx, row in discharge_only.head(5).iterrows() # 只顯示前 5 個以供選擇
         }
         
         # 如果放電工步超過 5 個，顯示提示訊息
         if len(discharge_only) > 5:
-            st.info(f"Showing the first 5 discharge steps for reference selection (out of {len(discharge_only)} total discharge steps in the current view). Filter steps further if needed.")
+            st.info(f"僅顯示前 5 個放電工步供參考選擇（目前篩選下共有 {len(discharge_only)} 個放電工步）。如需更多，請先進一步篩選工步。")
         
         # --- 新增：自動預設選第二個 CC放電 ---
         # 只有當 temp_reference_step_idx 尚未設定時才自動選擇
@@ -265,8 +265,8 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
                 # 若沒有 CC放電，維持 None
                 pass
         # ---
-        # Determine the current index in options based on session state
-        current_idx = st.session_state.temp_reference_step_idx # Use temp for immediate UI feedback if needed
+        # 根據會話狀態中的選擇，決定目前選項的索引
+        current_idx = st.session_state.temp_reference_step_idx # 使用 temp 以便立即在 UI 中反映
         current_option = next(
             (k for k, v in discharge_options.items() if v == current_idx), 
             "None (Auto-detect)"
@@ -279,37 +279,37 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
             current_index = 0  # 預設選第一個
 
         selected_reference_option = st.radio(
-            "Select a discharge step as 0% SOC reference:",
+            "選擇一個放電工步作為 0% SOC 參考：",
             options=list(discharge_options.keys()),
             index=current_index,
             key="reference_step_selector",
-            help="Choose a discharge step that represents a fully discharged state (0% SOC). This selection is critical for accurate SOC calculation across all steps. Only the first 5 discharge steps are shown here for selection; if needed, filter steps first."
+            help="選擇一個代表完全放電狀態（0% SOC）的放電工步。此選擇對於所有工步的 SOC 計算至關重要。僅顯示前 5 個放電工步，如需更多請先篩選。"
         )
         
         selected_reference_idx = discharge_options[selected_reference_option]
         
-        # Store selection in temporary state and set update flag
+        # 將選擇儲存到暫存狀態中，並設置更新標誌
         if selected_reference_idx != st.session_state.temp_reference_step_idx:
             st.session_state.temp_reference_step_idx = selected_reference_idx
             st.session_state.update_needed = True
     else:
-        st.info("No discharge steps available for reference selection. Include discharge steps in your filter.")
+        st.info("目前無可用的放電工步作為參考，請調整篩選條件以包含放電工步。")
         selected_reference_idx = None
-      # Display section for database loading selection
-    st.write("#### Select Steps for Database Loading")
-    st.caption("Review the steps below. Use the checkboxes in the '選擇載入資料庫' (Select for DB Load) column to mark steps for inclusion in the final dataset. You can also add comments in the 'data_meta' column - **remember to click 'Apply DB Selection Changes' to save your dataMeta inputs**. Ensure you have selected a 'Full Discharge Reference Step' above for SOC calculation if it's not already correct, then click 'Update Selections'.")
+      # 顯示資料庫載入選擇的區塊
+    st.write("#### 選擇要載入資料庫的工步")
+    st.caption("請檢查下方工步，並使用「選擇載入資料庫」欄位的勾選框標記要納入最終資料集的工步。您也可以在「資料備註 (data_meta)」欄位輸入備註，**請記得點擊「Apply DB Selection Changes」以儲存您的 dataMeta 輸入**。請確保已選擇上方的『全放電參考工步』以正確計算 SOC，然後點擊『Update Selections』。")
     
-    # Add db_selection column to DataFrame if it doesn't exist
+    # 如果資料框中不存在 db_selection 欄位，則新增
     if 'db_selection' not in filtered_df.columns:
         filtered_df['db_selection'] = False
         
-    # Set initial values for db_selection based on session state
-    for idx_val in filtered_df.index: # Use idx_val to avoid conflict with outer scope idx
+    # 根據會話狀態設置 db_selection 的初始值
+    for idx_val in filtered_df.index: # 使用 idx_val 以避免與外部作用域的 idx 衝突
         filtered_df.loc[idx_val, 'db_selection'] = idx_val in st.session_state.temp_selected_steps_for_db
     
-    # Create a form to wrap the data editor
+    # 建立一個表單來包裝資料編輯器
     with st.form(key="step_selection_form"):
-        # Create a data editor for multi-selection
+        # 建立一個資料編輯器以進行多重選擇
         edited_df = st.data_editor(
             filtered_df[display_cols + ['db_selection']],
             column_config={
@@ -321,42 +321,41 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
                 "temperature_range": st.column_config.TextColumn("溫度範圍", help="起始溫度 → 截止溫度"),
                 "duration": st.column_config.NumberColumn("工步執行時間(秒)", format="%.1f"),
                 "data_meta": st.column_config.TextColumn("資料備註 (data_meta)", help="可選，為此工步輸入備註/說明，將一併存入資料庫。"),
-                "db_selection": st.column_config.CheckboxColumn("選擇載入資料庫", help="Check to include this step in the data loaded to the database."),
+                "db_selection": st.column_config.CheckboxColumn("選擇載入資料庫", help="勾選以將此工步納入資料庫。"),
             },
             hide_index=True,
             use_container_width=True,
             key="step_selection_table"
         )
         
-        # Add a form submit button on the right side
+        # 在右側添加表單提交按鈕
         form_col1, form_col2 = st.columns([3, 1])
         with form_col2:
             submit_form = st.form_submit_button(
-                "Apply DB Selection Changes", 
+                "儲存資料庫選擇變更", 
                 type="secondary", 
-                help="Click to confirm the steps selected for database loading via the checkboxes above."
+                help="點擊以確認上方勾選的工步將被納入資料庫。"
             )
-      # When form is submitted, update the temporary session state for DB selections
+      # 當表單提交時，更新暫存的會話狀態以反映 DB 選擇
     if submit_form:
-        # Use boolean indexing on edited_df for efficiency
+        # 在 edited_df 中使用布林索引以提高效率
         selected_rows_in_edited_df = edited_df[edited_df['db_selection']]
-        # Get the original indices from filtered_df by using the index of selected_rows_in_edited_df
-        # which corresponds to the row numbers in the displayed data_editor.
-        # These row numbers can be used to get the original indices from filtered_df.
-        temp_selected_db_indices = [int(idx) for idx in filtered_df.index[selected_rows_in_edited_df.index].tolist()]        # Capture data_meta changes from the data editor
+        # 通過使用 selected_rows_in_edited_df 的索引來獲取原始索引
+        # 這些行號可用於從 filtered_df 獲取原始索引。
+        temp_selected_db_indices = [int(idx) for idx in filtered_df.index[selected_rows_in_edited_df.index].tolist()]        # 從資料編輯器捕獲 data_meta 的變更
         for row_position, row in edited_df.iterrows():
             # 直接使用 row_position 作為 index，這對應到 filtered_df 的 index
             st.session_state.temp_data_meta_dict[row_position] = row.get('data_meta', "")
         
         if set(temp_selected_db_indices) != set(st.session_state.temp_selected_steps_for_db):
             st.session_state.temp_selected_steps_for_db = temp_selected_db_indices
-            st.session_state.update_needed = True # Indicate that "Update Selections" might be relevant if SOC needs recalc
-            st.rerun() # Rerun to reflect checkbox changes immediately in "Selected Steps Overview"
+            st.session_state.update_needed = True # 如果需要重新計算 SOC，則指示 "Update Selections" 可能相關
+            st.rerun() # 重新運行以立即反映核取方塊變更到 "Selected Steps Overview"
         
         # 顯示成功訊息
-        st.success("✅ Step selections and data_meta comments saved successfully!")
+        st.success("✅ 工步選擇與資料備註已成功儲存！")
         
-    selected_db_indices = [int(idx) for idx in st.session_state.selected_steps_for_db] # This is the final confirmed list after "Update Selections"
+    selected_db_indices = [int(idx) for idx in st.session_state.selected_steps_for_db] # 這是 "Update Selections" 後最終確認的列表
     
     # 強制 selected_reference_idx 型別為 int 或 None，避免型別錯誤
     import numpy as np
@@ -375,24 +374,24 @@ def handle_reference_step_selection(
     full_discharge_step_idx: Optional[int] = None
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Handle the reference step selection and recalculate SOC values.
+    處理參考步驟的選擇並重新計算 SOC 值。
     
-    Args:
-        steps_df: DataFrame containing step data
-        details_df: DataFrame containing detailed measurement data
-        full_discharge_step_idx: Optional index of the discharge step to use as reference
+    參數:
+        steps_df: 包含步驟資料的資料框
+        details_df: 包含詳細量測資料的資料框
+        full_discharge_step_idx: 可選的放電步驟索引，用作參考
         
-    Returns:
-        Tuple containing:
-        - Updated steps DataFrame with SOC values
-        - Updated details DataFrame with SOC values
+    回傳:
+        Tuple，包含:
+        - 更新的步驟資料框，帶有 SOC 值
+        - 更新的詳細資料框，帶有 SOC 值
     """
     
-    message = "Recalculating SOC using "
+    message = "正在重新計算 SOC，使用 "
     if full_discharge_step_idx is not None:
-        message += "the selected discharge step as reference."
+        message += "選定的放電步驟作為參考."
     else:
-        message += "automatic reference step detection."
+        message += "自動參考步驟偵測."
     
     with st.spinner(f"{message}..."):
         try:
@@ -402,68 +401,68 @@ def handle_reference_step_selection(
                 full_discharge_step_idx=full_discharge_step_idx
             )
             
-            # Update session state
+            # 更新會話狀態
             st.session_state.steps_df_with_soc = steps_with_soc
             st.session_state.details_df_with_soc = details_with_soc
             
-            # Success message
-            st.success("Successfully recalculated SOC with the new reference step!")
+            # 成功訊息
+            st.success("成功使用新的參考步驟重新計算 SOC！")
             
             return steps_with_soc, details_with_soc
             
         except Exception as e:
-            st.error(f"An error occurred during SOC recalculation. Please check the selected reference step. Details: {str(e)}")
-            st.info("Ensure the selected reference step has valid capacity data and is appropriate for defining 0% SOC.")
-            # Return original dfs if error
+            st.error(f"重新計算 SOC 時發生錯誤。請檢查選定的參考步驟。詳細資訊: {str(e)}")
+            st.info("確保選定的參考步驟具有有效的容量資料，並且適合用於定義 0% SOC。")
+            # 如果出錯，返回原始資料框
             return steps_df, details_df
 
 
 def display_selected_steps_overview(filtered_df: pd.DataFrame, selected_indices: List[int]):
     """
-    Display an overview of the selected steps.
+    顯示已選擇步驟的總覽。
     
-    Args:
-        filtered_df: DataFrame containing step data
-        selected_indices: List of selected step indices
+    參數:
+        filtered_df: 包含步驟資料的資料框
+        selected_indices: 已選擇的步驟索引列表
     """
     if not selected_indices:
-        st.info("No steps selected for database loading. Please select steps using the checkboxes above.")
+        st.info("尚未選擇任何工步進行資料庫載入，請於上方勾選工步。")
         return
     
-    # Filter to only show selected steps (safely)
-    # Make sure all indices exist in the filtered_df
+    # 只顯示已選擇的步驟（安全起見）
+    # 確保所有索引都存在於 filtered_df 中
     valid_indices = [idx for idx in selected_indices if idx in filtered_df.index]
     
     if not valid_indices:
-        st.info("No valid steps selected. Please select steps using the checkboxes above.")
+        st.info("沒有有效的工步被選擇，請於上方勾選工步。")
         return
         
     selected_df = filtered_df.loc[valid_indices]
     
-    st.subheader("Selected Steps Overview")
+    st.subheader("已選工步總覽")
     
-    # Display count by step type
+    # 顯示按步驟類型統計
     step_type_counts = selected_df['step_type'].value_counts().reset_index()
-    step_type_counts.columns = ['Step Type', 'Count']
+    step_type_counts.columns = ['步驟類型', '數量']
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.write(f"Total selected steps: {len(selected_df)}")
+        st.write(f"已選工步總數：{len(selected_df)}")
         st.dataframe(step_type_counts, hide_index=True)
     
     with col2:
-        # Create a pie chart of selected step types
+        # 顯示已選步驟類型的圓餅圖
         import plotly.express as px
         fig = px.pie(
             step_type_counts, 
-            values='Count', 
-            names='Step Type', 
-            title='Selected Steps by Type'
+            values='數量', 
+            names='步驟類型', 
+            title='已選工步類型分布'
         )
         st.plotly_chart(fig, use_container_width=True)
     
-    # Show the selected steps table
+    # 顯示已選擇的工步表格
     st.write("已選擇的工步：")
     display_cols = [
         'step_number', 
@@ -505,25 +504,25 @@ def display_selected_steps_overview(filtered_df: pd.DataFrame, selected_indices:
         # 添加保存按鈕
         form_col1, form_col2 = st.columns([3, 1])
         with form_col2:
-            save_data_meta = st.form_submit_button("Save Data Meta", type="secondary")
+            save_data_meta = st.form_submit_button("儲存資料備註", type="secondary")
     # 當按下保存按鈕時，將 data_meta 寫回 session_state
     if save_data_meta:
         for idx, row in edited_selected_df.iterrows():
             st.session_state.temp_data_meta_dict[idx] = row.get('data_meta', "")
-        st.success("Data meta comments saved successfully!")
+        st.success("資料備註已成功儲存！")
         st.rerun()  # 重新運行以更新顯示
 
 
 def create_processing_controls():
     """
-    Create buttons for pre-processing and database loading.
+    建立前處理和資料庫載入的按鈕。
     
-    Returns:
-        Tuple containing:
-        - Boolean indicating if pre-process button was clicked
-        - Boolean indicating if load to DB button was clicked
+    回傳:
+        Tuple，包含:
+        - 布林值，指示前處理按鈕是否被點擊
+        - 布林值，指示載入資料庫按鈕是否被點擊
     """
-    st.subheader("Processing Controls")
+    st.subheader("處理控制")
     
     col1, col2 = st.columns(2)
     
@@ -531,33 +530,33 @@ def create_processing_controls():
     preprocess_clicked = False
     with col2:
         load_db_clicked = st.button(
-            "Load to Database",
+            "載入資料庫",
             type="secondary",
             use_container_width=True,
             disabled=(len(st.session_state.selected_steps_for_db) == 0 or st.session_state.steps_df_with_soc is None)
         )
         if len(st.session_state.selected_steps_for_db) == 0:
-            st.info("Select steps for database loading.")
+            st.info("請先選擇要載入資料庫的工步。")
         elif st.session_state.steps_df_with_soc is None:
-            st.info("Pre-process steps before loading to database.")
+            st.info("請先預處理工步再載入資料庫。")
     return preprocess_clicked, load_db_clicked
 
 
 def validate_step_selections() -> bool:
     """
-    Validate that the step selections meet requirements.
+    驗證步驟選擇是否符合要求。
     
-    Returns:
-        Boolean indicating if selections are valid
+    回傳:
+        布林值，指示選擇是否有效
     """
-    # Check if a reference step is selected for discharge
+    # 檢查是否選擇了放電的參考步驟
     if st.session_state.full_discharge_step_idx is None:
-        st.warning("Please select a reference discharge step for SOC calculation.")
+        st.warning("請選擇一個放電工步作為 SOC 計算的參考。")
         return False
     
-    # Check if steps are selected for DB loading
+    # 檢查是否選擇了要載入資料庫的步驟
     if not st.session_state.selected_steps_for_db:
-        st.warning("Please select at least one step for database loading.")
+        st.warning("請至少選擇一個工步進行資料庫載入。")
         return False
     
     return True
@@ -565,10 +564,10 @@ def validate_step_selections() -> bool:
 
 def get_current_selections() -> Dict[str, Any]:
     """
-    Get the current step selections from session state.
+    獲取當前的步驟選擇狀態。
     
-    Returns:
-        Dictionary containing current selections
+    回傳:
+        包含當前選擇的字典
     """
     return {
         'full_discharge_step_idx': st.session_state.full_discharge_step_idx,
@@ -581,112 +580,112 @@ def get_current_selections() -> Dict[str, Any]:
 
 def persist_selections():
     """
-    Save current selections to session state.
+    將當前選擇儲存到會話狀態中。
     """
-    # Already using session state for persistence
+    # 已經在使用會話狀態進行持久化
     pass
 
 
 def restore_selections() -> Dict[str, Any]:
     """
-    Restore selections from session state.
+    從會話狀態中恢復選擇。
     
-    Returns:
-        Dictionary containing restored selections
+    回傳:
+        包含恢復的選擇的字典
     """
-    # Initialize session state if needed
+    # 初始化會話狀態（如果需要的話）
     init_step_selection_state()
     
-    # Return current selections
+    # 返回當前選擇
     return get_current_selections()
 
 
 def render_step_selection_page(steps_df: pd.DataFrame, details_df: pd.DataFrame):
     """
-    Render the step selection page UI.
+    渲染步驟選擇頁面的使用者介面。
     
-    Args:
-        steps_df: DataFrame containing step data
-        details_df: DataFrame containing detailed measurement data
+    參數:
+        steps_df: 包含步驟資料的資料框
+        details_df: 包含詳細量測資料的資料框
     """
-    st.header("Step Selection and Processing")
+    st.header("工步選擇與處理")
     
-    # Display info about loaded data
-    st.info(f"Processing {len(steps_df)} steps and {len(details_df)} detail measurements.")
+    # 顯示有關已載入資料的資訊
+    st.info(f"目前處理 {len(steps_df)} 筆工步與 {len(details_df)} 筆詳細量測資料。")
     
-    # Initialize session state if needed
+    # 初始化會話狀態（如果需要的話）
     init_step_selection_state()
     
-    # Display the steps table and get selections
+    # 顯示步驟表格並獲取選擇
     filtered_df, selected_reference_idx, selected_db_indices = display_steps_table(steps_df)
     
-    # Add an update button after the selection with explanatory text
-    st.info("Make your selections above and click 'Update' to apply changes. Changes won't take effect until you click Update.")
+    # 在選擇後添加更新按鈕，並附上說明文字
+    st.info("請於上方完成選擇後點擊『更新』套用變更。未點擊更新前，變更不會生效。")
     update_col1, update_col2 = st.columns([3, 1])
     with update_col2:
-        update_clicked = st.button("Update Selections", type="primary", key="update_button", use_container_width=True)
+        update_clicked = st.button("更新選擇", type="primary", key="update_button", use_container_width=True)
     
-    # Apply updates when the button is clicked
+    # 當按鈕被點擊時，套用更新
     if update_clicked:
-        # Update the full discharge step index from the temporary storage
+        # 從暫存中更新全放電步驟索引
         st.session_state.full_discharge_step_idx = st.session_state.temp_reference_step_idx
         
-        # Update the selected steps for DB from temporary storage
+        # 從暫存中更新資料庫選擇的步驟
         st.session_state.selected_steps_for_db = st.session_state.temp_selected_steps_for_db
         
-        # Store the current steps_df for SOC calculations
+        # 儲存當前的 steps_df 以便 SOC 計算
         st.session_state.current_steps_df = steps_df
-          # Calculate SOC with the updated reference step
+          # 使用更新的參考步驟計算 SOC
         if st.session_state.full_discharge_step_idx is not None or not st.session_state.filtered_step_types or st.session_state.temp_reference_step_idx != st.session_state.full_discharge_step_idx:
-            # Condition to recalculate: if a reference is set, or if filters changed, or if temp reference changed
+            # 重新計算的條件：如果設置了參考步驟，或者篩選條件改變，或者暫存的參考步驟與全放電步驟不一致
             
             current_steps_for_soc = st.session_state.current_steps_df if st.session_state.current_steps_df is not None else steps_df
             
             steps_with_soc, details_with_soc = handle_reference_step_selection(
-                current_steps_for_soc, # Use the initially loaded or last processed full steps_df
-                details_df, # Assuming details_df is relatively static or also reloaded if files change
-                full_discharge_step_idx=st.session_state.full_discharge_step_idx # Use the confirmed reference index
+                current_steps_for_soc, # 使用最初加載的或最後處理的完整 steps_df
+                details_df, # 假設 details_df 相對靜態，或者在檔案變更時也會重新加載
+                full_discharge_step_idx=st.session_state.full_discharge_step_idx # 使用確認的參考索引
             )
             
-            # PRESERVE DATA_META: Add user-input dataMeta to the recalculated dataframe
+            # 保留 DATA_META：將使用者輸入的 dataMeta 添加到重新計算的資料框中
             if 'temp_data_meta_dict' in st.session_state and st.session_state.temp_data_meta_dict:
-                # Add data_meta column if it doesn't exist
+                # 如果不存在，則新增 data_meta 欄位
                 if 'data_meta' not in steps_with_soc.columns:
                     steps_with_soc['data_meta'] = ""
                 
-                # Apply user-input data_meta from session state
+                # 從會話狀態應用使用者輸入的 dataMeta
                 for idx, data_meta_value in st.session_state.temp_data_meta_dict.items():
                     if idx in steps_with_soc.index:
                         steps_with_soc.at[idx, 'data_meta'] = data_meta_value
             
-            # Update the main steps_df in session state that will be used for display and further processing
-            st.session_state.steps_df_with_soc = steps_with_soc # This is the one to use for display
+            # 更新將用於顯示和進一步處理的主要 steps_df
+            st.session_state.steps_df_with_soc = steps_with_soc # 這是用於顯示的資料
             st.session_state.details_df_with_soc = details_with_soc
             
-            # Reset the update needed flag
+            # 重置更新所需的標誌
             st.session_state.update_needed = False
             
-            # Force a rerun to update the UI with new values
+            # 強制重新運行以更新 UI 中的新值
             st.rerun()
     
-    # Display warning if update is needed but not applied
+    # 如果需要更新但尚未套用，則顯示警告
     if st.session_state.update_needed:
-        st.warning("You have made selections that require an update. Click the Update button to apply changes.")
+        st.warning("您有尚未套用的選擇變更，請點擊『更新』以套用。")
     
-    # Display overview of selected steps
+    # 顯示已選擇步驟的總覽
     display_selected_steps_overview(filtered_df, selected_db_indices)
     
-    # Create processing controls
+    # 建立處理控制按鈕
     preprocess_clicked, load_db_clicked = create_processing_controls()
     
-    # Handle load to DB button click
+    # 處理載入資料庫按鈕的點擊事件
     if load_db_clicked:
         if validate_step_selections() and st.session_state.steps_df_with_soc is not None:
-            # Prepare selected steps data to be used in the Meta Data page
+            # 準備選定步驟的資料，以便在元資料頁面使用
             selected_steps = []
             steps_df_with_soc = st.session_state.steps_df_with_soc
             details_df_with_soc = st.session_state.details_df_with_soc
-            # Create list of step data dictionaries
+            # 建立步驟資料字典的列表
             for step_idx in st.session_state.selected_steps_for_db:
                 step_row = steps_df_with_soc.loc[step_idx].to_dict()
                 # 加入 data_meta
@@ -694,14 +693,14 @@ def render_step_selection_page(steps_df: pd.DataFrame, details_df: pd.DataFrame)
                     step_row['data_meta'] = st.session_state.temp_data_meta_dict.get(step_idx, "")
                 selected_steps.append(step_row)
             
-            # Store the selected steps and related data in session state for the Meta Data page
+            # 將選定的步驟和相關資料儲存到會話狀態中，以便在元資料頁面使用
             st.session_state["selected_steps"] = selected_steps
             st.session_state["selected_steps_details_df"] = details_df_with_soc
             
-            # Navigate to the Meta Data page
+            # 導航到元資料頁面
             st.session_state['current_page'] = "Meta Data"
-            st.success("Steps selected and ready for database loading! Redirecting to Meta Data page...")
+            st.success("工步已選擇並可進行資料庫載入！即將導向 Meta Data 頁面...")
             st.rerun()
     
-    # Return current selections for use in other components
+    # 返回當前的選擇狀態，以便其他元件使用
     return get_current_selections()

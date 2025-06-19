@@ -122,55 +122,76 @@ def handle_selected_steps_save():
 
                 print(f"[DEBUG] handle_selected_steps_save: 開始處理 {len(steps_df_to_use)} 個工步")
                 
+                # 型別安全轉換 function
+                def safe_int(val):
+                    try:
+                        return int(val)
+                    except Exception:
+                        return 0
+                def safe_float(val):
+                    try:
+                        return float(val)
+                    except Exception:
+                        return 0.0
+                def safe_str(val):
+                    if val is None:
+                        return ""
+                    return str(val)
+                def safe_datetime(val):
+                    dt = convert_datetime_to_python(val)
+                    if dt is None:
+                        return datetime.now()
+                    return dt
+
                 for idx, row in steps_df_to_use.iterrows():
                     row_dict = convert_numpy_types(row.to_dict())
                     step_number = row_dict.get("step_number") if isinstance(row_dict, dict) else getattr(row, "step_number", None)
                     pre_test_rest_time_value = row_dict.get("pre_test_rest_time") if isinstance(row_dict, dict) else getattr(row, "pre_test_rest_time", None)
-                    
-                    # DEBUG: 印出每個工步的 pre_test_rest_time 值
                     print(f"[DEBUG] 工步 {step_number}: pre_test_rest_time = {pre_test_rest_time_value} (類型: {type(pre_test_rest_time_value)})")
-                    
-                    if isinstance(row_dict, dict):                        step = Step(
+
+                    if isinstance(row_dict, dict):
+                        step = Step(
                             experiment_id=experiment.id,
-                            step_number=row_dict.get("step_number"),
-                            step_type=row_dict.get("step_type"),
-                            original_step_type=row_dict.get("original_step_type"),
-                            start_time=convert_datetime_to_python(row_dict.get("start_time")),
-                            end_time=convert_datetime_to_python(row_dict.get("end_time")),
-                            duration=row_dict.get("duration", 0.0),
-                            voltage_start=row_dict.get("voltage_start", 0.0),
-                            voltage_end=row_dict.get("voltage_end", 0.0),
-                            current=row_dict.get("current", 0.0),
-                            capacity=row_dict.get("capacity", 0.0),
-                            energy=row_dict.get("energy", 0.0),
-                            temperature_start=row_dict.get("temperature_start"),
-                            temperature_end=row_dict.get("temperature_end"),
-                            c_rate=row_dict.get("c_rate", 0.0),
-                            soc_start=row_dict.get("soc_start"),
-                            soc_end=row_dict.get("soc_end"),
-                            pre_test_rest_time=row_dict.get("pre_test_rest_time"),
-                            data_meta=row_dict.get("data_meta", {})
+                            step_number=safe_int(row_dict.get("step_number")),
+                            step_type=safe_str(row_dict.get("step_type")),
+                            original_step_type=safe_str(row_dict.get("original_step_type")),
+                            start_time=safe_datetime(row_dict.get("start_time")),
+                            end_time=safe_datetime(row_dict.get("end_time")),
+                            duration=safe_float(row_dict.get("duration", 0.0)),
+                            voltage_start=safe_float(row_dict.get("voltage_start", 0.0)),
+                            voltage_end=safe_float(row_dict.get("voltage_end", 0.0)),
+                            current=safe_float(row_dict.get("current", 0.0)),
+                            capacity=safe_float(row_dict.get("capacity", 0.0)),
+                            energy=safe_float(row_dict.get("energy", 0.0)),
+                            temperature_start=safe_float(row_dict.get("temperature_start")),
+                            temperature_end=safe_float(row_dict.get("temperature_end")),
+                            c_rate=safe_float(row_dict.get("c_rate", 0.0)),
+                            soc_start=safe_float(row_dict.get("soc_start")),
+                            soc_end=safe_float(row_dict.get("soc_end")),
+                            pre_test_rest_time=safe_float(row_dict.get("pre_test_rest_time")),
+                            data_meta=safe_str(row_dict.get("data_meta", ""))
                         )
-                    else:                        step = Step(
+                    else:
+                        step = Step(
                             experiment_id=experiment.id,
-                            step_number=getattr(row, "step_number", None),
-                            step_type=getattr(row, "step_type", None),
-                            original_step_type=getattr(row, "original_step_type", None),
-                            start_time=convert_datetime_to_python(getattr(row, "start_time", None)),
-                            end_time=convert_datetime_to_python(getattr(row, "end_time", None)),
-                            duration=getattr(row, "duration", 0.0),
-                            voltage_start=getattr(row, "voltage_start", 0.0),
-                            voltage_end=getattr(row, "voltage_end", 0.0),
-                            current=getattr(row, "current", 0.0),
-                            capacity=getattr(row, "capacity", 0.0),
-                            energy=getattr(row, "energy", 0.0),
-                            temperature_start=getattr(row, "temperature_start", None),
-                            temperature_end=getattr(row, "temperature_end", None),
-                            c_rate=getattr(row, "c_rate", 0.0),
-                            soc_start=getattr(row, "soc_start", None),
-                            soc_end=getattr(row, "soc_end", None),
-                            pre_test_rest_time=getattr(row, "pre_test_rest_time", None),
-                            data_meta=getattr(row, "data_meta", {})
+                            step_number=safe_int(getattr(row, "step_number", 0)),
+                            step_type=safe_str(getattr(row, "step_type", "")),
+                            original_step_type=safe_str(getattr(row, "original_step_type", "")),
+                            start_time=safe_datetime(getattr(row, "start_time", None)),
+                            end_time=safe_datetime(getattr(row, "end_time", None)),
+                            duration=safe_float(getattr(row, "duration", 0.0)),
+                            voltage_start=safe_float(getattr(row, "voltage_start", 0.0)),
+                            voltage_end=safe_float(getattr(row, "voltage_end", 0.0)),
+                            current=safe_float(getattr(row, "current", 0.0)),
+                            capacity=safe_float(getattr(row, "capacity", 0.0)),
+                            energy=safe_float(getattr(row, "energy", 0.0)),
+                            temperature_start=safe_float(getattr(row, "temperature_start", 0.0)),
+                            temperature_end=safe_float(getattr(row, "temperature_end", 0.0)),
+                            c_rate=safe_float(getattr(row, "c_rate", 0.0)),
+                            soc_start=safe_float(getattr(row, "soc_start", 0.0)),
+                            soc_end=safe_float(getattr(row, "soc_end", 0.0)),
+                            pre_test_rest_time=safe_float(getattr(row, "pre_test_rest_time", 0.0)),
+                            data_meta=safe_str(getattr(row, "data_meta", ""))
                         )
                     
                     # DEBUG: 印出 Step 物件建立後的 pre_test_rest_time 值

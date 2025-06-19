@@ -115,7 +115,8 @@ class Step(BaseModel, table=True):
     
     id: Optional[int] = Field(default=None, primary_key=True)
     experiment_id: int = Field(foreign_key="experiment.id", nullable=False)
-    data_meta: dict = Field(default={}, sa_column=Column(JSON))    
+    # 將 data_meta 型別從 dict/JSON 改為 string
+    data_meta: Optional[str] = Field(default=None, nullable=True)
     step_number: int = Field(nullable=False)
     step_type: str = Field(nullable=False)  # charge, discharge, rest
     original_step_type: Optional[str] = Field(default=None, nullable=True)  # Original Chinese step type (CC-CV充電, CP放電, etc.)
