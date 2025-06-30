@@ -1,0 +1,67 @@
+CREATE VIEW T_vs_t AS
+WITH numbered AS (
+    SELECT
+      measurement.id,
+      measurement.step_id,
+      ABS(measurement.execution_time) AS execution_time,
+      measurement.temperature,
+      ROW_NUMBER() OVER (PARTITION BY measurement.step_id ORDER BY ABS(measurement.execution_time)) AS rn,
+      COUNT(*) OVER (PARTITION BY measurement.step_id) AS total_count,
+      step.data_meta,
+      step.experiment_id,
+      experiment.name AS experiment_name,
+      experiment.id AS experiment_id,
+      step.id AS step_id
+    FROM measurement
+    JOIN step ON measurement.step_id = step.id
+    JOIN experiment ON step.experiment_id = experiment.id
+),
+seqs AS (
+    SELECT 1 AS seq
+    UNION ALL
+    SELECT seq + 1 FROM seqs WHERE seq < 200
+),
+step_info AS (
+    SELECT step_id, COUNT(*) OVER (PARTITION BY step_id) AS total_count
+    FROM measurement
+    WHERE step_id IN (SELECT id FROM step)
+    GROUP BY step_id
+),
+seqs_expanded AS (
+    SELECT s.step_id, s.total_count, seqs.seq
+    FROM step_info s
+    CROSS JOIN seqs
+),
+special_points AS (
+    SELECT id, step_id, execution_time, temperature, data_meta, experiment_id, experiment_name FROM (
+      SELECT id, step_id, execution_time, temperature, data_meta, experiment_id, experiment_name,
+            ROW_NUMBER() OVER (PARTITION BY step_id ORDER BY execution_time ASC) AS cap_asc,
+            ROW_NUMBER() OVER (PARTITION BY step_id ORDER BY execution_time DESC) AS cap_desc,
+            rn, total_count
+      FROM numbered
+    )
+    WHERE rn = 1 OR rn = total_count OR cap_asc = 1 OR cap_desc = 1
+),
+sampled_points AS (
+    SELECT n.id, n.step_id, n.execution_time, n.temperature, n.data_meta, n.experiment_id, n.experiment_name
+    FROM numbered n
+    JOIN seqs_expanded s
+      ON n.step_id = s.step_id
+      AND n.rn = CAST(1 + (n.total_count - 1) * (s.seq - 1) / (CASE WHEN n.total_count < 200 THEN n.total_count ELSE 200 END) AS INTEGER) + 1
+),
+all_points AS (
+    SELECT id, step_id, execution_time, temperature, data_meta, experiment_id, experiment_name FROM special_points
+    UNION
+    SELECT id, step_id, execution_time, temperature, data_meta, experiment_id, experiment_name FROM sampled_points
+)
+SELECT
+  ap.id,
+  ap.step_id,
+  ap.execution_time,
+  ap.temperature,
+  ap.data_meta,
+  ap.experiment_id,
+  ap.experiment_name,
+  ap.experiment_name || ' - ' || ap.data_meta AS experiment_step_info
+FROM all_points ap
+ORDER BY ap.step_id;
