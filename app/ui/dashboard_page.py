@@ -176,10 +176,10 @@ def render_dashboard_page():
     if st.session_state.selected_steps:
         # Prepare meta map from the DataFrame that was used to select these steps
         selected_steps_meta_map = {}
-        if not steps_df.empty and 'id' in steps_df.columns and 'data_meta' in steps_df.columns:
+        if not steps_df.empty and 'id' in steps_df.columns and 'step_name' in steps_df.columns:
             relevant_steps_df = steps_df[steps_df['id'].isin(st.session_state.selected_steps)]
             if not relevant_steps_df.empty:
-                selected_steps_meta_map = dict(zip(relevant_steps_df['id'], relevant_steps_df['data_meta']))
+                selected_steps_meta_map = dict(zip(relevant_steps_df['id'], relevant_steps_df['step_name']))
         
         render_detail_plot(st.session_state.selected_steps, selected_steps_meta_map)
     else:

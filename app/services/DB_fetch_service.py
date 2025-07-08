@@ -96,12 +96,12 @@ def get_steps_data(selected_experiment_ids: Optional[List[int]] = None) -> pd.Da
                 if temperature_val is None:
                     temperature_val = getattr(step, 'temperature_start', None)
 
-                data_meta = getattr(step, 'data_meta', None)
+                step_name = getattr(step, 'step_name', None)
                 pre_test_rest_time = getattr(step, 'pre_test_rest_time', None)
 
                 data.append({
                     'id': step.id,
-                    'data_meta': data_meta,
+                    'step_name': step_name,
                     'original_step_type': step.original_step_type,
                     'step_number': step.step_number,
                     'experiment_id': step.experiment_id,

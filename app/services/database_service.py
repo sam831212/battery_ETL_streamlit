@@ -495,15 +495,15 @@ def save_steps_to_db(
             c_rate = safe_get_float_from_dict(row_dict, "c_rate", 0.0)
             pre_test_rest_time = safe_get_optional_float_from_dict(row_dict, "pre_test_rest_time")
             
-            # 將 data_meta 轉換為 JSON 字符串
-            data_meta_str = None
+            # 將 step_name 轉換為 JSON 字符串
+            step_name_str = None
             if isinstance(row_dict, dict):
                 try:
                     import json
-                    data_meta_str = json.dumps(row_dict, default=str, ensure_ascii=False)
+                    step_name_str = json.dumps(row_dict, default=str, ensure_ascii=False)
                 except Exception as e:
-                    logger.warning(f"無法序列化 data_meta: {e}")
-                    data_meta_str = str(row_dict)
+                    logger.warning(f"無法序列化 step_name: {e}")
+                    step_name_str = str(row_dict)
            
             step = Step(
                 experiment_id=experiment_id,
@@ -522,7 +522,7 @@ def save_steps_to_db(
                 soc_start=soc_start,
                 soc_end=soc_end,
                 pre_test_rest_time=pre_test_rest_time,
-                data_meta=data_meta_str
+                step_name=step_name_str
             )
 
             session.add(step)

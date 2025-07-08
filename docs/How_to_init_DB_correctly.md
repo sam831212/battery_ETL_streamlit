@@ -179,6 +179,13 @@ alembic upgrade head
 
 ---
 
-**創建日期**: 2025-06-11  
-**最後更新**: 2025-06-11  
-**適用版本**: SQLModel + Alembic
+
+how to revision DB:
+alembic revision --autogenerate -m "Rename data_meta to step_name in Step table"
+alembic upgrade head
+
+不可以有"view"
+如果要downgrade重複流程:
+alembic downgrade 362f8ed7b50a 
+填上一個版本的ID
+重新revision

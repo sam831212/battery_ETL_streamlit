@@ -190,7 +190,7 @@ def render_step_plot(steps_df: pd.DataFrame):
                              key="step_plot_y_axis")
 
     with col3:
-        categorical_columns = ['step_type', 'experiment_name', 'data_meta']
+        categorical_columns = ['step_type', 'experiment_name', 'step_name']
         available_color_cols = ['None'] + [col for col in categorical_columns if col in steps_df.columns and steps_df[col].nunique() > 0]
         color_by = st.selectbox("Color/Group by", available_color_cols, key="step_plot_color_by")
 

@@ -34,7 +34,7 @@ def render_edit_form(table_name: str, record_data: Dict[str, Any], record_id: in
                 field_type = get_field_type(field)
                 new_value = None
 
-                # 直接依型別處理，不再特別處理 data_meta
+                # 直接依型別處理，不再特別處理 step_name
                 if field_type == "numeric":
                     if current_value is not None:
                         new_value = st.number_input(
@@ -75,7 +75,7 @@ def render_edit_form(table_name: str, record_data: Dict[str, Any], record_id: in
                         key=f"{field}_time_{record_id}"
                     )
                     new_value = datetime.combine(date_input, time_input)
-                else:  # text field (包含 data_meta)
+                else:  # text field (包含 step_name)
                     new_value = st.text_input(
                         f"{field}:",
                         value=str(current_value) if current_value is not None else "",

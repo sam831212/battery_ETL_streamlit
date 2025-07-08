@@ -70,12 +70,12 @@ def handle_selected_steps_save():
                         steps_df_to_use = transformed_df[transformed_df["step_number"].isin(selected_step_numbers)].copy()
                         print(f"[DEBUG] 過濾後的 steps_df_to_use 包含 {len(steps_df_to_use)} 個工步")
                         
-                        # IMPORTANT: Merge data_meta from selected_steps into the transformed dataframe
-                        # Create a mapping of step_number to data_meta from selected_steps
-                        data_meta_mapping = {step["step_number"]: step.get("data_meta", "") for step in st.session_state["selected_steps"]}
+                        # IMPORTANT: Merge step_name from selected_steps into the transformed dataframe
+                        # Create a mapping of step_number to step_name from selected_steps
+                        step_name_mapping = {step["step_number"]: step.get("step_name", "") for step in st.session_state["selected_steps"]}
                         
-                        # Add data_meta column to the transformed dataframe
-                        steps_df_to_use["data_meta"] = steps_df_to_use["step_number"].map(data_meta_mapping).fillna("")
+                        # Add step_name column to the transformed dataframe
+                        steps_df_to_use["step_name"] = steps_df_to_use["step_number"].map(step_name_mapping).fillna("")
                     else:
                         print(f"[DEBUG] 警告：transformed_df 中沒有 step_number 欄位，使用原始 selected_steps")
                         steps_df_to_use = pd.DataFrame(st.session_state["selected_steps"])
@@ -164,7 +164,7 @@ def handle_selected_steps_save():
                             soc_start=safe_float(row_dict.get("soc_start")),
                             soc_end=safe_float(row_dict.get("soc_end")),
                             pre_test_rest_time=safe_float(row_dict.get("pre_test_rest_time")),
-                            data_meta=safe_str(row_dict.get("data_meta", ""))
+                            step_name=safe_str(row_dict.get("step_name", ""))
                         )
                     else:
                         step = Step(
@@ -184,7 +184,7 @@ def handle_selected_steps_save():
                             soc_start=safe_float(getattr(row, "soc_start", 0.0)),
                             soc_end=safe_float(getattr(row, "soc_end", 0.0)),
                             pre_test_rest_time=safe_float(getattr(row, "pre_test_rest_time", 0.0)),
-                            data_meta=safe_str(getattr(row, "data_meta", ""))
+                            step_name=safe_str(getattr(row, "step_name", ""))
                         )
                     
                 

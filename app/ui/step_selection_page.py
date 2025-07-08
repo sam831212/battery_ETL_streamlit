@@ -207,15 +207,15 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
     # 新增 db_selection 欄位以供選擇
     filtered_df['db_selection'] = False
     
-    # 新增 data_meta 欄位（如不存在）
-    if 'data_meta' not in filtered_df.columns:
-        filtered_df['data_meta'] = ""
-    # 若 session_state 有暫存的 data_meta，則帶入
-    if 'temp_data_meta_dict' not in st.session_state:
-        st.session_state.temp_data_meta_dict = {}
+    # 新增 step_name 欄位（如不存在）
+    if 'step_name' not in filtered_df.columns:
+        filtered_df['step_name'] = ""
+    # 若 session_state 有暫存的 step_name，則帶入
+    if 'temp_step_name_dict' not in st.session_state:
+        st.session_state.temp_step_name_dict = {}
     for idx in filtered_df.index:
-        if idx in st.session_state.temp_data_meta_dict:
-            filtered_df.at[idx, 'data_meta'] = st.session_state.temp_data_meta_dict[idx]
+        if idx in st.session_state.temp_step_name_dict:
+            filtered_df.at[idx, 'step_name'] = st.session_state.temp_step_name_dict[idx]
 
     # 根據會話狀態更新
     if st.session_state.full_discharge_step_idx is not None:
@@ -297,7 +297,7 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         selected_reference_idx = None
       # 顯示資料庫載入選擇的區塊
     st.write("#### 選擇要載入資料庫的工步")
-    st.caption("請檢查下方工步，並使用「選擇載入資料庫」欄位的勾選框標記要納入最終資料集的工步。您也可以在「資料備註 (data_meta)」欄位輸入備註，**請記得點擊「Apply DB Selection Changes」以儲存您的 dataMeta 輸入**。請確保已選擇上方的『全放電參考工步』以正確計算 SOC，然後點擊『Update Selections』。")
+    st.caption("請檢查下方工步，並使用「選擇載入資料庫」欄位的勾選框標記要納入最終資料集的工步。您也可以在「資料備註 (step_name)」欄位輸入備註，**請記得點擊「Apply DB Selection Changes」以儲存您的 dataMeta 輸入**。請確保已選擇上方的『全放電參考工步』以正確計算 SOC，然後點擊『Update Selections』。")
     
     # 如果資料框中不存在 db_selection 欄位，則新增
     if 'db_selection' not in filtered_df.columns:
@@ -320,7 +320,7 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
                 "soc_range": st.column_config.TextColumn("SOC範圍"),
                 "temperature_range": st.column_config.TextColumn("溫度範圍", help="起始溫度 → 截止溫度"),
                 "duration": st.column_config.NumberColumn("工步執行時間(秒)", format="%.1f"),
-                "data_meta": st.column_config.TextColumn("資料備註 (data_meta)", help="可選，為此工步輸入備註/說明，將一併存入資料庫。"),
+                "step_name": st.column_config.TextColumn("資料備註 (step_name)", help="可選，為此工步輸入備註/說明，將一併存入資料庫。"),
                 "db_selection": st.column_config.CheckboxColumn("選擇載入資料庫", help="勾選以將此工步納入資料庫。"),
             },
             hide_index=True,
@@ -342,10 +342,10 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         selected_rows_in_edited_df = edited_df[edited_df['db_selection']]
         # 通過使用 selected_rows_in_edited_df 的索引來獲取原始索引
         # 這些行號可用於從 filtered_df 獲取原始索引。
-        temp_selected_db_indices = [int(idx) for idx in filtered_df.index[selected_rows_in_edited_df.index].tolist()]        # 從資料編輯器捕獲 data_meta 的變更
+        temp_selected_db_indices = [int(idx) for idx in filtered_df.index[selected_rows_in_edited_df.index].tolist()]        # 從資料編輯器捕獲 step_name 的變更
         for row_position, row in edited_df.iterrows():
             # 直接使用 row_position 作為 index，這對應到 filtered_df 的 index
-            st.session_state.temp_data_meta_dict[row_position] = row.get('data_meta', "")
+            st.session_state.temp_step_name_dict[row_position] = row.get('step_name', "")
         
         if set(temp_selected_db_indices) != set(st.session_state.temp_selected_steps_for_db):
             st.session_state.temp_selected_steps_for_db = temp_selected_db_indices
@@ -472,19 +472,19 @@ def display_selected_steps_overview(filtered_df: pd.DataFrame, selected_indices:
         'soc_range', 
         'temperature_range',  # 改為顯示溫度範圍
         'duration',
-        'data_meta',   # 顯示 data_meta
-    ]    # 先確保 session_state 有 temp_data_meta_dict
-    if 'temp_data_meta_dict' not in st.session_state:
-        st.session_state.temp_data_meta_dict = {}
+        'step_name',   # 顯示 step_name
+    ]    # 先確保 session_state 有 temp_step_name_dict
+    if 'temp_step_name_dict' not in st.session_state:
+        st.session_state.temp_step_name_dict = {}
     
-    # 在顯示前同步 session_state 中的 data_meta 到 DataFrame
+    # 在顯示前同步 session_state 中的 step_name 到 DataFrame
     for idx in selected_df.index:
-        if idx in st.session_state.temp_data_meta_dict:
-            selected_df.at[idx, 'data_meta'] = st.session_state.temp_data_meta_dict[idx]
+        if idx in st.session_state.temp_step_name_dict:
+            selected_df.at[idx, 'step_name'] = st.session_state.temp_step_name_dict[idx]
     
     # 使用 st.form 包裝 data_editor 以避免即時 reload
-    with st.form(key="selected_steps_data_meta_form"):
-        # 只允許 data_meta 欄位可編輯
+    with st.form(key="selected_steps_step_name_form"):
+        # 只允許 step_name 欄位可編輯
         edited_selected_df = st.data_editor(
             selected_df[display_cols],
             column_config={
@@ -495,20 +495,20 @@ def display_selected_steps_overview(filtered_df: pd.DataFrame, selected_indices:
                 "soc_range": st.column_config.TextColumn("SOC範圍", disabled=True),
                 "temperature_range": st.column_config.TextColumn("溫度範圍", help="起始溫度 → 截止溫度", disabled=True),
                 "duration": st.column_config.NumberColumn("工步執行時間(秒)", format="%.1f", disabled=True),
-                "data_meta": st.column_config.TextColumn("資料備註 (data_meta)", help="可選，為此工步輸入備註/說明，將一併存入資料庫。"),
+                "step_name": st.column_config.TextColumn("資料備註 (step_name)", help="可選，為此工步輸入備註/說明，將一併存入資料庫。"),
             },
             hide_index=True,
             use_container_width=True,
-            key="selected_steps_data_meta_editor"
+            key="selected_steps_step_name_editor"
         )
         # 添加保存按鈕
         form_col1, form_col2 = st.columns([3, 1])
         with form_col2:
-            save_data_meta = st.form_submit_button("儲存資料備註", type="secondary")
-    # 當按下保存按鈕時，將 data_meta 寫回 session_state
-    if save_data_meta:
+            save_step_name = st.form_submit_button("儲存資料備註", type="secondary")
+    # 當按下保存按鈕時，將 step_name 寫回 session_state
+    if save_step_name:
         for idx, row in edited_selected_df.iterrows():
-            st.session_state.temp_data_meta_dict[idx] = row.get('data_meta', "")
+            st.session_state.temp_step_name_dict[idx] = row.get('step_name', "")
         st.success("資料備註已成功儲存！")
         st.rerun()  # 重新運行以更新顯示
 
@@ -647,16 +647,16 @@ def render_step_selection_page(steps_df: pd.DataFrame, details_df: pd.DataFrame)
                 full_discharge_step_idx=st.session_state.full_discharge_step_idx # 使用確認的參考索引
             )
             
-            # 保留 DATA_META：將使用者輸入的 dataMeta 添加到重新計算的資料框中
-            if 'temp_data_meta_dict' in st.session_state and st.session_state.temp_data_meta_dict:
-                # 如果不存在，則新增 data_meta 欄位
-                if 'data_meta' not in steps_with_soc.columns:
-                    steps_with_soc['data_meta'] = ""
+            # 保留 step_name：將使用者輸入的 dataMeta 添加到重新計算的資料框中
+            if 'temp_step_name_dict' in st.session_state and st.session_state.temp_step_name_dict:
+                # 如果不存在，則新增 step_name 欄位
+                if 'step_name' not in steps_with_soc.columns:
+                    steps_with_soc['step_name'] = ""
                 
                 # 從會話狀態應用使用者輸入的 dataMeta
-                for idx, data_meta_value in st.session_state.temp_data_meta_dict.items():
+                for idx, step_name_value in st.session_state.temp_step_name_dict.items():
                     if idx in steps_with_soc.index:
-                        steps_with_soc.at[idx, 'data_meta'] = data_meta_value
+                        steps_with_soc.at[idx, 'step_name'] = step_name_value
             
             # 更新將用於顯示和進一步處理的主要 steps_df
             st.session_state.steps_df_with_soc = steps_with_soc # 這是用於顯示的資料
@@ -688,9 +688,9 @@ def render_step_selection_page(steps_df: pd.DataFrame, details_df: pd.DataFrame)
             # 建立步驟資料字典的列表
             for step_idx in st.session_state.selected_steps_for_db:
                 step_row = steps_df_with_soc.loc[step_idx].to_dict()
-                # 加入 data_meta
-                if 'temp_data_meta_dict' in st.session_state:
-                    step_row['data_meta'] = st.session_state.temp_data_meta_dict.get(step_idx, "")
+                # 加入 step_name
+                if 'temp_step_name_dict' in st.session_state:
+                    step_row['step_name'] = st.session_state.temp_step_name_dict.get(step_idx, "")
                 selected_steps.append(step_row)
             
             # 將選定的步驟和相關資料儲存到會話狀態中，以便在元資料頁面使用

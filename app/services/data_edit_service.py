@@ -137,7 +137,7 @@ def get_editable_fields(table_name: str) -> List[str]:
                        "temperature", "operator", "start_date"],
         "steps": ["step_type", "voltage_start", "voltage_end", "current", "capacity", 
                  "energy", "temperature_start", "temperature_end", "c_rate", 
-                 "soc_start", "soc_end", "pre_test_rest_time", "data_meta"],
+                 "soc_start", "soc_end", "pre_test_rest_time", "step_name"],
         "measurements": ["voltage", "current", "temperature", "capacity", "energy"]
     }
     return editable_fields.get(table_name.lower(), [])
