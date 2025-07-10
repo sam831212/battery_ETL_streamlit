@@ -139,29 +139,7 @@ def render_ui_preferences():
 def render_cell_management():
     """Render cell management UI"""
     st.header("電池管理")
-    
-    # Display existing cells
-    st.subheader("現有電池")
-    
-    with get_session() as session:
-        cells = session.exec(select(Cell).order_by(Cell.id)).all()
         
-        if cells:
-            # Create a table to display cells
-            cell_data = []
-            for cell in cells:
-                cell_data.append({
-                    "ID": cell.id,
-                    "名稱": cell.name or "N/A",
-                    "化學組成": cell.chemistry.value,
-                    "容量 (Ah)": cell.capacity,
-                    "外型": cell.form.value
-                })
-            
-            st.dataframe(cell_data, use_container_width=True)
-        else:
-            st.info("尚未新增任何電池。")
-    
     # Form to add a new cell
     st.subheader("新增電池")
     
@@ -266,27 +244,6 @@ def render_cell_management():
 def render_machine_management():
     """Render machine management UI"""
     st.header("設備管理")
-    
-    # Display existing machines
-    st.subheader("現有設備")
-    
-    with get_session() as session:
-        machines = session.exec(select(Machine).order_by(Machine.id)).all()
-        
-        if machines:
-            # Create a table to display machines
-            machine_data = []
-            for machine in machines:
-                machine_data.append({
-                    "ID": machine.id,
-                    "名稱": machine.name,
-                    "型號": machine.model_number or "N/A",
-                    "描述": machine.description or "N/A"
-                })
-            
-            st.dataframe(machine_data, use_container_width=True)
-        else:
-            st.info("尚未新增任何設備。")
     
     # Form to add a new machine
     st.subheader("新增設備")

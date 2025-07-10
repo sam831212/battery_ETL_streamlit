@@ -76,7 +76,7 @@ def save_experiment_metadata(
     return True
 
 
-def render_experiment_metadata(cells, machines, has_data_from_preview, projects=None):
+def render_experiment_metadata(cells, machines, has_data_from_preview, projects):
     """Render experiment metadata form"""
     # Create form for experiment metadata
     st.header("Experiment Information")

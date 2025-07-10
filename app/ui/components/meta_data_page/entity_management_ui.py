@@ -15,6 +15,8 @@ def render_entity_management(
     header_text,
     form_fields,
     display_fields,
+    session,
+    entities, # Add entities parameter
     reference_check=None,
 ):
     """
@@ -26,6 +28,7 @@ def render_entity_management(
         header_text: Text to display as the header
         form_fields: List of dictionaries defining form fields for adding entities
         display_fields: List of dictionaries mapping entity attributes to display names
+        entities: List of entity objects to display
         reference_check: Optional function to check if entity can be deleted
     """
     st.subheader(header_text)
@@ -102,110 +105,108 @@ def render_entity_management(
     with col2:
         st.write(f"#### Existing {entity_type.capitalize()}s")
 
-        with get_db_session() as session:
-            # Get all entities
-            entities = session.query(entity_class).all()
 
-            if not entities:
-                st.info(f"No {entity_type}s found. Add one using the form.")
-            else:
-                # Display as a table
-                for entity in entities:
-                    # 顯示 cell/machine/project name，若無則 fallback 為 #id
-                    if entity_type == "cell":
-                        display_title = getattr(entity, 'name', None) or f"#{entity.id}"
-                        expander_title = f"{entity_type.capitalize()}: {display_title}"
-                    elif entity_type == "machine":
-                        display_title = getattr(entity, 'name', None) or f"#{entity.id}"
-                        expander_title = f"{entity_type.capitalize()}: {display_title}"
-                    elif entity_type == "project":
-                        display_title = getattr(entity, 'name', None) or f"#{entity.id}"
-                        expander_title = f"{entity_type.capitalize()}: {display_title}"
-                    else:
-                        expander_title = f"{entity_type.capitalize()} #{entity.id}"
-                    with st.expander(expander_title):
-                        # Display each field defined in display_fields
-                        for field in display_fields:
-                            attr_name = field["attr"]
-                            display_name = field["display"]
-                            # Get attribute value, handle nested attributes with dots
-                            if "." in attr_name:
-                                parts = attr_name.split(".")
-                                value = entity
-                                for part in parts:
-                                    value = getattr(value, part, None)
-                            else:
-                                value = getattr(entity, attr_name, None)
 
-                            st.write(f"**{display_name}:** {value}")
+        if not entities:
+            st.info(f"No {entity_type}s found. Add one using the form.")
+        else:
+            # Display as a table
+            for entity in entities:
+                # 顯示 cell/machine/project name，若無則 fallback 為 #id
+                if entity_type == "cell":
+                    display_title = getattr(entity, 'name', None) or f"#{entity.id}"
+                    expander_title = f"{entity_type.capitalize()}: {display_title}"
+                elif entity_type == "machine":
+                    display_title = getattr(entity, 'name', None) or f"#{entity.id}"
+                    expander_title = f"{entity_type.capitalize()}: {display_title}"
+                elif entity_type == "project":
+                    display_title = getattr(entity, 'name', None) or f"#{entity.id}"
+                    expander_title = f"{entity_type.capitalize()}: {display_title}"
+                else:
+                    expander_title = f"{entity_type.capitalize()} #{entity.id}"
+                with st.expander(expander_title):
+                    # Display each field defined in display_fields
+                    for field in display_fields:
+                        attr_name = field["attr"]
+                        display_name = field["display"]
+                        # Get attribute value, handle nested attributes with dots
+                        if "." in attr_name:
+                            parts = attr_name.split(".")
+                            value = entity
+                            for part in parts:
+                                value = getattr(value, part, None)
+                        else:
+                            value = getattr(entity, attr_name, None)
 
-                        # 編輯功能
-                        edit_key = f"edit_{entity_type}_{entity.id}"
-                        if st.button(f"Edit {entity_type.capitalize()}", key=edit_key):
-                            st.session_state[f"editing_{entity_type}_{entity.id}"] = True
-                        if st.session_state.get(f"editing_{entity_type}_{entity.id}", False):
-                            with st.form(f"edit_{entity_type}_form_{entity.id}"):
-                                edit_values = {}
+                        st.write(f"**{display_name}:** {value}")
+
+                    # 編輯功能
+                    edit_key = f"edit_{entity_type}_{entity.id}"
+                    if st.button(f"Edit {entity_type.capitalize()}", key=edit_key):
+                        st.session_state[f"editing_{entity_type}_{entity.id}"] = True
+                    if st.session_state.get(f"editing_{entity_type}_{entity.id}", False):
+                        with st.form(f"edit_{entity_type}_form_{entity.id}"):
+                            edit_values = {}
+                            for field in form_fields:
+                                field_name = field["name"]
+                                field_type = field.get("type", "text")
+                                field_label = field.get("label", field_name.replace("_", " ").capitalize())
+                                field_options = field.get("options", None)
+                                # 取得現有值
+                                current_value = getattr(entity, field_name, None)
+                                if field_type == "text":
+                                    edit_values[field_name] = st.text_input(field_label, value=current_value or "")
+                                elif field_type == "number":
+                                    edit_values[field_name] = st.number_input(field_label, value=current_value or 0.0)
+                                elif field_type == "select":
+                                    options = field_options or []
+                                    index = options.index(current_value) if current_value in options else 0
+                                    edit_values[field_name] = st.selectbox(field_label, options=options, index=index)
+                                elif field_type == "date":
+                                    edit_values[field_name] = st.date_input(field_label, value=current_value)
+                                elif field_type == "textarea":
+                                    edit_values[field_name] = st.text_area(field_label, value=current_value or "")
+                            save_button = st.form_submit_button("Save")
+                        if save_button:
+                            try:
                                 for field in form_fields:
                                     field_name = field["name"]
-                                    field_type = field.get("type", "text")
-                                    field_label = field.get("label", field_name.replace("_", " ").capitalize())
-                                    field_options = field.get("options", None)
-                                    # 取得現有值
-                                    current_value = getattr(entity, field_name, None)
-                                    if field_type == "text":
-                                        edit_values[field_name] = st.text_input(field_label, value=current_value or "")
-                                    elif field_type == "number":
-                                        edit_values[field_name] = st.number_input(field_label, value=current_value or 0.0)
-                                    elif field_type == "select":
-                                        options = field_options or []
-                                        index = options.index(current_value) if current_value in options else 0
-                                        edit_values[field_name] = st.selectbox(field_label, options=options, index=index)
-                                    elif field_type == "date":
-                                        edit_values[field_name] = st.date_input(field_label, value=current_value)
-                                    elif field_type == "textarea":
-                                        edit_values[field_name] = st.text_area(field_label, value=current_value or "")
-                                save_button = st.form_submit_button("Save")
-                            if save_button:
-                                try:
-                                    for field in form_fields:
-                                        field_name = field["name"]
-                                        value = edit_values[field_name]
-                                        if isinstance(value, str) and value.strip() == "":
-                                            value = None
-                                        setattr(entity, field_name, value)
-                                    # Cell 特殊欄位處理
-                                    if entity_type == "cell":
-                                        if "nominal_capacity" in edit_values:
-                                            entity.capacity = edit_values["nominal_capacity"]
-                                        if "form_factor" in edit_values:
-                                            entity.form = CellFormFactor(edit_values["form_factor"])
-                                    session.commit()
-                                    st.success(f"{entity_type.capitalize()} updated successfully!")
-                                    st.session_state[f"editing_{entity_type}_{entity.id}"] = False
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Error updating {entity_type}: {str(e)}")
-                        # Add delete button
-                        if st.button(f"Delete {entity_type.capitalize()}", key=f"delete_{entity_type}_{entity.id}"):
-                            # Check if entity can be deleted
-                            can_delete = True
-                            message = ""
+                                    value = edit_values[field_name]
+                                    if isinstance(value, str) and value.strip() == "":
+                                        value = None
+                                    setattr(entity, field_name, value)
+                                # Cell 特殊欄位處理
+                                if entity_type == "cell":
+                                    if "nominal_capacity" in edit_values:
+                                        entity.capacity = edit_values["nominal_capacity"]
+                                    if "form_factor" in edit_values:
+                                        entity.form = CellFormFactor(edit_values["form_factor"])
+                                session.commit()
+                                st.success(f"{entity_type.capitalize()} updated successfully!")
+                                st.session_state[f"editing_{entity_type}_{entity.id}"] = False
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error updating {entity_type}: {str(e)}")
+                    # Add delete button
+                    if st.button(f"Delete {entity_type.capitalize()}", key=f"delete_{entity_type}_{entity.id}"):
+                        # Check if entity can be deleted
+                        can_delete = True
+                        message = ""
 
-                            if reference_check:
-                                can_delete, message = reference_check(session, entity.id)
+                        if reference_check:
+                            can_delete, message = reference_check(session, entity.id)
 
-                            if can_delete:
-                                try:
-                                    # Delete the entity
-                                    session.delete(entity)
-                                    session.commit()
-                                    st.success(f"{entity_type.capitalize()} deleted successfully!")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Error deleting {entity_type}: {str(e)}")
-                            else:
-                                st.error(message)
+                        if can_delete:
+                            try:
+                                # Delete the entity
+                                session.delete(entity)
+                                session.commit()
+                                st.success(f"{entity_type.capitalize()} deleted successfully!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error deleting {entity_type}: {str(e)}")
+                        else:
+                            st.error(message)
 
 
 def cell_reference_check(session, cell_id):
@@ -221,7 +222,7 @@ def cell_reference_check(session, cell_id):
     return True, "Cell can be safely deleted."
 
 
-def render_cell_management():
+def render_cell_management(session, cells):
     """Render cell management UI"""
     form_fields = [
         {"name": "name", "type": "text", "label": "Cell Name"},
@@ -249,12 +250,15 @@ def render_cell_management():
         {"attr": "notes", "display": "Notes"}
     ]
 
+    # cells = session.query(Cell).all() # Remove this line
     render_entity_management(
         entity_type="cell",
         entity_class=Cell,
         header_text="Cell Management",
         form_fields=form_fields,
         display_fields=display_fields,
+        session=session,
+        entities=cells,
         reference_check=cell_reference_check
     )
 
@@ -272,7 +276,7 @@ def machine_reference_check(session, machine_id):
     return True, "Machine can be safely deleted."
 
 
-def render_machine_management():
+def render_machine_management(session, machines):
     """Render machine management UI"""
     form_fields = [
         {"name": "name", "type": "text", "label": "Machine Name"},
@@ -286,17 +290,20 @@ def render_machine_management():
         {"attr": "model_number", "display": "Model Number"}
     ]
 
+    # machines = session.query(Machine).all() # Remove this line
     render_entity_management(
         entity_type="machine",
         entity_class=Machine,
         header_text="Machine Management",
         form_fields=form_fields,
         display_fields=display_fields,
+        session=session,
+        entities=machines,
         reference_check=machine_reference_check
     )
 
 
-def render_project_management():
+def render_project_management(session, projects):
     """Render project management UI"""
     form_fields = [
         {"name": "name", "type": "text", "label": "Project Name"},
@@ -311,10 +318,13 @@ def render_project_management():
         
     ]
 
+    # projects = session.query(Project).all() # Remove this line
     render_entity_management(
         entity_type="project",
         entity_class=Project,
         header_text="Project Management",
         form_fields=form_fields,
-        display_fields=display_fields
+        display_fields=display_fields,
+        session=session,
+        entities=projects
     )

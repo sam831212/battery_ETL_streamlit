@@ -70,15 +70,15 @@ def render_meta_data_page():
     
     # Tab 1: Cell Management
     with tab1:
-        render_cell_management()
+        render_cell_management(session, cells)
     
     # Tab 2: Machine Management
     with tab2:
-        render_machine_management()
+        render_machine_management(session, machines)
     
     # Tab 3: Project Management
     with tab3:
-        render_project_management()
+        render_project_management(session, projects)
     
     # Tab 4: Experiment Information
     with tab4:
