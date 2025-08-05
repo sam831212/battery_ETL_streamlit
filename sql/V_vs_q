@@ -1,16 +1,16 @@
--- T_vs_t source
+-- V_vs_q source
 
-CREATE VIEW T_vs_t AS
+CREATE VIEW V_vs_q AS
 WITH base_data AS (
     SELECT 
         m.id,
         m.step_id,
-        ABS(m.execution_time) AS execution_time,
-        m.temperature,
+        ABS(m.capacity) AS capacity,
+        m.voltage,
         s.step_name,
         s.experiment_id,
         e.name AS experiment_name,
-        ROW_NUMBER() OVER (PARTITION BY m.step_id ORDER BY ABS(m.execution_time)) AS rn,
+        ROW_NUMBER() OVER (PARTITION BY m.step_id ORDER BY ABS(m.capacity)) AS rn,
         COUNT(*) OVER (PARTITION BY m.step_id) AS total_count
     FROM measurement m
     JOIN step s ON m.step_id = s.id
@@ -20,8 +20,8 @@ sampled_data AS (
     SELECT 
         id,
         step_id,
-        execution_time,
-        temperature,
+        capacity,
+        voltage,
         step_name,
         experiment_id,
         experiment_name,
@@ -35,15 +35,28 @@ sampled_data AS (
         OR (total_count > 200 AND rn % CAST((total_count + 199) / 200 AS INTEGER) = 1)
         -- If total_count <= 200, include all points
         OR total_count <= 200
+),
+deduped_data AS (
+    SELECT 
+        id,
+        step_id,
+        capacity,
+        voltage,
+        step_name,
+        experiment_id,
+        experiment_name,
+        ROW_NUMBER() OVER (PARTITION BY step_id, capacity, voltage ORDER BY id) AS dup_rank
+    FROM sampled_data
 )
 SELECT 
     id,
     step_id,
-    execution_time,
-    temperature,
+    capacity,
+    voltage,
     step_name,
     experiment_id,
     experiment_name,
     experiment_name || ' - ' || step_name AS experiment_step_info
-FROM sampled_data
-ORDER BY step_id, execution_time;
+FROM deduped_data
+WHERE dup_rank = 1
+ORDER BY step_id, capacity;

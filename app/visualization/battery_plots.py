@@ -181,7 +181,7 @@ def plot_voltage_vs_time(df: pd.DataFrame,
                                  x_col=time_col,
                                  y_col=voltage_col,
                                  title=title,
-                                 x_title='Time',
+                                 x_title='Time (s)',
                                  y_title='Voltage (V)',
                                  step_type_col=step_type_col)
 
@@ -278,7 +278,7 @@ def plot_current_vs_time(df: pd.DataFrame,
                                  x_col=time_col,
                                  y_col=current_col,
                                  title=title,
-                                 x_title='Time',
+                                 x_title='Time (s)',
                                  y_title='Current (A)',
                                  step_type_col=step_type_col)
 
@@ -385,7 +385,7 @@ def plot_temperature_vs_time(df: pd.DataFrame,
     # Update layout
     fig.update_layout(
         title=title,
-        xaxis_title='Time',
+        xaxis_title='Time (s)',
         yaxis_title='Temperature (°C)',
         legend_title='Step Type',
         hovermode='closest'
@@ -513,7 +513,7 @@ def plot_combined_voltage_current(
 
     # Set titles
     fig.update_layout(title=title)
-    fig.update_xaxes(title_text='Time')
+    fig.update_xaxes(title_text='Time (s)')
     fig.update_yaxes(title_text='Voltage (V)', secondary_y=False)
     fig.update_yaxes(title_text='Current (A) / Temperature (°C)', secondary_y=True)
 

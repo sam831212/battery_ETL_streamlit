@@ -1,12 +1,12 @@
--- T_vs_t source
+-- V_vs_t source
 
-CREATE VIEW T_vs_t AS
+CREATE VIEW V_vs_t AS
 WITH base_data AS (
     SELECT 
         m.id,
         m.step_id,
         ABS(m.execution_time) AS execution_time,
-        m.temperature,
+        m.voltage,
         s.step_name,
         s.experiment_id,
         e.name AS experiment_name,
@@ -21,7 +21,7 @@ sampled_data AS (
         id,
         step_id,
         execution_time,
-        temperature,
+        voltage,
         step_name,
         experiment_id,
         experiment_name,
@@ -40,7 +40,7 @@ SELECT
     id,
     step_id,
     execution_time,
-    temperature,
+    voltage,
     step_name,
     experiment_id,
     experiment_name,
