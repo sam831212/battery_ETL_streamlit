@@ -25,7 +25,7 @@ class ProcessingConfig:
     default_batch_size: int = 1000
     measurement_internal_batch_size: int = 1000  # 新增：用於測量數據內部小批次的大小
     max_retry_attempts: int = 3
-    voltage_precision: int = 3
+    voltage_precision: int = 5
     current_precision: int = 3
     temperature_precision: int = 1
     capacity_precision: int = 3

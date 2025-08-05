@@ -21,11 +21,9 @@ The Battery ETL Dashboard is designed to help battery researchers and engineers 
 - ✓ Upload page with file upload interface
 - ✓ Dashboard page with visualization placeholders
 - ✓ Data validation module
+- ✓ ETL processing implementation for battery test data
+- ✓ Visualization components for battery performance metrics by Metabase
 
-### In Progress
-- → ETL processing implementation for battery test data
-- → Visualization components for battery performance metrics
-- → Database integration for storing and retrieving processed data
 
 ### Planned Features
 - Advanced analytics for battery degradation analysis
@@ -73,22 +71,38 @@ The Battery ETL Dashboard is designed to help battery researchers and engineers 
 
 ### Prerequisites
 - Python 3.8+
-- PostgreSQL database
+- SQLite database
 
 ### Installation
-1. Clone the repository
-2. Install dependencies:
+1. Clone the repository:
+   ```bash
+   git clone <repository_url>
+   cd streamlit_project
    ```
+2. Create a Python virtual environment and activate it (recommended):
+   ```bash
+   python -m venv venv
+   # On Windows
+   .\venv\Scripts\activate
+   # On macOS/Linux
+   source venv/bin/activate
+   ```
+3. Install dependencies:
+   ```bash
    pip install -r requirements.txt
    ```
-3. Create a `.env` file with the following environment variables:
+4. Create a `.env` file in the root directory of the project with the following environment variables:
    ```
-
+   DATABASE_URL="postgresql+psycopg2://user:password@host:port/database_name"
+   # Example for SQLite (if used for local development):
+   # DATABASE_URL="sqlite:///./test.db"
    ```
-4. Run the application:
+   Replace `user`, `password`, `host`, `port`, and `database_name` with your PostgreSQL database credentials. If using SQLite, uncomment the SQLite example.
+5. Run the application:
+   ```bash
+   streamlit run main.py
    ```
-   streamlit run streamlit_app.py
-   ```
+   The application will typically open in your web browser at `http://localhost:8501`.
 
 ## Usage
 
