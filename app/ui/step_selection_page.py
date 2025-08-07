@@ -114,21 +114,7 @@ def calculate_step_ranges(steps_df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def filter_steps_by_type(steps_df: pd.DataFrame, step_types: List[str]) -> pd.DataFrame:
-    """
-    根據步驟類型過濾步驟。
-    
-    參數:
-        steps_df: 包含步驟資料的資料框
-        step_types: 要包含的步驟類型列表
-        
-    回傳:
-        過濾後的資料框
-    """
-    return steps_df[steps_df['step_type'].isin(step_types)]
-
-
-def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[int], List[int]]:
+def show_step_selection_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[int], List[int]]:
     """
     顯示步驟的表格，並提供選擇功能。
     
@@ -153,35 +139,12 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
         display_df = calculate_step_ranges(steps_df)
     # 讓 filtered_df 也指向最新的 display_df，確保後續顯示與選擇都用最新資料
     filtered_df = display_df.copy()
-
-    # 根據步驟類型過濾
-    st.subheader("工步篩選")
-    
-    # 讓使用者選擇要顯示的步驟類型
-    available_step_types = sorted(display_df['step_type'].unique().tolist())
-    
-    # 只篩選可用的預設步驟類型
-    # 如果 available_step_types 可能很大，則使用集合進行更快的查找
-    available_step_types_set = set(available_step_types)
-    filtered_defaults = [step_type for step_type in st.session_state.filtered_step_types 
-                        if step_type in available_step_types_set]
-    
-    selected_step_types = st.multiselect(
-        "選擇要顯示的工步類型：",
-        options=available_step_types,
-        default=filtered_defaults,
-        key="step_type_filter",
-        help="依工步類型（如充電、放電）篩選下方顯示的工步。"
-    )
     
     # 更新會話狀態中的選擇的步驟類型
     st.session_state.filtered_step_types = selected_step_types
     
     # 根據選擇的步驟類型過濾
-    if selected_step_types:
-        filtered_df = filter_steps_by_type(display_df, selected_step_types)
-    else:
-        filtered_df = display_df
+    filtered_df = display_df
         
     # 檢查是否有放電步驟可供參考選擇
     discharge_steps = filtered_df[filtered_df['step_type'] == 'discharge']
@@ -236,65 +199,146 @@ def display_steps_table(steps_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[
     st.subheader("工步選擇")
     
     # 顯示步驟表格
+def _select_full_discharge_step(filtered_df):
+    """
+    處理選擇全放電參考工步的邏輯。
+    
+    參數:
+        filtered_df: 包含已過濾步驟資料的資料框
+        
+    回傳:
+        選擇的全放電步驟索引（或 None）
+    """
     st.write("#### 選擇全放電參考工步（用於 SOC 計算）")
     discharge_only = filtered_df[filtered_df['step_type'] == 'discharge'].copy()
     
-    # 只顯示放電步驟以供參考選擇
     if not discharge_only.empty:
-        # 為選擇參考放電步驟建立單選按鈕
-        # 只取前 5 個放電工步
         discharge_options = {
             f"Step {row['step_number']} ({row['original_step_type']})": idx 
-            for idx, row in discharge_only.head(5).iterrows() # 只顯示前 5 個以供選擇
+            for idx, row in discharge_only.iterrows()
         }
         
-        # 如果放電工步超過 5 個，顯示提示訊息
-        if len(discharge_only) > 5:
-            st.info(f"僅顯示前 5 個放電工步供參考選擇（目前篩選下共有 {len(discharge_only)} 個放電工步）。如需更多，請先進一步篩選工步。")
-        
-        # --- 新增：自動預設選第二個 CC放電 ---
-        # 只有當 temp_reference_step_idx 尚未設定時才自動選擇
         if st.session_state.temp_reference_step_idx is None:
-            # 找出前 5 個放電工步中 original_step_type == 'CC放電' 的 index
-            cc_discharge_indices = [idx for idx, row in discharge_only.head(5).iterrows() if row.get('original_step_type', '') == 'CC放電']
+            cc_discharge_indices = [idx for idx, row in discharge_only.iterrows() if row.get('original_step_type', '') == 'CC放電']
             if len(cc_discharge_indices) >= 2:
                 st.session_state.temp_reference_step_idx = cc_discharge_indices[1]
             elif len(cc_discharge_indices) == 1:
                 st.session_state.temp_reference_step_idx = cc_discharge_indices[0]
             else:
-                # 若沒有 CC放電，維持 None
                 pass
-        # ---
-        # 根據會話狀態中的選擇，決定目前選項的索引
-        current_idx = st.session_state.temp_reference_step_idx # 使用 temp 以便立即在 UI 中反映
+        
+        current_idx = st.session_state.temp_reference_step_idx
         current_option = next(
             (k for k, v in discharge_options.items() if v == current_idx), 
             "None (Auto-detect)"
         )
         
-        # 修正 index 取得方式，避免 ValueError
         if current_option in discharge_options.keys():
             current_index = list(discharge_options.keys()).index(current_option)
         else:
-            current_index = 0  # 預設選第一個
-
-        selected_reference_option = st.radio(
+            current_index = 0
+        
+        selected_reference_option = st.selectbox(
             "選擇一個放電工步作為 0% SOC 參考：",
             options=list(discharge_options.keys()),
             index=current_index,
             key="reference_step_selector",
-            help="選擇一個代表完全放電狀態（0% SOC）的放電工步。此選擇對於所有工步的 SOC 計算至關重要。僅顯示前 5 個放電工步，如需更多請先篩選。"
+            help="選擇一個代表完全放電狀態（0% SOC）的放電工步。此選擇對於所有工步的 SOC 計算至關重要。"
         )
         
         selected_reference_idx = discharge_options[selected_reference_option]
         
-        # 將選擇儲存到暫存狀態中，並設置更新標誌
         if selected_reference_idx != st.session_state.temp_reference_step_idx:
             st.session_state.temp_reference_step_idx = selected_reference_idx
             st.session_state.update_needed = True
     else:
         st.info("目前無可用的放電工步作為參考，請調整篩選條件以包含放電工步。")
         selected_reference_idx = None
+        
+    return selected_reference_idx
+
+def show_step_selection_table(steps_df: pd.DataFrame):
+    """
+    顯示步驟的表格，並提供選擇功能。
+    
+    參數:
+        steps_df: 包含步驟資料的資料框
+        
+    回傳:
+        Tuple，包含:
+        - 過濾後的資料框
+        - 選擇的全放電步驟索引（或 None）
+        - 要載入資料庫的選擇步驟索引列表
+    """
+    # 初始化會話狀態（如果需要的話）
+    init_step_selection_state()
+    
+    # --- 決定顯示用的 DataFrame ---
+    # 若已經 pre-process 過，則顯示最新的 steps_df_with_soc
+    # 若剛按下 Update Selections，則顯示最新的 steps_df_with_soc
+    if st.session_state.steps_df_with_soc is not None:
+        display_df = calculate_step_ranges(st.session_state.steps_df_with_soc)
+    else:
+        display_df = calculate_step_ranges(steps_df)
+    # 讓 filtered_df 也指向最新的 display_df，確保後續顯示與選擇都用最新資料
+    filtered_df = display_df.copy()
+    
+    # 根據選擇的步驟類型過濾
+    filtered_df = display_df
+        
+    # 檢查是否有放電步驟可供參考選擇
+    discharge_steps = filtered_df[filtered_df['step_type'] == 'discharge']
+    has_discharge_steps = not discharge_steps.empty
+    
+    if not has_discharge_steps:
+        st.warning("目前篩選條件下沒有可用的放電工步，請調整篩選條件以包含放電工步。")
+    
+    # 準備顯示用的欄位    # 建立一個新的資料框以顯示，避免修改過濾後的資料
+    display_cols = [
+        'step_number', 
+        'original_step_type', 
+        'step_type', 
+        'duration',  # 工步執行時間(秒)
+        'c_rate', 
+        'soc_range',
+        'temperature_range',  # 改為顯示溫度範圍
+    ]
+    
+    # 新增 full_discharge_reference 欄位以供選擇
+    filtered_df['full_discharge_reference'] = False
+    
+    # 新增 db_selection 欄位以供選擇
+    filtered_df['db_selection'] = False
+    
+    # 新增 step_name 欄位（如不存在）
+    if 'step_name' not in filtered_df.columns:
+        filtered_df['step_name'] = ""
+    # 若 session_state 有暫存的 step_name，則帶入
+    if 'temp_step_name_dict' not in st.session_state:
+        st.session_state.temp_step_name_dict = {}
+    for idx in filtered_df.index:
+        if idx in st.session_state.temp_step_name_dict:
+            filtered_df.at[idx, 'step_name'] = st.session_state.temp_step_name_dict[idx]
+
+    # 根據會話狀態更新
+    if st.session_state.full_discharge_step_idx is not None:
+        if st.session_state.full_discharge_step_idx in filtered_df.index:
+            filtered_df.loc[st.session_state.full_discharge_step_idx, 'full_discharge_reference'] = True
+    
+    # 如果暫存的選擇是空的，則用已選擇的步驟初始化
+    if not st.session_state.temp_selected_steps_for_db and st.session_state.selected_steps_for_db:
+        st.session_state.temp_selected_steps_for_db = st.session_state.selected_steps_for_db.copy()
+    
+    # 在資料編輯器中顯示暫時的選擇
+    # 這確保了 UI 顯示最新的核取方塊選擇
+    for idx in st.session_state.temp_selected_steps_for_db:
+        if idx in filtered_df.index:
+            filtered_df.loc[idx, 'db_selection'] = True
+    
+    # 建立兩個區塊：一個用於參考選擇，一個用於資料庫選擇
+    st.subheader("工步選擇")
+    
+    selected_reference_idx = _select_full_discharge_step(filtered_df)
       # 顯示資料庫載入選擇的區塊
     st.write("#### 選擇要載入資料庫的工步")
     st.caption("請檢查下方工步，並使用「選擇載入資料庫」欄位的勾選框標記要納入最終資料集的工步。您也可以在「資料備註 (step_name)」欄位輸入備註，**請記得點擊「Apply DB Selection Changes」以儲存您的 dataMeta 輸入**。請確保已選擇上方的『全放電參考工步』以正確計算 SOC，然後點擊『Update Selections』。")
@@ -617,7 +661,7 @@ def render_step_selection_page(steps_df: pd.DataFrame, details_df: pd.DataFrame)
     init_step_selection_state()
     
     # 顯示步驟表格並獲取選擇
-    filtered_df, selected_reference_idx, selected_db_indices = display_steps_table(steps_df)
+    filtered_df, selected_reference_idx, selected_db_indices = show_step_selection_table(steps_df)
     
     # 在選擇後添加更新按鈕，並附上說明文字
     st.info("請於上方完成選擇後點擊『更新』套用變更。未點擊更新前，變更不會生效。")
