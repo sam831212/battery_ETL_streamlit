@@ -1,4 +1,4 @@
-# Battery ETL Dashboard
+<img width="1598" height="724" alt="image" src="https://github.com/user-attachments/assets/8801cbc1-83e8-45a9-896e-d6f9e7dd46df" /># Battery ETL Dashboard
 
 A comprehensive dashboard for processing, analyzing, and visualizing battery test data using Streamlit and SQLite.
 
@@ -84,3 +84,6 @@ The Battery ETL Dashboard is designed to help battery researchers and engineers 
     - **Meta Data**: Add metadata for your experiment.
     - **Dashboard**: View visualizations and analysis of your data.
     - **Settings**: Configure application settings.
+  
+<img width="1598" height="724" alt="image" src="https://github.com/user-attachments/assets/9d936159-7f95-4f03-8d41-df4db77c69ac" />
+
