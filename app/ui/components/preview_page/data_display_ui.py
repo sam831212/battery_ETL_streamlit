@@ -14,7 +14,7 @@ def display_data_statistics(step_df: pd.DataFrame, detail_df: pd.DataFrame):
     """
     st.subheader("Data Statistics")
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(4)
 
     with col1:
         st.metric("Steps", step_df['step_number'].nunique())
@@ -23,9 +23,6 @@ def display_data_statistics(step_df: pd.DataFrame, detail_df: pd.DataFrame):
         st.metric("Step Records", len(step_df))
 
     with col3:
-        st.metric("Detail Records", len(detail_df))
-
-    with col4:
         step_types = step_df['step_type'].value_counts()
         common_step = step_types.index[0] if not step_types.empty else "N/A"
         st.metric("Primary Step Type", common_step)
