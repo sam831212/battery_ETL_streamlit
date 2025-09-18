@@ -7,17 +7,6 @@ import streamlit as st
 from app.utils.config import DEBUG
 from app.utils.database import init_db
 import os
-import threading
-import webbrowser
-
-# Set Streamlit server port and browser behavior before importing streamlit
-os.environ["STREAMLIT_SERVER_PORT"] = "5000"
-os.environ["STREAMLIT_SERVER_HEADLESS"] = "false"
-os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
-os.environ["STREAMLIT_SERVER_ENABLECORS"] = "false"
-os.environ["STREAMLIT_SERVER_ENABLE_WEB_SOCKET_COMPRESSION"] = "true"
-os.environ["STREAMLIT_SERVER_ADDRESS"] = "localhost"  # 確保這行存在
-os.environ["STREAMLIT_BROWSER_OPEN_BROWSER"] = "true"
 # Initialize the database
 db_init_success = init_db()
 
