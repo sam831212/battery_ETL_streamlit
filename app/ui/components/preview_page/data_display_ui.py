@@ -130,7 +130,6 @@ def display_visualizations(step_df: pd.DataFrame, detail_df: pd.DataFrame):
     viz_tabs = st.tabs([
         "Voltage-Time",
         "Current-Time",
-        "Temperature-Time",
         "Combined Plots"
     ])
 
@@ -185,32 +184,7 @@ def display_visualizations(step_df: pd.DataFrame, detail_df: pd.DataFrame):
             st.error(f"Error generating Current vs Time plot: {str(e)}")
             st.info("This plot requires 'current', 'timestamp', and 'step_type' columns in the detail data.")
 
-    # Tab 3: Temperature vs Time
-    with viz_tabs[2]:
-        st.write("### Temperature vs Time")
-
-        try:
-            # Use detail data for time series plots
-            # Limit to 10,000 points for performance
-            if len(detail_df) > 10000:
-                plot_data = detail_df.sample(10000)
-            else:
-                plot_data = detail_df
-
-            temp_fig = plot_temperature_vs_time(
-                plot_data,
-                temperature_col='temperature',
-                time_col='timestamp',
-                step_type_col='step_type',
-                step_number_col='step_number',
-                title='Temperature vs Time by Step Type'
-            )
-            st.plotly_chart(temp_fig, use_container_width=True)
-        except Exception as e:
-            st.error(f"Error generating Temperature vs Time plot: {str(e)}")
-            st.info("This plot requires 'temperature', 'timestamp', and 'step_type' columns in the detail data.")
-
-    # Tab 4: Combined Plots
+    # Tab 3: Combined Plots
     with viz_tabs[3]:
         st.write("### Combined Voltage, Current, and Temperature")
 
