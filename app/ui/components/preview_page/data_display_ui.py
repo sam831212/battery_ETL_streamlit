@@ -14,7 +14,7 @@ def display_data_statistics(step_df: pd.DataFrame, detail_df: pd.DataFrame):
     """
     st.subheader("Data Statistics")
 
-    col1, col2, col3 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
         st.metric("Steps", step_df['step_number'].nunique())
@@ -182,7 +182,7 @@ def display_visualizations(step_df: pd.DataFrame, detail_df: pd.DataFrame):
             st.info("This plot requires 'current', 'timestamp', and 'step_type' columns in the detail data.")
 
     # Tab 3: Combined Plots
-    with viz_tabs[3]:
+    with viz_tabs[2]:
         st.write("### Combined Voltage, Current, and Temperature")
 
         try:
