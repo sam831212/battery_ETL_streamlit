@@ -102,7 +102,6 @@ menu_items = {
     "Data Preview": "📊",
     "Step Selection": "✅",
     "Meta Data": "📝",
-    "Dashboard": "📈",
     "Settings": "⚙️"
 }
 
@@ -180,10 +179,6 @@ elif st.session_state['current_page'] == "Meta Data":
     else:
         # Show success message
         st.success(f"You've selected {len(st.session_state.selected_steps_for_db)} steps for processing.")
-    
-elif st.session_state['current_page'] == "Dashboard":
-    from app.ui.dashboard_page import render_dashboard_page
-    render_dashboard_page()
     
 elif st.session_state['current_page'] == "Settings":
     from app.ui.settings_page import render_settings_page
