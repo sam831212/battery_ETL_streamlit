@@ -1,0 +1,49 @@
+-- V_vs_t source
+
+CREATE VIEW V_vs_t AS
+WITH base_data AS (
+    SELECT 
+        m.id,
+        m.step_id,
+        ABS(m.execution_time) AS execution_time,
+        m.voltage,
+        s.step_name,
+        s.experiment_id,
+        e.name AS experiment_name,
+        ROW_NUMBER() OVER (PARTITION BY m.step_id ORDER BY ABS(m.execution_time)) AS rn,
+        COUNT(*) OVER (PARTITION BY m.step_id) AS total_count
+    FROM measurement m
+    JOIN step s ON m.step_id = s.id
+    JOIN experiment e ON s.experiment_id = e.id
+),
+sampled_data AS (
+    SELECT 
+        id,
+        step_id,
+        execution_time,
+        voltage,
+        step_name,
+        experiment_id,
+        experiment_name,
+        rn,
+        total_count
+    FROM base_data
+    WHERE
+        -- Always include first and last points
+        rn = 1 OR rn = total_count
+        -- Include evenly distributed sample points for datasets > 200
+        OR (total_count > 200 AND rn % CAST((total_count + 199) / 200 AS INTEGER) = 1)
+        -- If total_count <= 200, include all points
+        OR total_count <= 200
+)
+SELECT 
+    id,
+    step_id,
+    execution_time,
+    voltage,
+    step_name,
+    experiment_id,
+    experiment_name,
+    experiment_name || ' - ' || step_name AS experiment_step_info
+FROM sampled_data
+ORDER BY step_id, execution_time;

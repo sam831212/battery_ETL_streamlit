@@ -1,0 +1,18 @@
+SELECT
+  "experiment"."id" AS "id",
+  "experiment"."name" AS "name",
+  "experiment"."description" AS "description",
+  "experiment"."battery_type" AS "battery_type",
+  "experiment"."nominal_capacity" AS "nominal_capacity",
+  "experiment"."operator" AS "operator",
+  "experiment"."start_date" AS "start_date",
+  "experiment"."project_id" AS "project_id",
+  "experiment"."cell_id" AS "cell_id",
+  "experiment"."machine_id" AS "machine_id"
+FROM
+  "experiment"
+WHERE
+  1=1
+[[AND "experiment"."id" IN ({{experiment_id}})]]
+LIMIT
+  1048575

@@ -1,0 +1,28 @@
+CREATE VIEW cap_percent_view AS
+WITH base_capacity AS (
+  SELECT
+    e.cell_id,
+    AVG(s.capacity) AS base_capacity
+  FROM step s
+  JOIN experiment e ON s.experiment_id = e.id
+  WHERE s.c_rate BETWEEN 0.5 AND 1.5
+    AND s.temperature_start BETWEEN 22 AND 28
+  GROUP BY e.cell_id
+)
+SELECT
+  s.id AS step_id,
+  s.experiment_id,
+  e.cell_id,
+  c.name AS cell_name,
+  s.capacity,
+  s.c_rate,
+  s.temperature_start,
+  CASE
+    WHEN b.base_capacity IS NOT NULL AND b.base_capacity != 0
+      THEN ROUND(1.0 * s.capacity / b.base_capacity, 3)
+    ELSE NULL
+  END AS capacity_percent
+FROM step s
+JOIN experiment e ON s.experiment_id = e.id
+JOIN cell c ON e.cell_id = c.id
+LEFT JOIN base_capacity b ON e.cell_id = b.cell_id;
